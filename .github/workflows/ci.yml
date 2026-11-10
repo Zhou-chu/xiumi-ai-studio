@@ -27,6 +27,7 @@ jobs:
       - run: pnpm check
       - run: pnpm build
       - run: powershell -NoProfile -File deploy/test-desktop.ps1
+      - run: pwsh -NoProfile -File deploy/test-desktop.ps1
       - run: pnpm exec playwright install chromium
       - run: pnpm sample
       - run: pnpm e2e --update-snapshots=none
