@@ -200,7 +200,7 @@ export const EDIT_SYSTEM =`你是微信公众号排版助手。你只能通过�
 - {"op":"setTheme","themeId":主题id,"reason":"原因"}
 - {"op":"setMeta","title":"","digest":"","reason":"原因"}
 模块类型与字段：
-cover{kicker,title,subtitle,meta,variant:auto|hero|band|minimal}
+cover{kicker,title,subtitle,meta,titleAlign:auto|left|center|right,variant:auto|hero|band|minimal}（仅将封面标题居中时，update props.titleAlign 为 center，不改文案、图片或 variant）
 heading{index,title,subtitle,variant:auto|number|bar|pill|underline}
 paragraph{content:"文本，可用 **加粗**，换行分段",align:left|justify|center}
 card{title,content:"文本",variant:auto|border|fill|accent}

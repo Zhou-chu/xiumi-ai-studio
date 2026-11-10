@@ -171,7 +171,7 @@ const R: Renderers = {
     const v = p.variant === 'auto' ? t.coverVariant : p.variant
     const img = p.image ? `<img src="${esc(ctx.img(p.image, '16:10'))}" alt="" style="${css({ width: '100%', display: 'block', 'border-radius': v === 'band' ? 0 : t.imageRadius })}">` : ''
     const title = (extra: Record<string, any> = {}) =>
-      ctx.p(esc(p.title), { 'font-size': t.h1Size, 'font-weight': 700, 'line-height': 1.4, 'font-family': ctx.headingFont, 'letter-spacing': 1, ...extra })
+      ctx.p(esc(p.title), { 'font-size': t.h1Size, 'font-weight': 700, 'line-height': 1.4, 'font-family': ctx.headingFont, 'letter-spacing': 1, ...extra, 'text-align': p.titleAlign && p.titleAlign !== 'auto' ? p.titleAlign : undefined })
     const sub = (extra: Record<string, any> = {}) => (p.subtitle ? ctx.p(esc(p.subtitle), { color: c.muted, 'font-size': t.fontSize - 1, ...extra }) : '')
     const meta = (extra: Record<string, any> = {}) => (p.meta ? ctx.p(esc(p.meta), { color: c.muted, 'font-size': t.smallSize, 'letter-spacing': 1, ...extra }) : '')
     const kicker = (extra: Record<string, any> = {}) => (p.kicker ? ctx.p(esc(p.kicker), { 'font-size': t.smallSize, 'letter-spacing': 2, 'font-weight': 700, ...extra }) : '')
