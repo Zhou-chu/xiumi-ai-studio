@@ -7,6 +7,7 @@ import { getTheme, registerTheme, resolveTheme } from '../core/themes'
 import type { Theme, ThemeTokens } from '../core/types'
 import { api, type AiStatus } from './api'
 import { CoverDesigner } from './CoverDesigner'
+import { readSuggestionPreference, saveSuggestionPreference } from './suggestionPreference'
 import { SuggestionInput } from './SuggestionInput'
 import { instructionSuggestions } from './suggestionQueue'
 import { PropsForm } from './PropsForm'
@@ -117,12 +118,12 @@ function AiPanel() {
   const [instruction, setInstruction] = useState('')
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
-  const [autoSuggest, setAutoSuggest] = useState(true)
+  const [autoSuggest, setAutoSuggest] = useState(readSuggestionPreference)
   const [suggestion, setSuggestion] = useState({ key: '', text: '', error: '' })
   const selectedId = scope === 'selection' ? selected?.id : undefined
   // Strip image URLs and rich-text metadata, and send only selected content in selection mode.
   const context = useMemo(() => aiContext(selectedId && selected ? { ...doc, blocks: [selected] } : doc), [doc, selected, selectedId])
-  const contextKey = JSON.stringify([doc.id, context, selectedId, ai?.profileId, ai?.model, ai?.provider])
+  const contextKey = JSON.stringify([doc.id, context, selectedId, ai?.profileId, ai?.model, ai?.provider, instructionSuggestions.revision])
   useEffect(() => {
     if (!autoSuggest || !ai?.enabled || instruction || busy || !context.blocks.length) return
     const controller = new AbortController()
@@ -136,8 +137,9 @@ function AiPanel() {
   useEffect(() => {
     const load = () => api.aiStatus().then(setAi).catch(() => setAi(null))
     load()
-    window.addEventListener('ai-settings-changed', load)
-    return () => window.removeEventListener('ai-settings-changed', load)
+    const reload = () => { instructionSuggestions.clear(); void load() }
+    window.addEventListener('ai-settings-changed', reload)
+    return () => window.removeEventListener('ai-settings-changed', reload)
   }, [])
   const run = async () => {
     if (!instruction.trim()) return
@@ -167,8 +169,8 @@ function AiPanel() {
         </select>
       </label>
       <p className="hint">{selected && scope === 'selection' ? '仅生成选中模块的修改建议，其他模块不会被修改。' : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
-      <label className="hint"><input type="checkbox" checked={autoSuggest} onChange={(e) => setAutoSuggest(e.target.checked)} /> 自动生成输入建议</label>
-      <p className="hint">开启后会将当前范围的文稿发送到当前模型，可能产生 API 费用；最多每 30 秒请求一次。不发送图片文件。</p>
+      <label className="hint"><input type="checkbox" checked={autoSuggest} onChange={(e) => { saveSuggestionPreference(e.target.checked); setAutoSuggest(e.target.checked) }} /> 自动生成输入建议</label>
+      <p className="hint">开启后会将当前范围的文稿发送到当前模型，可能产生 API 费用；当前页面的建议请求间隔至少 30 秒。不发送图片文件。</p>
       <SuggestionInput value={instruction} onChange={setInstruction} disabled={!ai?.enabled || busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
       {autoSuggest && suggestion.key === contextKey && suggestion.error && <p className="hint" role="status">{suggestion.error}</p>}
       <button className="primary wide" disabled={!ai?.enabled || busy} onClick={run}>{busy ? 'AI 思考中…' : '生成修改建议'}</button>

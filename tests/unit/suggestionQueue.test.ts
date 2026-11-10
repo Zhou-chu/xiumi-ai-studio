@@ -40,3 +40,9 @@ it('enforces the minimum interval and does not automatically retry failures', as
     expect(failing).toHaveBeenCalledTimes(1)
   } finally { vi.useRealTimers() }
 })
+it('invalidates a failed context after settings change', async () => {
+  const queue = new SuggestionQueue(0)
+  await expect(queue.get('a', async () => { throw new Error('bad key') }, new AbortController().signal)).rejects.toThrow()
+  queue.clear()
+  expect(await queue.get('a', async () => ({ suggestion: 'new credentials' }), new AbortController().signal)).toBe('new credentials')
+})

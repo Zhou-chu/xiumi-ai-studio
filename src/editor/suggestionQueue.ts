@@ -3,6 +3,8 @@ export class SuggestionQueue {
   private cache = new Map<string, string>()
   private pending: Promise<unknown> | null = null
   private lastStart = 0
+  revision = 0
+  clear() { this.cache.clear(); this.revision++ }
   constructor(private interval = 30_000) {}
   async get(key: string, fetch: () => Promise<{ suggestion: string }>, signal: AbortSignal): Promise<string> {
     while (this.pending) await this.pending.catch(() => undefined)
@@ -18,18 +20,22 @@ export class SuggestionQueue {
       return this.get(key, fetch, signal)
     }
     this.lastStart = Date.now()
+    const revision = this.revision
     const request = fetch()
     this.pending = request
     try {
       const result = await request
-      this.cache.set(key, result.suggestion)
+      if (revision === this.revision) this.cache.set(key, result.suggestion)
       if (this.cache.size > 20) this.cache.delete(this.cache.keys().next().value!)
       return result.suggestion
     } catch (error) {
       // No automatic retry loops for a failed context (including bad credentials).
-      this.cache.set(key, '')
+      if (revision === this.revision) this.cache.set(key, '')
       throw error
-    } finally { this.pending = null }
+    } finally {
+      if (this.cache.size > 20) this.cache.delete(this.cache.keys().next().value!)
+      this.pending = null
+    }
   }
 }
 export const instructionSuggestions = new SuggestionQueue()
