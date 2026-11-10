@@ -2,7 +2,7 @@
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ColorModeControl, ColorModeProvider } from '../../src/editor/ColorMode'
+import { ColorModeControl, ColorModeProvider } from '../../src/editor/ColorModeControl'
 import { COLOR_MODE_KEY, readColorMode, resolveColorMode } from '../../src/editor/colorMode'
 import { readFileSync } from 'node:fs'
 

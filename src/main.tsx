@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { ColorModeProvider } from './editor/ColorMode'
+import { ColorModeProvider } from './editor/ColorModeControl'
 import { ErrorBoundary } from './editor/ErrorBoundary'
 import { saveNow, useStore } from './editor/store'
 import './styles.css'

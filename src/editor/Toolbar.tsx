@@ -1,4 +1,4 @@
-import { ColorModeControl } from './ColorMode'
+import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
