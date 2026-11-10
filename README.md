@@ -64,6 +64,8 @@ data/          本地数据（不入库）
 
 ## 文档
 
+- [功能需求与实现清单（持续维护）](docs/functional-requirements.md)
+
 - [P0 调研与技术选型](docs/01-research.md)
 - [微信兼容性测试](docs/03-wechat-compat-test.md)
 - [多 Agent 协作流程](docs/04-multi-agent-workflow.md)
