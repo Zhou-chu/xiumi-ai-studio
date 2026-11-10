@@ -6,7 +6,8 @@ import { nanoid } from 'nanoid'
 import { cropAsset, deleteAsset, listAssets, saveAsset, variantPath } from './assets'
 import { listComponents, removeComponent, saveComponent, updateComponent } from './components'
 import { IMAGE_HOST, safeFetch, WECHAT_IMAGE_HOST } from './net'
-import { aiStatus, chatJson, COPY_SYSTEM, DESIGN_SYSTEM, EDIT_SYSTEM, ENRICH_SYSTEM, OUTLINE_SYSTEM, PLACE_SYSTEM } from './ai'
+import { aiStatus, chatJson, discoverModels, COPY_SYSTEM, DESIGN_SYSTEM, EDIT_SYSTEM, ENRICH_SYSTEM, OUTLINE_SYSTEM, PLACE_SYSTEM } from './ai'
+import { editPrompt, scopeEditResult } from './aiEdit'
 import { isRoleId } from '../src/core/roles'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
 import { importFile } from './importer'
@@ -169,6 +170,10 @@ app.get('/api/ai/status', h(async (req, res) => res.json(await aiStatus(req.quer
 app.get('/api/settings/ai', h(async (_req, res) => res.json(await publicAiSettings())))
 app.put('/api/settings/ai', h(async (req, res) => res.json(await saveAiSettings(req.body))))
 /** 测试连接：让模型返回一个最小 JSON */
+app.post('/api/settings/ai/models', h(async (req, res) => {
+  res.json(await discoverModels(await resolveDraftProfile(req.body ?? {})))
+}))
+
 app.post('/api/settings/ai/test', h(async (req, res) => {
   const profile = await resolveDraftProfile(req.body ?? {})
   const t0 = Date.now()
@@ -251,12 +256,12 @@ ${JSON.stringify(b.layouts ?? {})}`
   res.json(await chatJson(PLACE_SYSTEM, user, { maxTokens: 3000, temperature: 0.3, profileId: pid(req) }))
 }))
 app.post('/api/ai/edit', h(async (req, res) => {
-  const { context, instruction } = req.body
-  const user = `当前文档（模块按顺序排列）：
-${JSON.stringify(context)}
-
-用户指令：${String(instruction).slice(0, 2000)}`
-  res.json(await chatJson(EDIT_SYSTEM, user, { maxTokens: 6000, profileId: pid(req) }))
+  const { context, instruction, selectedId } = req.body
+  if (selectedId !== undefined && (typeof selectedId !== 'string' || !selectedId)) {
+    throw Object.assign(new Error('无效的选中模块'), { status: 400 })
+  }
+  const user = editPrompt(context, instruction, selectedId)
+  res.json(scopeEditResult(await chatJson(EDIT_SYSTEM, user, { maxTokens: 6000, profileId: pid(req) }), selectedId))
 }))
 
 // ---------- 文章抓取（导入公众号推文 / 参考风格） ----------
