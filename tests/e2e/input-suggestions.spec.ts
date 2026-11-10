@@ -46,3 +46,27 @@ test('contextual ghost text is opt-out, editable, and never auto-submitted', asy
   await page.getByRole('button', { name: '生成修改建议', exact: true }).click()
   await expect.poll(() => edits).toBe(1)
 })
+
+test('model settings changes outside AI tab invalidate a failed suggestion', async ({ page }) => {
+  let calls = 0
+  await page.route('**/api/ai/status', route => route.fulfill({ json: { enabled: true, name: 'Mock', model: 'mock', profileId: 'test' } }))
+  await page.route('**/api/ai/suggest-instruction', route => {
+    calls++
+    return calls === 1 ? route.fulfill({ status: 503, json: { error: 'invalid credentials' } }) : route.fulfill({ json: { suggestion: '重新生成的输入建议' } })
+  })
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  await page.getByTestId('open-import').click()
+  await page.getByTestId('load-sample').click()
+  await page.getByTestId('use-ai').uncheck()
+  await page.getByTestId('generate').click()
+  await page.getByTestId('choose-narrative').click()
+  await page.getByTestId('tab-ai').click()
+  await expect(page.getByRole('status')).toContainText('自动建议暂不可用')
+  await page.getByTestId('tab-theme').click()
+  // AiSettingsModal dispatches this after saving, including from non-AI tabs.
+  await page.evaluate(() => window.dispatchEvent(new Event('ai-settings-changed')))
+  await page.getByTestId('tab-ai').click()
+  await expect(page.getByRole('textbox', { name: 'AI 修改指令' })).toHaveAttribute('placeholder', '重新生成的输入建议', { timeout: 35_000 })
+  expect(calls).toBe(2)
+})

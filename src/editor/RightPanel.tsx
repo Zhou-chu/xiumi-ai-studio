@@ -137,9 +137,8 @@ function AiPanel() {
   useEffect(() => {
     const load = () => api.aiStatus().then(setAi).catch(() => setAi(null))
     load()
-    const reload = () => { instructionSuggestions.clear(); void load() }
-    window.addEventListener('ai-settings-changed', reload)
-    return () => window.removeEventListener('ai-settings-changed', reload)
+    window.addEventListener('ai-settings-changed', load)
+    return () => window.removeEventListener('ai-settings-changed', load)
   }, [])
   const run = async () => {
     if (!instruction.trim()) return

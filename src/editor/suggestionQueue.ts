@@ -39,3 +39,10 @@ export class SuggestionQueue {
   }
 }
 export const instructionSuggestions = new SuggestionQueue()
+
+/** Owned by App, not the conditionally mounted AI tab. */
+export function listenForAiSettings(target: EventTarget): () => void {
+  const clear = () => instructionSuggestions.clear()
+  target.addEventListener('ai-settings-changed', clear)
+  return () => target.removeEventListener('ai-settings-changed', clear)
+}

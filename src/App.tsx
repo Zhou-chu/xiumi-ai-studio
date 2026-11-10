@@ -12,6 +12,7 @@ import { KIT_ITEMS } from './editor/kitItems'
 import { LeftPanel } from './editor/LeftPanel'
 import { RightPanel } from './editor/RightPanel'
 import { emptyDoc, loadCustomThemes, saveNow, useStore } from './editor/store'
+import { listenForAiSettings } from './editor/suggestionQueue'
 import { Toolbar } from './editor/Toolbar'
 
 type Hit = { data?: { droppableContainer?: { data?: { current?: { parentId?: string | null } } } } }
@@ -80,6 +81,7 @@ function useShortcuts() {
 }
 
 export default function App() {
+  useEffect(() => listenForAiSettings(window), [])
   const [ready, setReady] = useState(false)
   const [dragLabel, setDragLabel] = useState<string | null>(null)
   const toast = useStore((s) => s.toast)

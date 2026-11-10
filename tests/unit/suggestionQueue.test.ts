@@ -46,3 +46,14 @@ it('invalidates a failed context after settings change', async () => {
   queue.clear()
   expect(await queue.get('a', async () => ({ suggestion: 'new credentials' }), new AbortController().signal)).toBe('new credentials')
 })
+it('invalidates cached failures from global settings events even without an AI panel', async () => {
+  const { listenForAiSettings, instructionSuggestions } = await import('../../src/editor/suggestionQueue')
+  const target = new EventTarget()
+  const before = instructionSuggestions.revision
+  const stop = listenForAiSettings(target)
+  target.dispatchEvent(new Event('ai-settings-changed'))
+  expect(instructionSuggestions.revision).toBe(before + 1)
+  stop()
+  target.dispatchEvent(new Event('ai-settings-changed'))
+  expect(instructionSuggestions.revision).toBe(before + 1)
+})
