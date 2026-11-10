@@ -264,15 +264,16 @@ async function fetchPage(raw: string) {
   const r = await safeFetch(raw, {
     headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36', 'accept-language': 'zh-CN,zh;q=0.9' },
     maxRedirects: 5,
+    maxBytes: 5_000_000,
   })
   if (!r.ok) throw Object.assign(new Error(`抓取失败 HTTP ${r.status}`), { status: 502 })
   return r.text()
 }
-app.post('/api/article/fetch', h(async (req, res) => res.json({ html: (await fetchPage(String(req.body.url))).slice(0, 5_000_000) })))
-app.post('/api/reference/fetch', h(async (req, res) => res.json({ html: (await fetchPage(String(req.body.url))).slice(0, 5_000_000) })))
+app.post('/api/article/fetch', h(async (req, res) => res.json({ html: await fetchPage(String(req.body.url)) })))
+app.post('/api/reference/fetch', h(async (req, res) => res.json({ html: await fetchPage(String(req.body.url)) })))
 /** 编辑器显示微信背景图用：只读转发，只放行微信图床，不保存 */
 app.get('/api/wx-image', h(async (req, res) => {
-  const r = await safeFetch(String(req.query.u ?? ''), { headers: { 'user-agent': 'Mozilla/5.0' }, allowHost: (host) => WECHAT_IMAGE_HOST.test(host) }).catch(() => null)
+  const r = await safeFetch(String(req.query.u ?? ''), { headers: { 'user-agent': 'Mozilla/5.0' }, allowHost: (host) => WECHAT_IMAGE_HOST.test(host), maxBytes: MAX_IMPORT_IMAGE }).catch(() => null)
   if (!r?.ok) return res.status(502).end()
   res.setHeader('Content-Type', r.headers.get('content-type') ?? 'image/jpeg')
   res.setHeader('Cache-Control', 'public, max-age=86400')
@@ -286,7 +287,7 @@ app.post('/api/assets/fetch', h(async (req, res) => {
   const worker = async () => {
     for (let u = queue.shift(); u; u = queue.shift()) {
       try {
-        const r = await safeFetch(u, { headers: { 'user-agent': 'Mozilla/5.0' }, allowHost: (host) => IMAGE_HOST.test(host) })
+        const r = await safeFetch(u, { headers: { 'user-agent': 'Mozilla/5.0' }, allowHost: (host) => IMAGE_HOST.test(host), maxBytes: MAX_IMPORT_IMAGE })
         if (!r.ok) continue
         const buf = Buffer.from(await r.arrayBuffer())
         if (buf.length > MAX_IMPORT_IMAGE) continue
