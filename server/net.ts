@@ -4,15 +4,26 @@ import { isIP } from 'node:net'
 
 const httpError = (message: string, status = 400) => Object.assign(new Error(message), { status })
 
+// URL 解析器会把点分十进制 mapped IPv6 改写成十六进制，必须先统一格式。
+function normalizeAddress(ip: string): string {
+  let addr = ip.toLowerCase().replace(/^\[|\]$/g, '')
+  if (isIP(addr) !== 6) return addr
+  // DNS 可能返回带接口作用域的 IPv6；作用域不改变地址所属网段。
+  addr = new URL(`http://[${addr.split('%')[0]}]/`).hostname.slice(1, -1)
+  const mapped = addr.match(/^::ffff:([\da-f]+):([\da-f]+)$/)
+  if (!mapped) return addr
+  const high = parseInt(mapped[1], 16)
+  const low = parseInt(mapped[2], 16)
+  return [high >>> 8, high & 255, low >>> 8, low & 255].join('.')
+}
+
 /**
  * 回环、私有网段、链路本地、保留地址。
  * 198.18.0.0/15 不算：Clash 等代理的 fake-ip 模式会把所有域名解析到这个网段，拦截它会让抓取全部失败。
  * 这个网段本身没有内网服务；直接写成 IP 的链接由 assertPublicUrl 单独拒绝。
  */
 export function isPrivateAddress(ip: string): boolean {
-  const addr = ip.toLowerCase().replace(/^\[|\]$/g, '')
-  const mapped = addr.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
-  if (mapped) return isPrivateAddress(mapped[1])
+  const addr = normalizeAddress(ip)
   if (isIP(addr) === 4) {
     const [a, b] = addr.split('.').map(Number)
     return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
@@ -30,7 +41,7 @@ export async function assertPublicUrl(url: URL, resolve: Lookup = dnsLookup) {
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
   if (host === 'localhost' || /\.(localhost|local|internal)$/.test(host)) throw httpError('不允许访问内网地址')
   if (isIP(host)) {
-    if (isPrivateAddress(host) || /^198\.(18|19)\./.test(host)) throw httpError('不允许访问内网地址')
+    if (isPrivateAddress(host) || /^198\.(18|19)\./.test(normalizeAddress(host))) throw httpError('不允许访问内网地址')
     return
   }
   const list = await resolve(host).catch(() => {
