@@ -14,7 +14,8 @@ test('cover title supports manual alignment and scoped AI alignment without chan
   await page.getByRole('button', { name: '新建空白项目' }).click()
   await page.getByTestId('tab-blocks').click()
   await page.getByTestId('lib-cover').click()
-  const cover = page.getByTestId('canvas').locator('[data-block-type="cover"]')
+  const coverId = await page.getByTestId('canvas').locator('[data-block-type="cover"]').last().getAttribute('data-block-id')
+  const cover = page.getByTestId('canvas').locator(`[data-block-id="${coverId}"]`)
   await cover.dblclick()
   const editor = cover.getByTestId('inline-block-text')
   const title = '秋日读书会 在清华园里，与一本书相遇'
