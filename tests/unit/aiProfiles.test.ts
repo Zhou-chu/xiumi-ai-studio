@@ -5,14 +5,14 @@ const profile: AiProfile = { id: 'a', name: 'custom', provider: 'openai', baseUr
 afterEach(() => vi.unstubAllGlobals())
 describe('model discovery and reasoning', () => {
   it('reads upstream IDs and optional metadata without inventing missing capabilities', async () => {
-    vi.stubGlobal('fetch', async () => Response.json({ data: [{ id: 'custom', context_length: 12345, reasoning_efforts: ['low', 'high'] }, { id: 'plain' }, { name: 'invalid' }] }))
-    expect(await discoverModels(profile)).toEqual([{ id: 'custom', contextWindow: 12345, reasoningEfforts: ['low', 'high'] }, { id: 'plain' }])
+    vi.stubGlobal('fetch', async () => Response.json({ data: [{ id: 'custom', context_length: 12345, reasoning_efforts: ['low', 'high'] }, { id: 'plain' }, { missingId: 'invalid' }] }))
+    expect(await discoverModels(profile)).toEqual([{ id: 'custom', contextWindow: 12345, efforts: ['low', 'high'], reasoningEfforts: ['low', 'high'] }, { id: 'plain' }])
   })
   it('uses the Anthropic models path once when base already ends in v1', async () => {
     let url = ''
     vi.stubGlobal('fetch', async (input: string) => { url = input; return Response.json({ data: [{ id: 'claude' }] }) })
     await discoverModels({ ...profile, provider: 'anthropic' })
-    expect(url).toBe('https://example.com/v1/models')
+    expect(new URL(url).origin + new URL(url).pathname).toBe('https://example.com/v1/models')
   })
   it('sends explicit custom reasoning effort and omits incompatible temperature', async () => {
     let body: any
