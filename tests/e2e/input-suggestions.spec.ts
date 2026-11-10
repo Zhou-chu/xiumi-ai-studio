@@ -62,7 +62,7 @@ test('model settings changes outside AI tab invalidate a failed suggestion', asy
   await page.getByTestId('generate').click()
   await page.getByTestId('choose-narrative').click()
   await page.getByTestId('tab-ai').click()
-  await expect(page.getByRole('status')).toContainText('自动建议暂不可用')
+  await expect(page.getByRole('status').filter({ hasText: '自动建议暂不可用' })).toBeVisible()
   await page.getByTestId('tab-theme').click()
   // AiSettingsModal dispatches this after saving, including from non-AI tabs.
   await page.evaluate(() => window.dispatchEvent(new Event('ai-settings-changed')))
