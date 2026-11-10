@@ -44,6 +44,47 @@ async function readError(res: Response) {
   }
 }
 
+export interface DiscoveredModel {
+  id: string
+  contextWindow?: number
+  reasoningEfforts?: string[]
+}
+
+function anthropicBase(base: string) {
+  return base.replace(/\/+$/, '').replace(/\/v1$/, '') + '/v1'
+}
+
+/** Models endpoints do not standardize capabilities: never infer them from IDs. */
+export async function discoverModels(p: AiProfile): Promise<DiscoveredModel[]> {
+  if (!p.baseUrl) throw Object.assign(new Error('请先填写接口地址'), { status: 400 })
+  const base = p.provider === 'anthropic' ? anthropicBase(p.baseUrl) : p.baseUrl.replace(/\/+$/, '')
+  const res = await fetch(`${base}/models`, {
+    signal: AbortSignal.timeout(20_000),
+    redirect: 'error',
+    headers: p.provider === 'anthropic'
+      ? { 'x-api-key': p.apiKey, 'anthropic-version': '2023-06-01' }
+      : (p.apiKey ? { authorization: `Bearer ${p.apiKey}` } : {}),
+  })
+  if (!res.ok) throw Object.assign(new Error(`获取模型失败 ${res.status}: ${await readError(res)}`), { status: 502 })
+  const data = await res.json() as { data?: unknown[] }
+  if (!Array.isArray(data.data)) throw new Error('服务未返回兼容的模型列表，请手动填写模型名称')
+  const models = new Map<string, DiscoveredModel>()
+  for (const raw of data.data) {
+    if (!raw || typeof raw !== 'object') continue
+    const m = raw as Record<string, unknown>
+    if (typeof m.id !== 'string' || !m.id.trim()) continue
+    const model: DiscoveredModel = { id: m.id }
+    const context = m.context_length ?? m.context_window ?? m.max_context_length
+    if (typeof context === 'number' && Number.isSafeInteger(context) && context > 0) model.contextWindow = context
+    if (Array.isArray(m.reasoning_efforts)) {
+      const efforts = m.reasoning_efforts.filter((v): v is string => typeof v === 'string' && /^[a-zA-Z0-9_-]{1,40}$/.test(v))
+      if (efforts.length) model.reasoningEfforts = [...new Set(efforts)]
+    }
+    models.set(model.id, model)
+  }
+  return [...models.values()]
+}
+
 export async function chatJson(system: string, user: string, opts: ChatOpts = {}): Promise<any> {
   const p = opts.profile ?? (await getProfile(opts.profileId))
   if (!p || !p.baseUrl || !p.model) throw Object.assign(new Error('尚未配置 AI 模型：请在「AI 模型设置」中添加'), { status: 503 })
@@ -51,14 +92,14 @@ export async function chatJson(system: string, user: string, opts: ChatOpts = {}
   const timer = setTimeout(() => ctrl.abort(), 180_000)
   try {
     if (p.provider === 'anthropic') {
-      const res = await fetch(`${p.baseUrl}/v1/messages`, {
+      const res = await fetch(`${anthropicBase(p.baseUrl)}/messages`, {
         method: 'POST',
         signal: ctrl.signal,
         headers: { 'content-type': 'application/json', 'x-api-key': p.apiKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: p.model,
           max_tokens: opts.maxTokens ?? 8000,
-          temperature: opts.temperature ?? 0.4,
+          ...(p.reasoningEffort ? { output_config: { effort: p.reasoningEffort } } : { temperature: opts.temperature ?? 0.4 }),
           system,
           messages: [{ role: 'user', content: user }],
         }),
@@ -74,8 +115,9 @@ export async function chatJson(system: string, user: string, opts: ChatOpts = {}
         headers: { 'content-type': 'application/json', ...(p.apiKey ? { authorization: `Bearer ${p.apiKey}` } : {}) },
         body: JSON.stringify({
           model: p.model,
-          temperature: opts.temperature ?? 0.4,
-          max_tokens: opts.maxTokens ?? 8000,
+          ...(p.reasoningEffort
+            ? { reasoning_effort: p.reasoningEffort, max_completion_tokens: opts.maxTokens ?? 8000 }
+            : { temperature: opts.temperature ?? 0.4, max_tokens: opts.maxTokens ?? 8000 }),
           ...(json ? { response_format: { type: 'json_object' } } : {}),
           messages: [
             { role: 'system', content: system },

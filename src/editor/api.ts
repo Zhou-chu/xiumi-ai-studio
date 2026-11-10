@@ -31,6 +31,9 @@ export interface AiProfile {
   baseUrl: string
   apiKey: string
   model: string
+  /** Optional metadata supplied by the provider or entered manually. */
+  contextWindow?: number
+  reasoningEffort?: string
   jsonMode: boolean
   hasKey?: boolean
   readonly?: boolean
@@ -112,13 +115,14 @@ export const api = {
   aiStatus: () => req<AiStatus>('GET', '/api/ai/status'),
   aiSettings: () => req<AiSettings>('GET', '/api/settings/ai'),
   saveAiSettings: (s: { activeId: string; profiles: AiProfile[] }) => req<AiSettings>('PUT', '/api/settings/ai', s),
+  aiModels: (p: AiProfile) => req<{ id: string; contextWindow?: number; reasoningEfforts?: string[] }[]>('POST', '/api/settings/ai/models', p),
   testAi: (p: AiProfile) => req<{ ok: boolean; reply: unknown; ms: number }>('POST', '/api/settings/ai/test', p),
   aiOutline: (text: string, imageNames: string[], imageNotes: string[] = [], profileId?: string) => req<any>('POST', '/api/ai/outline', { text, imageNames, imageNotes, profileId }),
   aiDesign: (brief: unknown, hint: string, profileId?: string) => req<{ designs: any[] }>('POST', '/api/ai/design', { brief, hint, profileId }),
   aiCopywrite: (body: { brief: string; style: string; length: string; levels: number; extra: string; previous?: string; revise?: string; profileId?: string }) => req<{ markdown?: string }>('POST', '/api/ai/copywrite', body),
   aiEnrichCopy: (body: { text: string; photos: unknown[]; keep: string[]; profileId?: string }) => req<{ markdown?: string; changes?: string[] }>('POST', '/api/ai/enrich-copy', body),
   aiPlacePhotos: (body: unknown) => req<{ placements?: unknown[] }>('POST', '/api/ai/place-photos', body),
-  aiEdit: (context: unknown, instruction: string, profileId?: string) => req<{ summary: string; ops: any[] }>('POST', '/api/ai/edit', { context, instruction, profileId }),
+  aiEdit: (context: unknown, instruction: string, profileId?: string, selectedId?: string) => req<{ summary: string; ops: any[] }>('POST', '/api/ai/edit', { context, instruction, profileId, selectedId }),
   fetchReference: (url: string) => req<{ html: string }>('POST', '/api/reference/fetch', { url }),
   fetchArticle: (url: string) => req<{ html: string }>('POST', '/api/article/fetch', { url }),
   fetchAssets: (urls: string[]) => req<Record<string, Asset>>('POST', '/api/assets/fetch', { urls }),

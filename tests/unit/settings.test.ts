@@ -39,4 +39,20 @@ describe('ai settings', () => {
     expect((await settings.getProfile())?.name).toBe('B')
     expect((await settings.getProfile('a'))?.name).toBe('A')
   })
+  it('does not reuse saved secrets at another origin or provider', async () => {
+    const saved = await settings.saveAiSettings({ activeId: 'a', profiles: [{ id: 'a', provider: 'openai', baseUrl: 'https://one.example/v1', apiKey: 'test-secret', model: 'm' }] })
+    await expect(settings.resolveDraftProfile({ ...saved.profiles[0], baseUrl: 'https://two.example/v1' })).rejects.toThrow('重新输入')
+    await expect(settings.resolveDraftProfile({ ...saved.profiles[0], provider: 'anthropic' })).rejects.toThrow('重新输入')
+    await expect(settings.saveAiSettings({ activeId: 'a', profiles: [{ ...saved.profiles[0], baseUrl: 'https://two.example/v1' }] })).rejects.toThrow('重新输入')
+    expect((await settings.resolveDraftProfile({ ...saved.profiles[0], baseUrl: 'https://one.example/custom/v1' })).apiKey).toBe('test-secret')
+    expect((await settings.resolveDraftProfile({ ...saved.profiles[0], baseUrl: 'https://two.example', apiKey: 'new-test-key' })).apiKey).toBe('new-test-key')
+  })
+  it('persists validated context and reasoning settings', async () => {
+    await settings.saveAiSettings({ activeId: 'a', profiles: [{ id: 'a', baseUrl: 'https://one.example/v1', apiKey: 'test-key', contextWindow: 128000, reasoningEffort: 'high' }] })
+    expect(await settings.getProfile('a')).toMatchObject({ contextWindow: 128000, reasoningEffort: 'high' })
+    const draft = await settings.resolveDraftProfile({ contextWindow: -1, reasoningEffort: 'not a valid effort' })
+    expect(draft.contextWindow).toBeUndefined()
+    expect(draft.reasoningEffort).toBeUndefined()
+  })
+
 })
