@@ -20,7 +20,7 @@ async function seed(page: Page, name: string) {
   const response = await page.request.put(`/api/projects/${id}`, {
     data: {
       id, title: name, author: '', digest: '', themeId: 'minimal-magazine', createdAt: now, updatedAt: now,
-      blocks: [{ id: 'responsive-paragraph', type: 'paragraph', props: { content: '移动端编辑测试正文', align: 'left' } }],
+      blocks: [{ id: 'responsive-paragraph', type: 'paragraph', props: { content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '移动端编辑测试正文' }] }] }, align: 'left' } }],
     },
   })
   expect(response.ok()).toBe(true)
@@ -69,6 +69,7 @@ for (const viewport of viewports) {
       const lightToolbar = await page.locator('.toolbar').evaluate(el => getComputedStyle(el).backgroundColor)
       const article = page.getByTestId('canvas')
       const before = await article.innerHTML()
+      await expect(page.locator('.toast')).toHaveCount(0)
       const lightArticle = await article.screenshot({ animations: 'disabled' })
       await test.info().attach(`${viewport.name}-light`, { body: await page.screenshot(), contentType: 'image/png' })
       await theme.selectOption('dark')

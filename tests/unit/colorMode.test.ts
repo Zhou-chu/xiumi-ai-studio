@@ -223,3 +223,25 @@ it('does not apply shell overrides to colliding classes in imported content or t
     style.remove()
   }
 })
+
+it.each(['light', 'dark'])('keeps actual %s success toast text readable', (mode) => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/styles.css', 'utf8') + '\n' + readFileSync('src/color-mode.css', 'utf8')
+  document.head.append(style)
+  document.documentElement.dataset.colorMode = mode
+  host.innerHTML = '<div id="root"><div class="app"><div class="toast ok">已保存</div></div></div>'
+  const hex = (value: string): string => {
+    const variable = value.match(/^var\((--[\w-]+)\)$/)
+    if (variable) return hex(getComputedStyle(document.documentElement).getPropertyValue(variable[1]).trim())
+    if (value.startsWith('#')) return value
+    const rgb = value.match(/^rgb\((\d+), (\d+), (\d+)\)$/)
+    expect(rgb, `Expected opaque color, received ${value}`).not.toBeNull()
+    return '#' + rgb!.slice(1).map(channel => Number(channel).toString(16).padStart(2, '0')).join('')
+  }
+  try {
+    for (const toast of host.querySelectorAll('.toast')) {
+      const css = getComputedStyle(toast)
+      expect(contrast(hex(css.color), hex(css.backgroundColor)), `${mode} ${toast.className}`).toBeGreaterThanOrEqual(4.5)
+    }
+  } finally { style.remove() }
+})

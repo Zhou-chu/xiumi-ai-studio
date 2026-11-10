@@ -18,11 +18,11 @@ test('discovers custom models, imports context and keeps manual reasoning settin
     await models.selectOption('custom-reasoner')
     await expect(page.getByPlaceholder(/例如 deepseek-chat/)).toHaveValue('custom-reasoner')
     await expect(page.getByLabel('上下文窗口', { exact: false })).toHaveValue('128000')
-    await page.getByLabel('思考强度', { exact: false }).fill('high')
+    await page.getByTestId('ai-effort').fill('high')
     await page.getByRole('button', { name: '保存', exact: true }).click()
     await page.getByTestId('open-ai-settings').click()
     await page.getByText('Discovery test', { exact: true }).click()
-    await expect(page.getByLabel('思考强度', { exact: false })).toHaveValue('high')
+    await expect(page.getByTestId('ai-effort')).toHaveValue('high')
     await expect(page.getByLabel('上下文窗口', { exact: false })).toHaveValue('128000')
   } finally {
     // The suite shares one disposable API server. Do not leave our custom

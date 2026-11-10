@@ -5,7 +5,7 @@ async function openEditor(page: Page) {
   const id = `color-${now}-${Math.random().toString(36).slice(2)}`
   const response = await page.request.put(`/api/projects/${id}`, { data: {
     id, title: '界面主题不改变文章', author: '', digest: '', themeId: 'minimal-magazine', createdAt: now, updatedAt: now,
-    blocks: [{ id: 'color-paragraph', type: 'paragraph', props: { content: '原有文字和文章配色保持不变。', align: 'justify' } }],
+    blocks: [{ id: 'color-paragraph', type: 'paragraph', props: { content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '原有文字和文章配色保持不变。' }] }] }, align: 'justify' } }],
   } })
   expect(response.ok()).toBe(true)
   await page.goto('/')

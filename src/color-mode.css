@@ -148,3 +148,6 @@
 :root button.help-trigger:not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)),
 :root button.help-trigger:hover:not(:disabled):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: transparent; color: inherit; }
 :root :is(input, textarea):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *))::placeholder { color: var(--faint); opacity: 1; }
+
+/* Success toasts use a dark surface in light mode: do not inherit .ok's green. */
+:root:not([data-color-mode='dark']) #root > .app > .toast.ok { color: #fff; }
