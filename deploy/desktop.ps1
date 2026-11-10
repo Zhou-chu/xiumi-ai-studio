@@ -19,7 +19,13 @@ function Test-OwnedProcess($State) {
   if (-not $State -or -not $State.pid) { return $false }
   $p = Get-Process -Id $State.pid -ErrorAction SilentlyContinue
   if (-not $p) { return $false }
-  return $p.ProcessName -eq 'node' -and $p.StartTime.ToUniversalTime().ToString('o') -eq $State.started
+  try {
+    # PowerShell 7.5+ ConvertFrom-Json materializes ISO dates as DateTime.
+    $started = if ($State.started -is [DateTime]) { $State.started } else {
+      [DateTime]::ParseExact($State.started, 'o', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+    }
+    return $p.ProcessName -eq 'node' -and $p.StartTime.ToUniversalTime().Ticks -eq $started.ToUniversalTime().Ticks
+  } catch { return $false }
 }
 function Stop-OwnedProcess($State) {
   if (Test-OwnedProcess $State) {
@@ -45,7 +51,7 @@ function Start-App([string]$Release, [int]$ListenPort, [string]$DataPath) {
     $env:DATA_DIR = $DataPath
     $p = Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList @('--import','tsx','server/index.ts') -WorkingDirectory $Release -WindowStyle Hidden -PassThru -RedirectStandardOutput "$log.out.log" -RedirectStandardError "$log.err.log"
   } finally {
-    foreach ($name in $savedEnv.Keys) { [Environment]::SetEnvironmentVariable($name, $savedEnv[$name], 'Process') }
+    foreach ($name in $savedEnv.Keys) { $value = if ($null -eq $savedEnv[$name]) { [NullString]::Value } else { $savedEnv[$name] }; [Environment]::SetEnvironmentVariable($name, $value, 'Process') }
   }
   $state = @{ pid=$p.Id; started=$p.StartTime.ToUniversalTime().ToString('o'); release=$Release }
   try {
@@ -66,8 +72,16 @@ function Start-App([string]$Release, [int]$ListenPort, [string]$DataPath) {
   } catch { Stop-OwnedProcess $state; throw }
 }
 function Assert-FreePort([int]$ListenPort) {
-  if (Get-NetTCPConnection -State Listen -LocalPort $ListenPort -ErrorAction SilentlyContinue) {
-    throw "Port $ListenPort is occupied; refusing to stop an unknown process"
+  # CIM TCP State can be missing on some Windows hosts. Probe the actual
+  # loopback bind instead, and fail closed on any socket or permission error.
+  $probe = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, $ListenPort)
+  try {
+    $probe.ExclusiveAddressUse = $true
+    $probe.Start()
+  } catch {
+    throw "Cannot exclusively bind loopback port ${ListenPort}; refusing deployment: $($_.Exception.Message)"
+  } finally {
+    $probe.Stop()
   }
 }
 function Get-ApprovedHead {
@@ -138,7 +152,7 @@ try {
         Set-Content "$release\.ready" $sha
       } finally {
         Pop-Location
-        foreach ($name in $validationEnv.Keys) { [Environment]::SetEnvironmentVariable($name, $validationEnv[$name], 'Process') }
+        foreach ($name in $validationEnv.Keys) { $value = if ($null -eq $validationEnv[$name]) { [NullString]::Value } else { $validationEnv[$name] }; [Environment]::SetEnvironmentVariable($name, $value, 'Process') }
       }
     }
   }

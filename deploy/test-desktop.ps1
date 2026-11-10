@@ -34,6 +34,8 @@ try {
   Save-State $running
   $roundTrip = Get-Content "$Root\state.json" -Raw | ConvertFrom-Json
   if (-not (Test-OwnedProcess $roundTrip)) { throw 'State round trip lost process ownership' }
+  $roundTrip.started = [DateTime]::Parse($running.started, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+  if (-not (Test-OwnedProcess $roundTrip)) { throw 'DateTime state lost process ownership' }
   Stop-OwnedProcess $running
   if (Test-OwnedProcess $running) { throw 'Process was not stopped' }
   Assert-FreePort 5276
