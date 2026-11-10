@@ -34,6 +34,8 @@ export interface FillOptions {
   ratios?: Record<string, number>
   /** 正文槽位的多行文字是否复制段落元素（false 时用换行） */
   split?: boolean
+  /** 表单编辑时保留空格和空行；模板填充默认归一化。 */
+  preserveWhitespace?: boolean
   /** 是否把 **文字** 转为加粗 */
   bold?: boolean
 }
@@ -60,7 +62,7 @@ export function cleanText(s: string): string {
     .trim()
 }
 
-function readText(el: Element): string {
+function readText(el: Element, preserveWhitespace = false): string {
   let s = ''
   const walk = (n: Node) => {
     if (n.nodeType === 3) s += n.textContent ?? ''
@@ -70,7 +72,7 @@ function readText(el: Element): string {
     }
   }
   walk(el)
-  return cleanText(s)
+  return preserveWhitespace ? s.replace(/\u00a0/g, ' ') : cleanText(s)
 }
 
 function textNodes(el: Node): Text[] {
@@ -179,8 +181,26 @@ function rootOf(html: string, parse: Parse): Element {
   return parse(`<!doctype html><html><body><section id="__slots">${html}</section></body></html>`).getElementById('__slots')!
 }
 
-export function extractSlots(html: string, parse: Parse = defaultParse): Slot[] {
-  return scan(rootOf(html, parse)).map((h) => h.slot)
+export function extractSlots(html: string, parse: Parse = defaultParse, preserveWhitespace = false): Slot[] {
+  return scan(rootOf(html, parse)).map(({ slot, node }) => slot.kind === 'text' && preserveWhitespace
+    ? { ...slot, text: node.nodeType === 3 ? (node.textContent ?? '').replace(/\u00a0/g, ' ') : readText(node as Element, true) }
+    : slot)
+}
+
+/** Change one imported text slot without replacing its decoration or sibling paragraphs. */
+export function setSlotAlignment(html: string, id: string, align: 'left' | 'center' | 'right' | 'justify', parse: Parse = defaultParse): string {
+  const root = rootOf(html, parse)
+  const hit = scan(root).find(({ slot }) => slot.id === id && slot.kind === 'text' && !slot.tight)
+  if (!hit) return html
+  let el: HTMLElement
+  if (hit.node.nodeType === 1 && !INLINE.has(tagOf(hit.node as Element))) el = hit.node as HTMLElement
+  else {
+    el = root.ownerDocument.createElement('section')
+    hit.node.parentNode!.insertBefore(el, hit.node)
+    el.append(hit.node)
+  }
+  el.style.textAlign = align
+  return root.innerHTML
 }
 
 /** 原图比例：优先用测得的比例，其次用 width/height 属性 */
@@ -234,10 +254,15 @@ function setLine(el: Element, line: string, doc: Document, bold: boolean) {
   for (const e of hadText.reverse()) if (e.isConnected && !hasText(e) && !e.querySelector('img, svg, br')) e.remove()
 }
 
-function writeText(node: Node, value: string, role: SlotRole, doc: Document, split: boolean, bold: boolean) {
-  const v = value.replace(/\r/g, '').trim()
+function writeText(node: Node, value: string, role: SlotRole, doc: Document, split: boolean, bold: boolean, preserveWhitespace = false) {
+  const raw = value.replace(/\r/g, '')
+  const v = preserveWhitespace ? raw.replace(/(^ +| {2,}| +$)/gm, spaces => '\u00a0'.repeat(spaces.length)) : raw.trim()
   if (node.nodeType === 3) {
-    node.textContent = v.replace(/\*\*/g, '').replace(/\s*\n+\s*/g, ' ')
+    if (preserveWhitespace && !node.parentElement?.closest('svg')) {
+      const span = doc.createElement('span')
+      node.parentNode!.replaceChild(span, node)
+      span.append(...inlineNodes(v, doc, false, bold))
+    } else node.textContent = v.replace(/\*\*/g, '').replace(/\s*\n+\s*/g, ' ')
     return
   }
   const el = node as Element
@@ -245,7 +270,7 @@ function writeText(node: Node, value: string, role: SlotRole, doc: Document, spl
     el.remove()
     return
   }
-  const lines = v.split(/\n+/).map((s) => s.trim()).filter(Boolean)
+  const lines = preserveWhitespace ? v.split('\n') : v.split(/\n+/).map((s) => s.trim()).filter(Boolean)
   // 正文多段：复制段落元素，每段沿用相同样式
   if (split && lines.length > 1 && role === 'body' && tagOf(el) === 'p') {
     let prev = el
@@ -316,7 +341,7 @@ export function fillSlots(html: string, values: SlotValues, opts: FillOptions = 
     if (typeof v === 'string') {
       // 删掉的图注、标题行：它的外框（引号装饰、色条）可能也随之变空
       if (!v.trim() && node.parentElement && slot.role !== 'body') emptied.push(node.parentElement)
-      writeText(node, v, slot.role, doc, split, bold)
+      writeText(node, v, slot.role, doc, split, bold, opts.preserveWhitespace)
     }
   }
   // 照片位、图注移除后，只剩编号标签（IMG 01）、图标和空框的区域一并移除：向外找到不含中文、不含照片的最外层

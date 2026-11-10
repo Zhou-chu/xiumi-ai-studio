@@ -4,9 +4,9 @@ import { displayUrl } from '../core/images'
 import { sanitizeHtml } from '../core/sanitize'
 import { setPhoto } from '../core/photos'
 import { collectColors, docMainColors, fixedDecorCount, harmonize, recolorHtml } from '../core/recolor'
-import { backgroundPhotos, cleanText, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, type SlotRole, type TextSlot } from '../core/slots'
+import { backgroundPhotos, setSlotAlignment, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, type SlotRole, type TextSlot } from '../core/slots'
 import { resolveTheme } from '../core/themes'
-import { richToPlain, textToRich } from '../core/richtext'
+import { richToPlain, setRichAlignment, textToRich } from '../core/richtext'
 import type { Block, ImageRef, PicItem } from '../core/types'
 import { api, type Asset } from './api'
 import { shownRatio } from './Canvas'
@@ -61,11 +61,11 @@ function RichField({ label, value, onChange }: { label: string; value: any; onCh
       <span>{label}<small>（双击画布可富文本编辑）</small></span>
       <BufferedArea
         rows={6}
-        value={richToPlain(value)}
+        value={richToPlain(value, { preserveWhitespace: true })}
         onCommit={(t) => {
-          const rich = textToRich(t)
+          const rich = textToRich(t, { preserveWhitespace: true })
           onChange(rich)
-          return richToPlain(rich)
+          return richToPlain(rich, { preserveWhitespace: true })
         }}
       />
     </label>
@@ -138,7 +138,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
   useEffect(() => {
     if ((picking >= 0 || bgPicking) && !assets.length) api.assets().then(setAssets).catch(() => {})
   }, [picking, bgPicking, assets.length])
-  const slots = useMemo(() => extractSlots(html, parseDoc), [html])
+  const slots = useMemo(() => extractSlots(html, parseDoc, true), [html])
   const texts = slots.filter((s): s is TextSlot => s.kind === 'text')
   const imgs = slots.filter((s) => s.kind === 'image').map((s) => s.src)
   const bgPhotos = useMemo(() => backgroundPhotos(html, parseDoc), [html])
@@ -163,10 +163,15 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
                 onCommit={(t) => {
                   // 清空会让这一行连同样式一起消失，表单里不允许，需要删除时编辑源码
                   if (!t.trim()) return t
-                  upd({ html: fillSlots(html, { [s.id]: t }, { parse: parseDoc, split: false, bold: false }) }, `slot-${s.id}`)
-                  return cleanText(t)
+                  upd({ html: fillSlots(html, { [s.id]: t }, { parse: parseDoc, split: false, bold: false, preserveWhitespace: true }) }, `slot-${s.id}`)
+                  return t
                 }}
               />
+              {!s.tight && <div className="seg" aria-label={`${ROLE_LABEL[s.role]}对齐`}>
+                {([['left', '左对齐'], ['center', '居中'], ['right', '右对齐'], ['justify', '两端对齐']] as const).map(([align, label]) => (
+                  <button key={align} type="button" onClick={() => upd({ html: setSlotAlignment(html, s.id, align, parseDoc) }, `slot-${s.id}-align`)}>{label}</button>
+                ))}
+              </div>}
             </label>
           ))}
         </div>
@@ -321,7 +326,7 @@ export function PropsForm({ block }: { block: Block }) {
       body = (
         <>
           <RichField label="正文" value={p.content} onChange={(v) => upd({ content: v }, 'content')} />
-          <Select label="对齐" value={p.align} options={[['justify', '两端'], ['left', '左对齐'], ['center', '居中']]} onChange={(v) => upd({ align: v }, 'align')} />
+          <Select label="对齐" value={p.align} options={[['justify', '两端'], ['left', '左对齐'], ['center', '居中'], ['right', '右对齐']]} onChange={(v) => upd({ align: v, content: setRichAlignment(p.content, v) }, 'align')} />
         </>
       )
       break

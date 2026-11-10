@@ -83,7 +83,7 @@ class Ctx implements KitCtx {
 function renderInline(n: RichNode, ctx: Ctx): string {
   if (n.type === 'hardBreak') return '<br>'
   if (n.type !== 'text') return (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
-  let html = esc(n.text ?? '')
+  let html = esc(n.text ?? '').replace(/(^ +| {2,}| +$)/g, (spaces) => '&nbsp;'.repeat(spaces.length))
   let linkHref: string | undefined
   for (const m of n.marks ?? []) {
     switch (m.type) {
@@ -136,7 +136,7 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
       out.push(ctx.p(inner || '<br>', { 'margin-bottom': mb, 'text-align': nodeAlign }))
     } else if (n.type === 'heading') {
       const inner = (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
-      out.push(ctx.p(inner, { 'margin-bottom': mb, 'font-weight': 700, 'font-size': ctx.t.h2Size - 1, color: ctx.c.primary }))
+      out.push(ctx.p(inner, { 'margin-bottom': mb, 'text-align': nodeAlign, 'font-weight': 700, 'font-size': ctx.t.h2Size - 1, color: ctx.c.primary }))
     } else if (n.type === 'bulletList' || n.type === 'orderedList') {
       // 微信对 ul/ol 的缩进处理不稳定，统一渲染为带符号的段落
       ;(n.content ?? []).forEach((li, j) => {
@@ -146,7 +146,7 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
         out.push(
           ctx.p(
             `<span style="${css({ color: ctx.c.primary, 'font-size': n.type === 'bulletList' ? 9 : ctx.t.fontSize, 'margin-right': 8, 'vertical-align': n.type === 'bulletList' ? 'middle' : false })}">${marker}</span>${inner}`,
-            { 'margin-bottom': isLast ? mb : 6, 'padding-left': 4 },
+            { 'margin-bottom': isLast ? mb : 6, 'padding-left': 4, 'text-align': li.content?.[0]?.attrs?.textAlign ?? nodeAlign },
           ),
         )
       })
