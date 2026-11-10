@@ -45,6 +45,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const fetchModels = async (p: AiProfile) => {
     const request = ++modelRequest.current.generation
     setFetchingModels(true)
+    setModelList([])
     setModelStatus('正在获取模型…')
     try {
       const models = await api.aiModels(p)
@@ -60,6 +61,11 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     }
   }
   const patch = (p: Partial<AiProfile>) => setProfiles((list) => list.map((x, i) => (i === editing ? { ...x, ...p } : x)))
+
+  const selectModel = (id: string) => {
+    const model = modelList.find((m) => m.id === id)
+    patch({ model: id, contextWindow: model?.contextWindow, reasoningEffort: undefined })
+  }
 
   const addFromPreset = (key: string) => {
     const pre = AI_PRESETS.find((p) => p.key === key)!
@@ -135,13 +141,23 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 <span>API Key{preset?.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noreferrer">获取密钥 ↗</a>}</span>
                 <input type="password" value={cur.apiKey} disabled={cur.readonly} placeholder={cur.hasKey ? '已保存（留空则不修改）' : '粘贴密钥'} autoComplete="off" onChange={(e) => patch({ apiKey: e.target.value })} />
               </label>
-              <label className="field"><span>模型名称</span><input list="ai-discovered-models" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => {
-                const model = modelList.find((m) => m.id === e.target.value)
-                patch({ model: e.target.value, contextWindow: model?.contextWindow, reasoningEffort: undefined })
-              }} /></label>
-              <datalist id="ai-discovered-models">{modelList.map((m) => <option key={m.id} value={m.id} />)}</datalist>
+              <label className="field"><span>模型名称</span><input value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => selectModel(e.target.value)} /></label>
               <button disabled={!cur.baseUrl || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
               {modelStatus && <p className="hint" role="status">{modelStatus}</p>}
+              {modelList.length > 0 && (
+                <label className="field"><span>可用模型（点击选择，也可在上方手动填写）</span>
+                  <select
+                    aria-label="可用模型"
+                    size={Math.min(6, modelList.length + 1)}
+                    value={modelList.some((m) => m.id === cur.model) ? cur.model : ''}
+                    disabled={cur.readonly}
+                    onChange={(e) => selectModel(e.target.value)}
+                  >
+                    <option value="" disabled>请选择模型…</option>
+                    {modelList.map((m) => <option key={m.id} value={m.id}>{m.id}{m.contextWindow ? `（${m.contextWindow} tokens）` : ''}</option>)}
+                  </select>
+                </label>
+              )}
               <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input type="number" min="1" step="1" value={cur.contextWindow ?? ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: e.target.value ? Number(e.target.value) : undefined })} /></label>
               <label className="field"><span>思考强度（留空使用服务商默认）</span><input list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value || undefined })} /></label>
               <datalist id="ai-reasoning-efforts">{(modelList.find((m) => m.id === cur.model)?.reasoningEfforts ?? ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).map((effort) => <option key={effort} value={effort} />)}</datalist>
