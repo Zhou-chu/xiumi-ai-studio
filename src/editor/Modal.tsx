@@ -15,6 +15,8 @@ export function Modal({ title, children, onClose, width = 560 }: { title: string
     const k = (e: KeyboardEvent) => {
       if (!isTop()) return
       if (e.key === 'Escape') {
+        // Dismiss the active annotation first, without also closing its dialog.
+        if (document.querySelector('[data-help-open]')) return
         e.preventDefault()
         e.stopImmediatePropagation()
         close.current()

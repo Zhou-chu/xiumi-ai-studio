@@ -1,3 +1,4 @@
+import { Help } from './Help'
 import { useEffect, useRef, useState } from 'react'
 import { api, type AiProfile } from './api'
 import { AI_PRESETS } from './aiPresets'
@@ -192,7 +193,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
             <option value="">＋ 添加模型…</option>
             {AI_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
           </select>
-          <p className="hint">单选按钮 = 当前使用的模型。密钥只保存在本机 data/settings.json，页面上只显示打码后的值。</p>
+          <p className="hint">密钥只保存在本机 data/settings.json，页面上只显示打码后的值。</p>
         </div>
         <div className="ai-form">
           {!cur && <p className="empty">从左侧选择一项，或添加新的模型服务。</p>}
@@ -232,9 +233,9 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
               <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input data-testid="ai-context" type="number" min="0" step="1" value={cur.contextWindow || ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: Number(e.target.value) || 0 })} /></label>
               <label className="field"><span>思考强度（留空使用服务商默认）</span><input data-testid="ai-effort" list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value })} /></label>
               <datalist id="ai-reasoning-efforts">{(cur.efforts?.length ? cur.efforts : COMMON_EFFORTS).map((effort) => <option key={effort} value={effort} />)}</datalist>
-              <p className="hint">仅填写服务商支持的强度；OpenAI 兼容接口发送 reasoning_effort / max_completion_tokens，Claude 发送 output_config.effort。设置强度时不发送 temperature；不支持的参数会显示错误。</p>
+              <Help title="思考强度参数">仅填写服务商支持的强度；OpenAI 兼容接口发送 reasoning_effort / max_completion_tokens，Claude 发送 output_config.effort。设置强度时不发送 temperature；不支持的参数会显示错误。</Help>
               <label className="field"><span>单次最大输出（tokens）</span><input data-testid="ai-max-output" type="number" min="0" step="1" value={cur.maxOutputTokens || ''} disabled={cur.readonly} placeholder="未知" onChange={(e) => patch({ maxOutputTokens: Number(e.target.value) || 0 })} /></label>
-              <p className="hint">请求的输出上限不会超过此值；留空使用任务默认值。</p>
+              <Help title="输出上限">请求的输出上限不会超过此值；留空使用任务默认值。</Help>
               <button data-testid="ai-probe-effort" disabled={!cur.baseUrl || !cur.model || probing} onClick={() => probe(cur)}>{probing ? '检测中…' : '检测支持的强度'}</button>
               <p className="hint">检测会向当前服务商发送多条请求，可能产生 API 费用；只有点击检测才会发送。</p>
               <p className="hint" data-testid="ai-effort-note">{effortNote || (cur.efforts?.length ? `已知强度：${cur.efforts.join('、')}` : '可手动填写服务商支持的强度，或点击检测。')}</p>

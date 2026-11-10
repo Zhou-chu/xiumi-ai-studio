@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 导入公众号推文：链接抓取或粘贴富文本 → 保留原样式（原文片段）或重新排版 → 可保存为模板/主题
 import { useMemo, useRef, useState } from 'react'
 import { createBlock, newId } from '../core/blocks'
@@ -204,7 +205,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
             </label>
             {mode === 'keep' ? (
               <>
-                <p className="hint">每个版块成为一个「原文片段」模块：可拖动排序、双击改字、在右侧替换图片，也可单独收藏为模板。原文片段不受主题切换影响。</p>
+                <Help title="保留原样式">每个版块成为一个「原文片段」模块：可拖动排序、双击改字、在右侧替换图片，也可单独收藏为模板。原文片段不受主题切换影响。</Help>
                 <label className="check"><input type="checkbox" checked={asTemplate} onChange={(e) => setAsTemplate(e.target.checked)} />同时保存为模板</label>
                 {asTemplate && <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="模板名称" />}
                 <label className="check"><input type="checkbox" checked={asTheme} onChange={(e) => setAsTheme(e.target.checked)} />提取配色与字号，另存为主题（之后可用于 AI 排版）</label>
@@ -219,7 +220,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
                 </label>
               </>
             ) : (
-              <p className="hint">提取标题、段落、图片、引语与表格，图片下载到素材库，然后进入「AI 一键排版」生成新的设计方案。</p>
+              <Help title="提取内容重新排版">提取标题、段落、图片、引语与表格，图片下载到素材库，然后进入「AI 一键排版」生成新的设计方案。</Help>
             )}
             <label className="check">
               <input type="checkbox" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} data-testid="article-authorized" />

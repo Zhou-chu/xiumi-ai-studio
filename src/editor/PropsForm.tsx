@@ -1,3 +1,4 @@
+import { Help } from './Help'
 import { CoverTitleAlignment } from './CoverTitleAlignment'
 import { useEffect, useMemo, useState } from 'react'
 import { blockLabel, blockMeta } from '../core/blocks'
@@ -49,7 +50,7 @@ function ImageField({ label, value, onChange }: { label: string; value?: ImageRe
           <button onClick={() => onChange(undefined)}>移除</button>
         </div>
       ) : (
-        <p className="hint">在左侧「素材」中点击图片即可设置</p>
+        <Help title="设置图片">在左侧「素材」中点击图片即可设置</Help>
       )}
     </div>
   )
@@ -273,7 +274,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
         </div>
       )}
       <ColorFields blockId={blockId} html={html} upd={upd} />
-      <p className="hint">双击画布中的片段可直接修改文字。在画布上把照片拖到另一张照片上可以交换位置，从左侧素材拖到照片上可以直接替换。原文片段保留导入时的样式，不随主题变化。</p>
+      <Help title="编辑原文片段">双击画布中的片段可直接修改文字。在画布上把照片拖到另一张照片上可以交换位置，从左侧素材拖到照片上可以直接替换。原文片段保留导入时的样式，不随主题变化。</Help>
       <button className="wide" onClick={() => setSrcOpen(!srcOpen)}>{srcOpen ? '收起源码' : '编辑 HTML 源码'}</button>
       {srcOpen && (
         <>
@@ -444,10 +445,8 @@ export function PropsForm({ block }: { block: Block }) {
           {t('标题', 'title')}
           {t('小标签（德文 / 英文）', 'label')}
           <Select label="样式" value={p.variant} options={[['plate', '紫色铭牌'], ['rule', '线框'], ['paper', '浅底']]} onChange={(v) => upd({ variant: v }, 'variant')} />
-          <p className="hint">
-            框内有 {p.children.length} 个模块。选中文本框后点击左侧模块会放进框内末尾；选中框内模块再点击，会插到它后面。
-            放进来的模块自动使用 14 号黑色正文、12 号灰色注释和文本框的宽度。
-          </p>
+          <p className="hint">框内有 {p.children.length} 个模块。</p>
+          <Help title="文本框布局">选中文本框后点击左侧模块会放进框内末尾；选中框内模块再点击，会插到它后面。放进来的模块自动使用 14 号黑色正文、12 号灰色注释和文本框的宽度。</Help>
         </>
       )
       break

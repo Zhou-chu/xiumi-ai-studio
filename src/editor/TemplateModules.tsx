@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 查看模板的模块：每个模块配预览和标准名称（自动识别，可以改），保存后套用模板时按名称取模块。
 import { useMemo, useState } from 'react'
 import { normalizeBlocks } from '../core/blocks'
@@ -44,10 +45,10 @@ export function TemplateModules({ template, onClose, onSaved }: { template: Temp
 
   return (
     <Modal title={`模板模块 · ${template.name}`} onClose={onClose} width={1080}>
-      <p className="hint">
+      <Help title="模板模块命名规则">
         每个模块都归到一个标准名称下，套用时按名称取用：标题按级别用对应的标题模块，几张照片放在一起就用对应张数的图片版式。名称是自动识别的，不对就改。
         同名的模块有多个时，套用前在「本次使用的模块」里选一个；设为「其他」的模块不会被使用。
-      </p>
+      </Help>
       <div className="tm-grid" data-testid="template-modules">
         {blocks.map((b, i) => (
           <div key={b.id} className="tm-card" data-testid="template-module">

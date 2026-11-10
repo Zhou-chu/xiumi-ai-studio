@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 本次使用的模块：从选中的模板和收藏组件里，每个标准名称只取一个模块。
 // 同名模块有多个时由用户选定（默认优先用单独挑选的组件），保证整篇推文风格统一。
 import { Fragment, useEffect, useMemo, useState } from 'react'
@@ -83,7 +84,7 @@ function ComponentPicker({ comps, picked, onClose, onDone }: { comps: LibraryCom
           {(['', '标题', '文字', '图片', '装饰', '结尾'] as (RoleGroup | '')[]).map((g) => <button key={g} className={group === g ? 'on' : ''} onClick={() => setGroup(g)}>{g || '全部'}</button>)}
         </div>
       </div>
-      <p className="hint">每个标准名称只能选一个组件；选中的组件会替换模板里同名的模块。未分类的组件按自动识别的名称使用，可以在左侧「组件」里改。</p>
+      <Help title="组件选择规则">每个标准名称只能选一个组件；选中的组件会替换模板里同名的模块。未分类的组件按自动识别的名称使用，可以在左侧「组件」里改。</Help>
       <div className="tm-grid">
         {shown.map((c) => (
           <button key={c.id} className={`tm-card pick ${sel.includes(c.id) ? 'on' : ''}`} onClick={() => toggle(c)} data-testid="kit-component">
@@ -139,7 +140,7 @@ export function KitPicker(props: {
           ))}
         </div>
       ) : (
-        <p className="tpl-note">还没有模板。导入公众号推文时勾选「保存为模板」，或在「模板」里收藏当前整篇，就能在这里套用。</p>
+        <><p className="tpl-note">还没有模板。</p><Help title="添加模板">导入公众号推文时勾选「保存为模板」，或在「模板」里收藏当前整篇，就能在这里套用。</Help></>
       )}
       <div className="row gap wrap kit-comps">
         <button onClick={() => setChoosing(true)} data-testid="pick-components">＋ 从收藏组件选模块{pickedComps.length > 0 && `（${pickedComps.length}）`}</button>
@@ -156,7 +157,7 @@ export function KitPicker(props: {
       {cands.length > 0 && (
         <>
           <p className="tpl-note">
-            本次使用的模块：标题 {levels} 级{imageRoles.length > 0 && ` · 图片版式：${imageRoles.join('、')}`}。只替换文字和照片，版式与装饰保持原样。
+            本次使用的模块：标题 {levels} 级{imageRoles.length > 0 && ` · 图片版式：${imageRoles.join('、')}`}。<Help title="套用模块">只替换文字和照片，版式与装饰保持原样。</Help>
           </p>
           <table className="kit-table" data-testid="kit-table">
             <tbody>

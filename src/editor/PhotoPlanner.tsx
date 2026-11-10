@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 照片面板：写照片描述；勾选几张照片组成一组（必须放进同一个多图版式）；指定照片或组放在文案中某一句话后面。
 import { useMemo, useState } from 'react'
 import { findAnchor, parseCopy, sectionOf } from '../core/copy'
@@ -61,7 +62,7 @@ export function PhotoPlanner(props: {
       <h5>照片（{images.length}）</h5>
       {images.length ? (
         <>
-          <p className="tpl-note">写一句说明（在做什么、画面里是谁），AI 会把照片放到对应段落旁，也会用作图注。勾选几张照片可以组成一组，一组照片放进同一个多图版式。</p>
+          <Help title="照片安排">写一句说明（在做什么、画面里是谁），AI 会把照片放到对应段落旁，也会用作图注。勾选几张照片可以组成一组，一组照片放进同一个多图版式。</Help>
           {groups.map((g) => {
             const options = layouts.length ? rolesForPhotos(g.photos.length).filter((r) => layouts.includes(r)) : []
             return (

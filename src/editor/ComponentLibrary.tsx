@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 组件库面板：已收藏的组件和模板里可挑选的部件。可检索、按类别和色系筛选，点击或拖入画布。
 import { useDraggable } from '@dnd-kit/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -211,13 +212,13 @@ export function ComponentLibrary({ templates }: { templates: Template[] }) {
       </label>
       {view === 'saved' ? (
         <>
-          <p className="hint">在画布选中模块后点 ◈ 收藏，点 ⌖ 可只收藏其中一部分。点击组件插入，也可拖入画布。组件只存在本机。</p>
+          <Help title="收藏与插入组件">在画布选中模块后点 ◈ 收藏，点 ⌖ 可只收藏其中一部分。点击组件插入，也可拖入画布。组件只存在本机。</Help>
           {shown.map((c) => <ComponentCard key={c.id} c={c} doc={doc} onChanged={refresh} />)}
           {!shown.length && <p className="empty">{list.length ? '没有符合条件的组件' : '还没有收藏组件'}</p>}
         </>
       ) : (
         <>
-          <p className="hint">这些是已收藏模板里的版块，可以直接插入。「收藏 / 拆分」把版块或其中一部分存入组件库。</p>
+          <Help title="模板里的版块">这些是已收藏模板里的版块，可以直接插入。「收藏 / 拆分」把版块或其中一部分存入组件库。</Help>
           {shownParts.map((p) => <PartCard key={`${p.from}:${p.id}`} p={p} doc={doc} collected={collected.has(p.fingerprint)} />)}
           {!shownParts.length && <p className="empty">{templates.length ? '没有符合条件的部件' : '还没有收藏模板'}</p>}
         </>

@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 一键生成文案：输入活动描述、选文风和篇幅，AI 写出带标题级别的完整文案；可以直接改、按意见重写，或导入到正文。
 import { useMemo, useState } from 'react'
 import { checkCopy, copyToMarkdown, LEVEL_NAMES, limitLevels, normalizeCopyText, parseCopy } from '../core/copy'
@@ -60,8 +61,8 @@ export function Copywriter({ onClose, onImport, levels: kitLevels, hasText }: { 
       <div className="copywriter">
         <div className="cw-form">
           <label className="field">
-            <span>活动的大致描述（时间、地点、谁参加、做了什么、有什么亮点或原话，越具体越好）</span>
-            <textarea rows={9} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={'例如：10 月 18—27 日，校团委和学生科协办了秋季科技文化节。开幕式在主楼广场，五个院系的同学做了“光的接力”灯光表演；20 日在图书馆有 AI 主题论坛，请了四位嘉宾；22—24 日东区创客空间有创客市集，42 个摊位，最受欢迎的是会写诗的打字机……'} data-testid="cw-brief" />
+            <span><Help title="活动的大致描述">时间、地点、谁参加、做了什么、有什么亮点或原话，越具体越好。</Help></span>
+            <textarea aria-label="活动的大致描述" rows={9} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={'例如：10 月 18—27 日，校团委和学生科协办了秋季科技文化节。开幕式在主楼广场，五个院系的同学做了“光的接力”灯光表演；20 日在图书馆有 AI 主题论坛，请了四位嘉宾；22—24 日东区创客空间有创客市集，42 个摊位，最受欢迎的是会写诗的打字机……'} data-testid="cw-brief" />
           </label>
           <div className="field">
             <span>文风</span>
@@ -92,11 +93,11 @@ export function Copywriter({ onClose, onImport, levels: kitLevels, hasText }: { 
           </div>
         </div>
         <div className="cw-result">
-          <div className="cw-legend">
+          <Help title="文案格式"><span className="cw-legend">
             <b># 推文标题</b>
             {LEVEL_NAMES.slice(0, levels).map((n, i) => <span key={n}>{'#'.repeat(i + 2)} {n}</span>)}
             <span>&gt; 引语 —— 说话人</span>
-          </div>
+          </span></Help>
           <textarea className="cw-text" value={result} onChange={(e) => setResult(e.target.value)} placeholder="生成的文案会出现在这里，可以直接修改" data-testid="cw-result" />
           {check && (
             <div className="cw-check" data-testid="cw-check">

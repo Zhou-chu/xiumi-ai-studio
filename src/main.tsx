@@ -1,9 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { ColorModeProvider } from './editor/ColorMode'
 import { ErrorBoundary } from './editor/ErrorBoundary'
 import { saveNow, useStore } from './editor/store'
 import './styles.css'
+import './help.css'
+import './color-mode.css'
+import './responsive.css'
 
 /** 最外层兜底：任何未捕获的渲染错误都显示可恢复的提示，而不是白屏 */
 function Crashed({ error, reset }: { error: Error; reset: () => void }) {
@@ -30,8 +34,10 @@ function Crashed({ error, reset }: { error: Error; reset: () => void }) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ColorModeProvider>
     <ErrorBoundary fallback={(error, reset) => <Crashed error={error} reset={reset} />}>
       <App />
     </ErrorBoundary>
+    </ColorModeProvider>
   </StrictMode>,
 )
