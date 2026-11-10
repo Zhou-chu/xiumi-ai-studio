@@ -30,7 +30,7 @@ test('double click edits photo text without changing images or editing its paren
   await expect(editor).toHaveCount(0)
   await expect(photos).toContainText('双击修改的图注')
   await expect(image).toHaveAttribute('src', src!)
-  await page.getByRole('button', { name: '撤销', exact: true }).click()
+  await page.getByRole('button', { name: '撤销' }).click()
   await expect(photos).not.toContainText('双击修改的图注')
   await expect(image).toHaveAttribute('src', src!)
   await image.dblclick()
