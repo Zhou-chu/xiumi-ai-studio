@@ -12,7 +12,9 @@ import { KIT_ITEMS } from './editor/kitItems'
 import { LeftPanel } from './editor/LeftPanel'
 import { RightPanel } from './editor/RightPanel'
 import { emptyDoc, loadCustomThemes, saveNow, useStore } from './editor/store'
+import { listenForAiSettings } from './editor/suggestionQueue'
 import { Toolbar } from './editor/Toolbar'
+import { Workspace } from './editor/Workspace'
 
 type Hit = { data?: { droppableContainer?: { data?: { current?: { parentId?: string | null } } } } }
 const parentOf = (h: Hit) => h.data?.droppableContainer?.data?.current?.parentId ?? null
@@ -80,6 +82,7 @@ function useShortcuts() {
 }
 
 export default function App() {
+  useEffect(() => listenForAiSettings(window), [])
   const [ready, setReady] = useState(false)
   const [dragLabel, setDragLabel] = useState<string | null>(null)
   const toast = useStore((s) => s.toast)
@@ -196,11 +199,11 @@ export default function App() {
     >
       <div className={`app ${dragLabel !== null ? 'dragging' : ''}`}>
         <Toolbar />
-        <main className="workspace">
+        <Workspace>
           <LeftPanel />
           {ready ? <Canvas /> : <div className="canvas-scroll loading">加载中…</div>}
           <RightPanel />
-        </main>
+        </Workspace>
         {toast && <div className={`toast ${toast.kind}`} role="status">{toast.text}</div>}
         <CollectHost />
       </div>

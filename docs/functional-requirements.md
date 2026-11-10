@@ -6,7 +6,7 @@
 
 - 文档首次核查日期：2026-11-10（UTC）。
 - 应用版本：`package.json` 为 `0.1.0`；不能仅凭此版本号区分迭代。
-- 本轮源码基线：`main` 的 `e5ca86e`（已包含 PR #3 模型列表可见性修复）。后续集成变更应按第 11 节更新；本文件自身提交不等于部署版本。
+- 本轮源码基线：fork `Zhou-chu/xiumi-ai-studio` 的 `main@9f95738f28eb39d36eb5d27283f9e587780f25a2`；已包含源仓库 `123huangcan250/xiumi-ai-studio` 的 `main@6db83fba6d4aa5ac5bb40d60c0373e0affc38231`。后续集成变更应按第 11 节更新；本文件自身提交不等于部署版本。
 - 审核方法：逐项检查 UI、核心函数、服务端接口和仓库测试。没有在本轮用真实付费模型、微信公众号后台或用户 Windows 台式机验证。
 - **已实现**：存在可达的界面或接口及实现路径，不意味着所有输入、外部服务或设备均已验证。
 - **条件实现**：实现已存在，但需要模型服务、公众号配置、网络或手工操作。
@@ -87,9 +87,12 @@
 - 正文类模块双击进入 tiptap 编辑，支持加粗、斜体、下划线、高亮、主题色、列表、对齐和链接。
 - 导入 HTML 以槽位方式修改文字、替换图片，尽量维持结构和内联样式；支持拆开大模块及点选其中局部来收藏组件。
 - 富文本编辑中的组件插入可定位在光标所在段落后；插入不是简单把整篇文章追加在尾部。
-- HTML 槽位编辑不是任意网页 DOM 编辑器，不能承诺所有第三方嵌套结构都完整可编辑。
+- 图片、相册、多图、轮播、相框可双击编辑独立图注 / 标签；封面、标题、引言、人物、结尾、时间轴、表格、文本框也支持各自文字字段。保留模块预览、原图片引用和布局，修改即时进入保存链，可撤销；“完成” / Escape 只关闭编辑，不撤销内容。嵌套双击不同时打开父框。
+- 封面主标题有独立 `titleAlign`：跟随版式 / 左 / 中 / 右，可在右栏或双击编辑框设置；不连带改变副标题、标签、日期、图片和装饰。AI 修改相同字段仍需接受建议。
+- 原文文字槽位支持左 / 中 / 右 / 两端对齐；固定位置的图形 / SVG 文字不开放对齐。段落属性对齐同步富文本节点，防止旧节点样式压过模块设置。
+- HTML 槽位编辑不是任意网页 DOM 编辑器，不能承诺所有第三方嵌套结构都完整可编辑；图片像素内的文字不是独立字段，不能通过图注编辑改变。
 - 验收：修改文字不误覆盖同模块其他槽位；替换图片保持其他图片不变；拆分后内容仍完整且可撤销。
-- 证据：`src/editor/RichEditor.tsx`、`src/core/richtext.ts`、`src/core/slots.ts`、`src/core/fragments.ts`、`src/editor/componentActions.ts`；`tests/unit/slots.test.ts`、`tests/unit/editing-ux.test.ts`、`tests/e2e/components.spec.ts`。
+- 证据：`src/editor/RichEditor.tsx`、`src/core/richtext.ts`、`src/core/slots.ts`、`src/core/fragments.ts`、`src/editor/componentActions.ts`；`tests/unit/slots.test.ts`、`tests/unit/editing-ux.test.ts`、`tests/e2e/components.spec.ts`；补充证据：`src/core/blockTextEditing.ts`、`src/editor/BlockTextEditor.tsx`、`src/editor/CoverTitleAlignment.tsx`、`tests/unit/textControls.test.ts`、`tests/e2e/block-text-editing.spec.ts`、`tests/e2e/cover-alignment.spec.ts`。
 
 ## 4. 导入、写作与排版
 
@@ -97,6 +100,7 @@
 
 - 支持 `.docx`、`.md`、`.markdown`、`.txt` 和直接粘贴文案。Word 经 mammoth 转成语义 HTML，再转换为 Markdown；内嵌图片保存到素材库。
 - 支持标题、段落、列表、表格和图片的基础提取；Word 无一级标题时把首个适合的段落当标题。
+- 损坏或无法解析的 `.docx` 返回中文错误，提示文件损坏、加密或格式不符，不把底层解压异常作为正常导入结果。
 - 当前 Word 转换会把 h3–h6 压到二级 Markdown 标题，不能宣称 Word 多级样式或分页版式无损保留。
 - 旧 `.doc`、PDF、PPT、OCR、任意网页附件不是该导入接口的支持格式。编辑器 JSON 可导出，但未提供对称的 JSON 文件导入 UI。
 - 请求上传限制：每文件 30 MiB，最多 50 文件；实际导入接口只接收一个文稿。
@@ -144,20 +148,22 @@
 ### FR-10 模型配置与模型发现｜条件实现
 
 - 保存多套配置、切换当前配置、测试连接；支持 OpenAI 兼容 Chat Completions 和 Anthropic Messages 两种协议。服务商品牌预设不是所有模型已验证兼容的保证。
-- 配置包含名称、Base URL、密钥、模型 ID、JSON 模式、可选上下文窗口与思考强度；`.env` 配置作为只读配置项。
-- 点击“从服务商获取模型列表”后，立即显示可滚动的“可用模型”列表；点击条目填写模型 ID，以及上游实际提供的上下文窗口。仍允许手工填写未列出的模型。当前只读取一页；列表只代表服务端返回 ID，不能保证账户有调用权限。
+- 配置包含名称、Base URL、密钥、模型 ID、JSON 模式、可选上下文窗口、最大输出、思考强度及高级额外 JSON 参数；`.env` 配置作为只读配置项。
+- 点击“从服务商获取模型列表”后，立即显示可滚动的“可用模型”列表；点击条目填写模型 ID，以及上游实际提供的上下文窗口、最大输出、思考强度列表。仍允许手工填写未列出的模型。Anthropic 最多请求 5 页、每页 limit=1000，其他接口一次列表请求；解析还受有效条目数量上限约束，不保证列全模型。列表只代表服务端返回 ID，不能保证账户有调用权限。
 - 获取期间显示状态；空结果和错误显示文字提示，可重试或手工填写。切换配置、地址、协议或密钥会清除列表并忽略旧请求结果，防止其他配置的模型列表覆盖当前配置。切换模型会清除旧思考强度，需要按新模型支持情况填写。
 - 只采纳上游真实返回的上下文 / 思考元数据；缺失值不按模型名猜测。上下文窗口目前仅记录，**不会自动分块、截断或扩充上下文**。
+- 最大输出配置用于限制单次输出 token 上限；上下文窗口仍不负责自动截断。高级额外参数必须是 JSON 对象，只接受未被保护的服务商扩展字段，不能覆盖模型、消息、工具、流式设置、输出上限、温度、思考强度或 JSON 模式。
+- 可手动点击“检测思考强度”发出一系列短请求，可能产生费用；不是后台自动检测。请求被接受只证明该配置下参数可用，不证明实际推理效果、模型质量或完整能力。失败 / 不支持结果保留供检查，不静默换强度。
 - 思考强度作为字符串传参：OpenAI 使用 `reasoning_effort` / `max_completion_tokens`，Anthropic 使用 `output_config.effort` / `max_tokens`；设置强度时不发送 temperature。专有 thinking 开关、预算参数未自动适配。
 - 密钥保存于本机服务端 `settings.json`，返回浏览器的是打码值；这不是加密密钥保险库。更换服务 origin 或接口协议需重新输入密钥。
 - 模型调用会把请求相关文稿、摘要、指令或描述发送给配置的服务商；“本机编辑”不意味着 AI 内容完全不离开本机。
-- 证据：`server/settings.ts`、`server/ai.ts`、`src/editor/AiSettingsModal.tsx`；`tests/unit/settings.test.ts`、`tests/unit/aiProfiles.test.ts`、`tests/unit/aiSettingsUi.test.ts`、`tests/e2e/ai-issues.spec.ts`。详见 [模型能力与边界](ai-models-and-selection.md)。
+- 证据：`server/settings.ts`、`server/ai.ts`、`src/editor/AiSettingsModal.tsx`；`tests/unit/settings.test.ts`、`tests/unit/aiProfiles.test.ts`、`tests/unit/aiModels.test.ts`、`tests/unit/aiWireSafety.test.ts`、`tests/unit/aiSettingsUi.test.ts`、`tests/e2e/ai-issues.spec.ts`。详见 [模型能力与边界](ai-models-and-selection.md)。
 
 ### FR-11 AI 设计助手与选中模块范围｜条件实现
 
 - 自然语言生成操作建议，操作模型包含 `insert`、`update`、`remove`、`move`、`setTheme`、`setMeta`。
 - 存在选中模块且未手动选择全文时，默认范围为“仅选中模块”；没有选中模块时界面与请求为全文，可显式切换范围。选中范围只允许该模块的 update，服务端拒绝插入、删除、移动、主题和跨模块修改。
-- 模型仍收到全文结构作为背景，范围限制不是只发送选中模块的数据隐私隔离。
+- 显式“生成修改建议”时，选中模块完整内容与其他模块的短摘要一起发送；嵌套模块仍按确切 ID 限制 update。此范围不是只发送选中块的数据隔离，且不允许因为结构嵌套就修改父容器或其他子块。自动输入建议的数据范围另见 FR-20。
 - 建议展示差异，可预览、逐条或全部接受 / 拒绝；接受后可撤销；请求期间文档已变化时拒用旧结果。
 - HTML 原文用文字槽位修改；“选中”是模块，不是任意字符范围。规则快捷动作独立针对文档，不应当认为它们受 AI 的选中范围限制。
 - 离线规则动作：拆分长段落、提炼金句为引言、章节间加分割、重排章节序号，同样走建议审阅。
@@ -201,11 +207,13 @@
 
 ### FR-16 秀米导入准备｜已实现 / 条件实现
 
-- 无本地图片时可下载 HTML 文本；有本地图片时可下载 HTML 与图片 ZIP 包，按说明在秀米手工替换。
+- 无本地图片且未超限时下载 HTML 文本；有本地图片或需多份导入时下载 ZIP 包，按说明在秀米手工替换图片或顺序导入。
+- 长文按项目内置安全阈值 120,000 字符拆分（HTML 实体按一个字符计数），尽量在模块 / 子结构边界切开并保留外层标签；多份输出为编号 TXT 加说明的 ZIP。阈值来自项目对秀米行为的经验记录，不是秀米官方稳定契约。
+- 界面在多份导出前确认，取消发生在任何微信上传前；仍不可拆分且超限的单段、SVG 等会阻止下载，并提示手工拆分或改用通用 HTML，不静默截断。图片上传后最终 HTML 也会再检查。
 - 配置微信接口后可先上传本地图片，再下载使用微信图床地址的 HTML；只上传图片，不创建草稿，不群发。
 - 提示内嵌图片、背景图及本地背景图限制：秀米不接受内嵌图片；背景图可能可显示但不可单独选中编辑；未配图床时本地背景图无法按普通图片替换。
 - 没有直接调用秀米账号发布 / 同步的自动化接口；秀米导入和后续微信同步由用户操作。
-- 证据：`src/core/xiumiExport.ts`、`src/editor/wechatOutput.ts`、`src/editor/Toolbar.tsx`；`tests/unit/regressions.test.ts`；[兼容探测说明](05-xiumi-compat-probe.md)。
+- 证据：`src/core/xiumiExport.ts`、`src/editor/wechatOutput.ts`、`src/editor/Toolbar.tsx`；`tests/unit/regressions.test.ts`、`tests/unit/xiumiLimits.test.ts`、`tests/e2e/xiumi-limits.spec.ts`；[兼容探测说明](05-xiumi-compat-probe.md)。
 
 ### FR-17 创建公众号草稿｜条件实现
 
@@ -228,6 +236,23 @@
 
 安全相关已存在措施：路径 ID 校验、HTML 清洗、受限图片域名抓取、远程地址 / 重定向 / 响应大小边界、模型密钥 origin 约束、显式草稿确认。它们不是安全审计证明，也不等于身份认证。不要把含 `.env`、`data/settings.json` 或私人素材的目录上传到公开仓库。
 
+### FR-19 画布缩放与侧栏宽度｜已实现（来自上游）
+
+- 只缩放中间文章，不放大整个工具栏 / 侧栏；50%–200%，按钮、Ctrl/Cmd 加减 / 0、Ctrl+滚轮调整，重置为 100%。
+- 左右侧栏支持拖动分隔线、方向键微调（Shift 加大步长）、双击恢复默认。左栏约束 200–560px，右栏 240–640px，并按可用空间尽量给文章留宽度。
+- 缩放与侧栏宽度记录在当前浏览器 localStorage，不是项目属性或跨设备同步；窗口变窄时显示宽度自适应但不覆盖用户保存的偏好。存储不可用时只能在当前页面保持。
+- 缩放不改变导出文档字体 / 宽度；拖拽定位需按缩放后几何正确命中模块。
+- 证据：`src/editor/Workspace.tsx`、`src/editor/zoom.ts`、`src/editor/Canvas.tsx`、`tests/unit/layout.test.ts`、`tests/e2e/workspace.spec.ts`。
+
+### FR-20 上下文 AI 输入建议｜条件实现（fork 增量）
+
+- AI 面板启用“自动生成输入建议”、已配置模型、文稿非空且输入框空白时，按当前文稿 / 范围生成一条灰字指令。默认开启，可关闭并保存到当前浏览器；该开关与用户手工生成修改建议分开。
+- Tab 或点击只把建议填入输入框，不自动提交、不改正文；Escape 忽略，用户手输不会被覆盖。随后仍需“生成修改建议”及逐条 / 全部接受。
+- 1.5 秒防抖，当前页面建议请求开始间隔至少 30 秒、单请求串行、内存最多 20 条缓存；切换 AI 设置清缓存。失败不自动无限重试，允许直接输入。
+- 选中范围只发送该模块的文本上下文，全文模式发送文章文本结构；剥离图片文件 / 地址，不做视觉理解。请求发往当前配置的模型，可能产生 API 费用；不是本地规则占位文字。
+- 离开上下文会忽略过期结果，但已经发出的服务端请求未必被取消，因此不能把关闭面板或开关解释成撤回已发送数据 / 费用。
+- 证据：`src/editor/RightPanel.tsx`、`src/editor/SuggestionInput.tsx`、`src/editor/suggestionPreference.ts`、`src/editor/suggestionQueue.ts`、`server/aiSuggestion.ts`、`tests/unit/aiSuggestion.test.ts`、`tests/unit/suggestionQueue.test.ts`、`tests/e2e/input-suggestions.spec.ts`。
+
 ## 9. 尚未实现或不应对外宣称的能力
 
 | 能力 | 当前边界 |
@@ -236,7 +261,7 @@
 | 自动备份 / 云同步 / 素材完整搬迁 | 本机文件持久化；需自行备份完整数据目录 |
 | 富文本字符级 AI 定点改写 | 只支持模块范围与 HTML 槽位 |
 | 自动视觉识图 / OCR / AI 生图 | 当前照片处理和 AI 安排基于文件与文字描述 |
-| 模型能力自动完整识别 | 列表一页、可选元数据，配置值不等于真实支持 |
+| 模型能力自动完整识别 | 有限分页、可选元数据与手动探测，配置值不等于真实支持 |
 | 任意复杂 Word / 公众号页面无损转换 | 支持语义 / 可清洗 HTML 子集，视频等替代提示 |
 | 自动登录秀米并同步微信 | 仅提供导出包 / 图床准备，后续用户操作 |
 | 微信直接群发 / 定时发布 | 仅创建草稿，没有群发实现 |
@@ -267,7 +292,7 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 6. 在真正的秀米和微信后台检查图片、轮播、背景、宽度、间距；记录客户端和截图。
 7. 配置真实公众号时，显式确认仅创建测试草稿，核对返回结果，绝不把自动化 mock 当作真实发布验收。
 
-本轮在更新至 `e5ca86e` 后的 Linux 工作区复用已安装依赖，以本地工具二进制执行 ESLint、TypeScript、Vitest、Vite：lint、类型检查、22 个文件的 266 条单测与生产构建通过；构建有超过 500 kB 的 chunk 提示。文档中所有源码 / 测试路径和相对链接已检查存在，`git diff --check` 通过。本轮未执行 E2E、Windows 脚本或真实外部服务测试。`pnpm check` 包装器因默认 home 下 pnpm 存储路径不可创建而未运行，因此以上是等价子命令结果，不冒称该包装命令成功。后续集成结果由提交 / PR 记录补充。仓库测试中存在 mock AI 和模拟外部响应，它们证明请求、校验和 UI 流程，不证明真实供应商质量、延迟或计费。后续验证应记录：提交 SHA、命令、环境、通过 / 失败 / 未运行、失败原因和证据链接。
+历史验证：`e5ca86e` 基线在 Linux 本地的 lint、类型检查、22 文件 266 单测和构建通过；这些数字不能用于新基线。当前 `9f95738` 基线本轮复用已有依赖运行 ESLint、TypeScript、Vitest 和 Vite：lint、类型检查、34 文件 351 单测与构建通过；仅有大于 500 kB 的 chunk 警告。文档路径和相对链接全部存在，`git diff --check` 通过；未在本文审计中重新执行 E2E、Windows 脚本、真实模型或微信公众号请求。仓库测试中存在 mock AI 和模拟外部响应，它们证明请求、校验和 UI 流程，不证明真实供应商质量、延迟或计费。后续验证应记录：提交 SHA、命令、环境、通过 / 失败 / 未运行、失败原因和证据链接。
 
 ## 11. 持续维护规则
 
@@ -285,3 +310,27 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 | --- | --- | --- | --- |
 | 2026-11-10 | `c5dfec0` | 首版：18 类模块、编辑与导入、AI / 模板 / 照片、素材与主题、导出与部署边界 | 源码与测试路径审计；命令结果见本轮 PR |
 | 2026-11-10 | `e5ca86e` | FR-10 更新为已合并的可见模型列表、获取状态与过期响应保护；不含尚未合并的图片模块双击编辑和输入建议 | 重新核对 main 源码，重新执行 lint / 类型 / 单测 / 构建 |
+
+| 2026-11-10 | fork `9f95738` / upstream `6db83fba` | 补齐活跃上游能力与 fork PR #5–8，新增 FR-19 / FR-20 和来源差异矩阵 | 本轮 lint / 类型 / 351 单测 / 构建通过；未重新执行 E2E 或生产部署 |
+
+
+## 12. 源仓库与 fork 的来源核对
+
+本次通过远端 main 引用及本地源码核对：源仓库 main 为 [6db83fba](https://github.com/123huangcan250/xiumi-ai-studio/commit/6db83fba6d4aa5ac5bb40d60c0373e0affc38231)，fork main 为 [9f95738f](https://github.com/Zhou-chu/xiumi-ai-studio/commit/9f95738f28eb39d36eb5d27283f9e587780f25a2)。这是检查时的快照，不表示上游未来不会继续更新。本文按 fork 实现写验收条件，不能反向宣称所有 fork 增量已存在于源仓库。
+
+| 变更来源 | 原文档覆盖情况 | 本轮对应需求与差异 |
+| --- | --- | --- |
+| 上游 `87ef509`：文章缩放、侧栏调整与持久化 | 未记录 | 新增 FR-19；仅影响编辑视图 |
+| 上游 `87ef509`：文字槽位 / 段落对齐 | 仅笼统写富文本对齐 | FR-04 明确槽位级控制、固定图形限制及节点样式同步 |
+| 上游 `87ef509`：模型发现与能力参数、输出上限、额外请求参数、强度探测 | FR-10 停在旧版单页、上下文和强度 | FR-10 修正分页、最大输出、高级参数、手动付费探测；fork 保留 origin 密钥约束和额外参数保护 |
+| 上游 `87ef509`：选中模块上下文 | FR-11 旧描述仍是全文背景 | FR-11 更新完整选中块加其他块摘要；fork 保留服务端确切 ID 的 update-only 限制 |
+| 上游 `6db83fba`：秀米长文分包 | 未记录 | FR-16 增加阈值、分段 ZIP、按序手工导入；fork 额外拒绝不可拆超限内容，并在任何上传前确认 |
+| fork PR #5：双击图注 / 结构化文字 | 未记录 | FR-04；只能编辑独立字段，不改图片像素 |
+| fork PR #6：上下文输入建议 | 未记录 | 新增 FR-20；自动模型请求有费用，采纳不等于提交修改 |
+| fork PR #7：封面主标题对齐 | 未记录 | FR-04；只动主标题，保留其他内容 |
+| fork PR #8 集成保护：损坏 Word 中文错误、模型线协议与秀米安全检查 | 未记录 | FR-05 / FR-10 / FR-16 与相应回归测试 |
+| fork 的 Windows CI/CD 与安全补强 | 已记录基础能力 | FR-18 保留；不是源仓库已经部署的功能，不把 fork 私有部署流程贡献到无关上游 PR |
+
+上游相关提交：[87ef509](https://github.com/123huangcan250/xiumi-ai-studio/commit/87ef509)、[6db83fba](https://github.com/123huangcan250/xiumi-ai-studio/commit/6db83fba6d4aa5ac5bb40d60c0373e0affc38231)。fork 同步入口：[PR #8](https://github.com/Zhou-chu/xiumi-ai-studio/pull/8)。本功能文档的维护入口是 [fork PR #4](https://github.com/Zhou-chu/xiumi-ai-studio/pull/4)，不等于另一个源仓库中同编号的贡献 PR。
+
+部署状态必须独立核验：源码合入 main、CI 成功和本文更新均不证明生产台式机已经切换版本；用户保存中的项目与待部署版本应由部署记录确认。

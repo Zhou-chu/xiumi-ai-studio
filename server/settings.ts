@@ -12,11 +12,51 @@ export interface AiProfile {
   baseUrl: string
   apiKey: string
   model: string
-  /** Optional metadata supplied by the provider or entered manually. */
-  contextWindow?: number
-  reasoningEffort?: string
   /** 是否请求 response_format=json_object（部分服务不支持，失败时会自动重试不带该参数） */
   jsonMode: boolean
+  /** 思考强度（reasoning_effort / output_config.effort）；空 = 不发送，用模型默认值 */
+  reasoningEffort?: string
+  /** 检测或上游返回的、这个模型接受的思考强度 */
+  efforts?: string[]
+  /** 上下文窗口（token，0 = 未知），来自上游模型列表，可手动改 */
+  contextWindow?: number
+  /** 单次最大输出（token，0 = 未知）：请求的 max_tokens 不会超过它 */
+  maxOutputTokens?: number
+  /** 额外的请求参数（JSON 对象），合并进请求体，给第三方接口的特殊开关用 */
+  extraBody?: string
+}
+
+/** 思考强度只接受字母、数字、下划线和短横线，不信任前端传来的任意字符串 */
+const EFFORT = /^[a-zA-Z0-9_-]{1,40}$/
+export const cleanEffort = (v: unknown): string => {
+  if (typeof v !== 'string' || !EFFORT.test(v.trim())) return ''
+  const value = v.trim()
+  return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(value.toLowerCase()) ? value.toLowerCase() : value
+}
+const cleanCount = (v: unknown) => {
+  const n = Math.floor(Number(v))
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 100_000_000) : 0
+}
+/** 额外参数必须是 JSON 对象；不是就丢弃（保存时界面会提示） */
+export function cleanExtraBody(v: unknown): string {
+  if (typeof v !== 'string' || !v.trim()) return ''
+  try {
+    const o = JSON.parse(v)
+    return o && typeof o === 'object' && !Array.isArray(o) ? JSON.stringify(o) : ''
+  } catch {
+    return ''
+  }
+}
+/** 公共的新字段整理（保存和临时测试共用） */
+function tuning(p: Partial<AiProfile>, fallback?: AiProfile): Pick<AiProfile, 'reasoningEffort' | 'efforts' | 'contextWindow' | 'maxOutputTokens' | 'extraBody'> {
+  const efforts = Array.isArray(p.efforts) ? [...new Set(p.efforts.map(cleanEffort).filter(Boolean))].slice(0, 10) : (fallback?.efforts ?? [])
+  return {
+    reasoningEffort: cleanEffort(p.reasoningEffort ?? fallback?.reasoningEffort),
+    efforts,
+    contextWindow: cleanCount(p.contextWindow ?? fallback?.contextWindow),
+    maxOutputTokens: cleanCount(p.maxOutputTokens ?? fallback?.maxOutputTokens),
+    extraBody: cleanExtraBody(p.extraBody ?? fallback?.extraBody),
+  }
 }
 
 interface Settings {
@@ -24,8 +64,6 @@ interface Settings {
 }
 
 const FILE = join(DATA, 'settings.json')
-const positiveInt = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? v : undefined
-const reasoning = (v: unknown) => typeof v === 'string' && /^[a-zA-Z0-9_-]{1,40}$/.test(v) ? v : undefined
 
 const MASK = '••••••'
 
@@ -94,7 +132,7 @@ export async function saveAiSettings(input: { activeId: string; profiles: Partia
     .filter((p) => p.id !== 'env')
     .map((p) => {
       const prev = p.id ? old.get(p.id) : undefined
-      const key = draftKey(p, prev)
+      const key = draftKey({ ...p, provider: p.provider === 'anthropic' ? 'anthropic' : 'openai', baseUrl: String(p.baseUrl ?? '').trim() }, prev)
       return {
         id: p.id && /^[\w-]{1,40}$/.test(p.id) ? p.id : nanoid(8).replace(/[^\w]/g, 'x'),
         name: String(p.name ?? '未命名模型').slice(0, 40),
@@ -102,9 +140,8 @@ export async function saveAiSettings(input: { activeId: string; profiles: Partia
         baseUrl: String(p.baseUrl ?? '').trim().replace(/\/+$/, ''),
         apiKey: key,
         model: String(p.model ?? '').trim(),
-        contextWindow: positiveInt(p.contextWindow),
-        reasoningEffort: reasoning(p.reasoningEffort),
         jsonMode: p.jsonMode !== false,
+        ...tuning(p),
       }
     })
   s.ai = { activeId: String(input.activeId ?? ''), profiles }
@@ -115,16 +152,17 @@ export async function saveAiSettings(input: { activeId: string; profiles: Partia
 /** 测试用：未保存的配置（密钥打码时取已保存的） */
 export async function resolveDraftProfile(p: Partial<AiProfile>): Promise<AiProfile> {
   const saved = p.id ? (await allProfiles()).find((x) => x.id === p.id) : undefined
-  const key = draftKey(p, saved)
+  const provider = (p.provider ?? saved?.provider) === 'anthropic' ? 'anthropic' : 'openai'
+  const key = draftKey({ ...p, provider }, saved)
+  const sameModel = saved && (p.model ?? saved.model) === saved.model && (p.baseUrl ?? saved.baseUrl) === saved.baseUrl && provider === saved.provider
   return {
     id: p.id ?? 'draft',
     name: p.name ?? '',
-    provider: p.provider === 'anthropic' ? 'anthropic' : 'openai',
+    provider,
     baseUrl: String(p.baseUrl ?? saved?.baseUrl ?? '').replace(/\/+$/, ''),
     apiKey: key,
     model: String(p.model ?? saved?.model ?? ''),
-    contextWindow: positiveInt(p.contextWindow),
-    reasoningEffort: reasoning(p.reasoningEffort),
     jsonMode: p.jsonMode !== false,
+    ...tuning(p, sameModel ? saved : undefined),
   }
 }

@@ -1,10 +1,11 @@
+import { CoverTitleAlignment } from './CoverTitleAlignment'
 import { useEffect, useMemo, useState } from 'react'
 import { blockLabel, blockMeta } from '../core/blocks'
 import { displayUrl } from '../core/images'
 import { sanitizeHtml } from '../core/sanitize'
 import { setPhoto } from '../core/photos'
 import { collectColors, docMainColors, fixedDecorCount, harmonize, recolorHtml } from '../core/recolor'
-import { backgroundPhotos, setSlotAlignment, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, type SlotRole, type TextSlot } from '../core/slots'
+import { backgroundPhotos, editableText, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, setSlotAlign, slotAligns, slotRawTexts, type Align, type SlotRole, type TextSlot } from '../core/slots'
 import { resolveTheme } from '../core/themes'
 import { richToPlain, setRichAlignment, textToRich } from '../core/richtext'
 import type { Block, ImageRef, PicItem } from '../core/types'
@@ -138,8 +139,11 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
   useEffect(() => {
     if ((picking >= 0 || bgPicking) && !assets.length) api.assets().then(setAssets).catch(() => {})
   }, [picking, bgPicking, assets.length])
-  const slots = useMemo(() => extractSlots(html, parseDoc, true), [html])
+  const slots = useMemo(() => extractSlots(html, parseDoc), [html])
   const texts = slots.filter((s): s is TextSlot => s.kind === 'text')
+  // 表单里显示保留空格的文字；对齐状态一次算出，避免每个槽位都重新解析一遍大片段
+  const raws = useMemo(() => slotRawTexts(html, parseDoc), [html])
+  const aligns = useMemo(() => slotAligns(html, parseDoc), [html])
   const imgs = slots.filter((s) => s.kind === 'image').map((s) => s.src)
   const bgPhotos = useMemo(() => backgroundPhotos(html, parseDoc), [html])
   const replace = (i: number, src: string) => {
@@ -155,24 +159,38 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
         <div className="field">
           <span>文字（{texts.length} 处）· 修改后保留原样式</span>
           {texts.map((s) => (
-            <label key={s.id} className="slot-row" data-testid={`slot-${s.id}`}>
-              <small>{ROLE_LABEL[s.role]}{s.tight ? ' · 图形内' : ''}</small>
+            <div key={s.id} className="slot-row" data-testid={`slot-${s.id}`}>
+              <div className="slot-head">
+                <small>{ROLE_LABEL[s.role]}{s.tight ? ' · 图形内' : ''}</small>
+                <span className="align-btns" role="group" aria-label="对齐">
+                  {(['left', 'center', 'right', 'justify'] as Align[]).map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={aligns[s.id]?.align === a ? 'on' : ''}
+                      aria-pressed={aligns[s.id]?.align === a}
+                      disabled={!aligns[s.id]?.alignable}
+                      title={aligns[s.id]?.alignable ? { left: '居左', center: '居中', right: '居右', justify: '两端对齐' }[a] : '图形里的文字位置是固定的，不能调整对齐'}
+                      onClick={() => upd({ html: setSlotAlign(html, s.id, a, parseDoc) }, `align-${s.id}`)}
+                      data-testid={`align-${s.id}-${a}`}
+                    >
+                      {{ left: '居左', center: '居中', right: '居右', justify: '两端对齐' }[a]}
+                    </button>
+                  ))}
+                </span>
+              </div>
               <BufferedArea
                 rows={s.role === 'body' ? 3 : 1}
-                value={s.text}
+                value={raws[s.id] ?? s.text}
                 onCommit={(t) => {
                   // 清空会让这一行连同样式一起消失，表单里不允许，需要删除时编辑源码
                   if (!t.trim()) return t
+                  // 保留输入的空格：行首、行尾、连续空格写成不换行空格，页面上才看得到
                   upd({ html: fillSlots(html, { [s.id]: t }, { parse: parseDoc, split: false, bold: false, preserveWhitespace: true }) }, `slot-${s.id}`)
-                  return t
+                  return editableText(t, true)
                 }}
               />
-              {!s.tight && <div className="seg" aria-label={`${ROLE_LABEL[s.role]}对齐`}>
-                {([['left', '左对齐'], ['center', '居中'], ['right', '右对齐'], ['justify', '两端对齐']] as const).map(([align, label]) => (
-                  <button key={align} type="button" onClick={() => upd({ html: setSlotAlignment(html, s.id, align, parseDoc) }, `slot-${s.id}-align`)}>{label}</button>
-                ))}
-              </div>}
-            </label>
+            </div>
           ))}
         </div>
       )}
@@ -317,7 +335,7 @@ export function PropsForm({ block }: { block: Block }) {
   let body: React.ReactNode = null
   switch (block.type) {
     case 'cover':
-      body = <>{t('小标签', 'kicker')}{t('标题', 'title', true)}{t('副标题', 'subtitle', true)}{t('时间/地点', 'meta')}{img('封面图')}{variant('cover')}</>
+      body = <>{t('小标签', 'kicker')}{t('标题', 'title', true)}<CoverTitleAlignment value={p.titleAlign} onChange={(v) => upd({ titleAlign: v }, 'titleAlign')} />{t('副标题', 'subtitle', true)}{t('时间/地点', 'meta')}{img('封面图')}{variant('cover')}</>
       break
     case 'heading':
       body = <>{t('序号', 'index')}{t('标题', 'title')}{t('副标题', 'subtitle')}{variant('heading')}</>

@@ -4,6 +4,12 @@ import { AI_PRESETS } from './aiPresets'
 import { Modal } from './Modal'
 import { useStore } from './store'
 
+const validExtra = (text = '') => {
+  if (!text.trim()) return true
+  try { const value = JSON.parse(text); return value && typeof value === 'object' && !Array.isArray(value) } catch { return false }
+}
+const COMMON_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
 const blank = (): AiProfile => ({ id: '', name: '', provider: 'openai', baseUrl: '', apiKey: '', model: '', jsonMode: true })
 
 /** AI 模型设置：可保存多套配置并选择当前使用的一套。密钥只保存在本机。 */
@@ -13,6 +19,9 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [activeId, setActiveId] = useState('')
   const [editing, setEditing] = useState<number>(-1)
   const [testing, setTesting] = useState('')
+  const [probing, setProbing] = useState(false)
+  const [effortNote, setEffortNote] = useState('')
+  const actionRequest = useRef({ probe: 0, test: 0 })
   const [modelList, setModelList] = useState<Awaited<ReturnType<typeof api.aiModels>>>([])
   const [modelStatus, setModelStatus] = useState('')
   const [fetchingModels, setFetchingModels] = useState(false)
@@ -22,15 +31,18 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
+    let alive = true
     api
       .aiSettings()
       .then((s) => {
+        if (!alive) return
         setProfiles(s.profiles)
         setActiveId(s.activeId)
         if (!s.profiles.length) setEditing(-2)
         setLoaded(true)
       })
-      .catch((e) => notify(e.message, 'error'))
+      .catch((e) => { if (alive) notify(e.message, 'error') })
+    return () => { alive = false }
   }, [notify])
 
   const cur = editing >= 0 ? profiles[editing] : null
@@ -45,6 +57,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const fetchModels = async (p: AiProfile) => {
     const request = ++modelRequest.current.generation
     setFetchingModels(true)
+    setModelList([])
     setModelStatus('正在获取模型…')
     try {
       const models = await api.aiModels(p)
@@ -59,11 +72,73 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       if (request === modelRequest.current.generation) setFetchingModels(false)
     }
   }
-  const patch = (p: Partial<AiProfile>) => setProfiles((list) => list.map((x, i) => (i === editing ? { ...x, ...p } : x)))
+  useEffect(() => {
+    const state = actionRequest.current
+    state.probe++
+    state.test++
+    setProbing(false)
+    setEffortNote('')
+    setTesting('')
+    return () => { state.probe++; state.test++ }
+  }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey, cur?.model, cur?.extraBody, cur?.jsonMode, cur?.maxOutputTokens])
+
+  const invalidate = () => {
+    setFetchingModels(false)
+    setProbing(false)
+    setModelStatus('')
+    setEffortNote('')
+    setTesting('')
+    modelRequest.current.generation++
+    actionRequest.current.probe++
+    actionRequest.current.test++
+  }
+  const close = () => { invalidate(); onClose() }
+  const patch = (p: Partial<AiProfile>) => {
+    // Invalidate synchronously, before a queued response can land after an edit.
+    const endpoint = ['baseUrl', 'provider', 'apiKey'].some((key) => key in p)
+    if (endpoint) modelRequest.current.generation++
+    actionRequest.current.probe++
+    actionRequest.current.test++
+    setProbing(false)
+    setTesting('')
+    setEffortNote('')
+    setProfiles((list) => list.map((x, i) => i === editing ? {
+      ...x,
+      ...(endpoint ? { contextWindow: 0, maxOutputTokens: 0, efforts: [], reasoningEffort: '' } : {}),
+      ...p,
+    } : x))
+  }
+  const selectModel = (id: string) => {
+    const model = modelList.find((m) => m.id === id)
+    patch({ model: id, contextWindow: model?.contextWindow ?? 0, maxOutputTokens: model?.maxOutput ?? 0, efforts: model?.efforts ?? model?.reasoningEfforts ?? [], reasoningEffort: '' })
+  }
+
+  const probe = async (p: AiProfile) => {
+    const request = ++actionRequest.current.probe
+    setProbing(true)
+    setEffortNote('检测中…每个强度发一条请求，可能需要几分钟。')
+    try {
+      const r = await api.probeEffort(p)
+      if (request !== actionRequest.current.probe) return
+      if (r.baseError) { setEffortNote(`基本请求失败，请先测试连接：${r.baseError}`); return }
+      const efforts = r.ignored ? [] : r.supported
+      if (!p.readonly) setProfiles((list) => list.map((x) => x.id === p.id ? {
+        ...x, efforts,
+        reasoningEffort: r.ignored || efforts.includes(x.reasoningEffort ?? '') ? x.reasoningEffort : '',
+      } : x))
+      setEffortNote(r.ignored ? '这个服务连无效强度也接受，无法判断哪些真正生效，请查阅服务商文档。' :
+        r.supported.length ? `接受：${r.supported.join('、')}${r.rejected.length ? `；被拒绝：${r.rejected.map((x) => x.effort).join('、')}` : ''}` : '这个模型不接受思考强度参数，请留空使用默认设置。')
+    } catch (e: any) {
+      if (request === actionRequest.current.probe) setEffortNote(`检测失败：${e.message}`)
+    } finally {
+      if (request === actionRequest.current.probe) setProbing(false)
+    }
+  }
 
   const addFromPreset = (key: string) => {
     const pre = AI_PRESETS.find((p) => p.key === key)!
     const p: AiProfile = { ...blank(), id: `p${Date.now().toString(36)}`, name: pre.name.replace(/（.*）/, ''), provider: pre.provider, baseUrl: pre.baseUrl, model: pre.model }
+    invalidate()
     setProfiles((list) => [...list, p])
     setEditing(profiles.length)
     if (!activeId) setActiveId(p.id)
@@ -77,7 +152,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       setActiveId(s.activeId)
       notify('AI 模型设置已保存')
       window.dispatchEvent(new Event('ai-settings-changed'))
-      onClose()
+      close()
     } catch (e: any) {
       notify(e.message, 'error')
     } finally {
@@ -86,22 +161,24 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   const test = async (p: AiProfile) => {
+    const request = ++actionRequest.current.test
     setTesting('测试中…')
     try {
       const r = await api.testAi(p)
+      if (request !== actionRequest.current.test) return
       setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : `已响应但格式异常：${JSON.stringify(r.reply).slice(0, 80)}`)
     } catch (e: any) {
-      setTesting(`✕ ${e.message}`)
+      if (request === actionRequest.current.test) setTesting(`✕ ${e.message}`)
     }
   }
 
   const preset = cur ? AI_PRESETS.find((x) => x.baseUrl && x.baseUrl === cur.baseUrl) : undefined
   return (
-    <Modal title="AI 模型设置" onClose={onClose} width={760}>
+    <Modal title="AI 模型设置" onClose={close} width={760}>
       <div className="ai-settings">
         <div className="ai-list">
           {profiles.map((p, i) => (
-            <div key={p.id || i} className={`ai-item ${i === editing ? 'on' : ''}`} onClick={() => (setEditing(i), setTesting(''))}>
+            <div key={p.id || i} className={`ai-item ${i === editing ? 'on' : ''}`} onClick={() => { invalidate(); setEditing(i); setTesting('') }}>
               <label onClick={(e) => e.stopPropagation()} title="设为当前使用">
                 <input type="radio" name="active" checked={activeId === p.id} onChange={() => setActiveId(p.id)} />
               </label>
@@ -135,17 +212,37 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 <span>API Key{preset?.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noreferrer">获取密钥 ↗</a>}</span>
                 <input type="password" value={cur.apiKey} disabled={cur.readonly} placeholder={cur.hasKey ? '已保存（留空则不修改）' : '粘贴密钥'} autoComplete="off" onChange={(e) => patch({ apiKey: e.target.value })} />
               </label>
-              <label className="field"><span>模型名称</span><input list="ai-discovered-models" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => {
-                const model = modelList.find((m) => m.id === e.target.value)
-                patch({ model: e.target.value, contextWindow: model?.contextWindow, reasoningEffort: undefined })
-              }} /></label>
-              <datalist id="ai-discovered-models">{modelList.map((m) => <option key={m.id} value={m.id} />)}</datalist>
-              <button disabled={!cur.baseUrl || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
-              {modelStatus && <p className="hint" role="status">{modelStatus}</p>}
-              <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input type="number" min="1" step="1" value={cur.contextWindow ?? ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: e.target.value ? Number(e.target.value) : undefined })} /></label>
-              <label className="field"><span>思考强度（留空使用服务商默认）</span><input list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value || undefined })} /></label>
-              <datalist id="ai-reasoning-efforts">{(modelList.find((m) => m.id === cur.model)?.reasoningEfforts ?? ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).map((effort) => <option key={effort} value={effort} />)}</datalist>
+              <label className="field"><span>模型名称</span><input data-testid="ai-model" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => selectModel(e.target.value)} /></label>
+              <button data-testid="ai-load-models" disabled={!cur.baseUrl || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
+              {modelStatus && <p className="hint" role="status" data-testid="ai-model-note">{modelStatus}</p>}
+              {modelList.length > 0 && (
+                <label className="field"><span>可用模型（点击选择，也可在上方手动填写）</span>
+                  <select
+                    aria-label="可用模型"
+                    size={Math.min(6, modelList.length + 1)}
+                    value={modelList.some((m) => m.id === cur.model) ? cur.model : ''}
+                    disabled={cur.readonly}
+                    onChange={(e) => selectModel(e.target.value)}
+                  >
+                    <option value="" disabled>请选择模型…</option>
+                    {modelList.map((m) => <option key={m.id} value={m.id}>{m.id}{m.contextWindow ? `（${m.contextWindow} tokens）` : ''}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input data-testid="ai-context" type="number" min="0" step="1" value={cur.contextWindow || ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: Number(e.target.value) || 0 })} /></label>
+              <label className="field"><span>思考强度（留空使用服务商默认）</span><input data-testid="ai-effort" list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value })} /></label>
+              <datalist id="ai-reasoning-efforts">{(cur.efforts?.length ? cur.efforts : COMMON_EFFORTS).map((effort) => <option key={effort} value={effort} />)}</datalist>
               <p className="hint">仅填写服务商支持的强度；OpenAI 兼容接口发送 reasoning_effort / max_completion_tokens，Claude 发送 output_config.effort。设置强度时不发送 temperature；不支持的参数会显示错误。</p>
+              <label className="field"><span>单次最大输出（tokens）</span><input data-testid="ai-max-output" type="number" min="0" step="1" value={cur.maxOutputTokens || ''} disabled={cur.readonly} placeholder="未知" onChange={(e) => patch({ maxOutputTokens: Number(e.target.value) || 0 })} /></label>
+              <p className="hint">请求的输出上限不会超过此值；留空使用任务默认值。</p>
+              <button data-testid="ai-probe-effort" disabled={!cur.baseUrl || !cur.model || probing} onClick={() => probe(cur)}>{probing ? '检测中…' : '检测支持的强度'}</button>
+              <p className="hint">检测会向当前服务商发送多条请求，可能产生 API 费用；只有点击检测才会发送。</p>
+              <p className="hint" data-testid="ai-effort-note">{effortNote || (cur.efforts?.length ? `已知强度：${cur.efforts.join('、')}` : '可手动填写服务商支持的强度，或点击检测。')}</p>
+              <details className="ai-advanced">
+                <summary>高级：额外的请求参数{cur.extraBody ? '（已设置）' : ''}</summary>
+                <textarea data-testid="ai-extra-body" rows={3} value={cur.extraBody ?? ''} disabled={cur.readonly} placeholder='{"enable_thinking": false}' onChange={(e) => patch({ extraBody: e.target.value })} />
+                <p className={`hint ${validExtra(cur.extraBody) ? '' : 'bad'}`}>{validExtra(cur.extraBody) ? '支持服务商专用 JSON 参数；不能覆盖模型、消息、输出上限、思考强度、温度或 JSON 模式。' : '不是有效的 JSON 对象，请修正后保存。'}</p>
+              </details>
               {preset?.note && <p className="hint">{preset.note}</p>}
               <label className="check">
                 <input type="checkbox" checked={cur.jsonMode} disabled={cur.readonly} onChange={(e) => patch({ jsonMode: e.target.checked })} />
@@ -157,6 +254,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                   <button
                     className="danger"
                     onClick={() => {
+                      invalidate()
                       setProfiles((l) => l.filter((_, i) => i !== editing))
                       setEditing(-1)
                     }}
@@ -171,8 +269,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       <div className="modal-actions">
-        <button onClick={onClose}>取消</button>
-        <button className="primary" disabled={busy} onClick={save}>保存</button>
+        <button onClick={close}>取消</button>
+        <button className="primary" disabled={!loaded || busy || profiles.some((p) => !validExtra(p.extraBody))} onClick={save}>保存</button>
       </div>
     </Modal>
   )
