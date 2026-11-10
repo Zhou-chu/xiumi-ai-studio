@@ -1,23 +1,31 @@
 import { expect, test } from '@playwright/test'
 
-test('discovers custom models, imports context and keeps manual reasoning settings', async ({ page }) => {
-  await page.route('**/api/settings/ai/models', (route) => route.fulfill({ json: [{ id: 'custom-reasoner', contextWindow: 128000, reasoningEfforts: ['low', 'high'] }] }))
-  await page.goto('/')
-  await page.waitForLoadState('networkidle')
-  await page.getByTestId('open-ai-settings').click()
-  await page.getByTestId('ai-add-preset').selectOption('custom')
-  await page.getByLabel('名称', { exact: true }).fill('Discovery test')
-  await page.getByPlaceholder('https://…/v1').fill('https://example.com/v1')
-  await page.getByRole('button', { name: '从服务商获取模型列表' }).click()
-  await expect(page.getByRole('status')).toContainText('已获取 1 个模型')
-  await page.getByPlaceholder(/例如 deepseek-chat/).fill('custom-reasoner')
-  await expect(page.getByLabel('上下文窗口', { exact: false })).toHaveValue('128000')
-  await page.getByLabel('思考强度', { exact: false }).fill('high')
-  await page.getByRole('button', { name: '保存', exact: true }).click()
-  await page.getByTestId('open-ai-settings').click()
-  await page.getByText('Discovery test', { exact: true }).click()
-  await expect(page.getByLabel('思考强度', { exact: false })).toHaveValue('high')
-  await expect(page.getByLabel('上下文窗口', { exact: false })).toHaveValue('128000')
+test('discovers custom models, imports context and keeps manual reasoning settings', async ({ page, request }) => {
+  const original = await (await request.get('/api/settings/ai')).json()
+  try {
+    await page.route('**/api/settings/ai/models', (route) => route.fulfill({ json: [{ id: 'custom-reasoner', contextWindow: 128000, reasoningEfforts: ['low', 'high'] }] }))
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    await page.getByTestId('open-ai-settings').click()
+    await page.getByTestId('ai-add-preset').selectOption('custom')
+    await page.getByLabel('名称', { exact: true }).fill('Discovery test')
+    await page.getByPlaceholder('https://…/v1').fill('https://example.com/v1')
+    await page.getByRole('button', { name: '从服务商获取模型列表' }).click()
+    await expect(page.getByRole('dialog', { name: 'AI 模型设置' }).getByRole('status')).toContainText('已获取 1 个模型')
+    await page.getByPlaceholder(/例如 deepseek-chat/).fill('custom-reasoner')
+    await expect(page.getByLabel('上下文窗口', { exact: false })).toHaveValue('128000')
+    await page.getByLabel('思考强度', { exact: false }).fill('high')
+    await page.getByRole('button', { name: '保存', exact: true }).click()
+    await page.getByTestId('open-ai-settings').click()
+    await page.getByText('Discovery test', { exact: true }).click()
+    await expect(page.getByLabel('思考强度', { exact: false })).toHaveValue('high')
+    await expect(page.getByLabel('上下文窗口', { exact: false })).toHaveValue('128000')
+  } finally {
+    // The suite shares one disposable API server. Do not leave our custom
+    // profile selected for the later mock-model feature tests.
+    const restored = await request.put('/api/settings/ai', { data: original })
+    expect(restored.ok()).toBe(true)
+  }
 })
 
 test('selected paragraph is sent as scope and whole-document scope remains opt-in', async ({ page }) => {
