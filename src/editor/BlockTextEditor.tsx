@@ -1,3 +1,4 @@
+import { CoverTitleAlignment } from './CoverTitleAlignment'
 import { blockTextFields, textFieldPatch } from '../core/blockTextEditing'
 import type { Block } from '../core/types'
 
@@ -17,6 +18,7 @@ export function BlockTextEditor({ block, onChange, onDone }: {
           <textarea autoFocus={i === 0} rows={2} value={field.value} onChange={(e) => onChange(textFieldPatch(block, field.key, e.target.value), field.key)} />
         </label>
       ))}
+      {block.type === 'cover' && <CoverTitleAlignment value={block.props.titleAlign} onChange={(v) => onChange({ titleAlign: v }, 'titleAlign')} />}
       <button type="button" onClick={onDone}>完成</button>
     </div>
   )

@@ -1,3 +1,4 @@
+import { CoverTitleAlignment } from './CoverTitleAlignment'
 import { useEffect, useMemo, useState } from 'react'
 import { blockLabel, blockMeta } from '../core/blocks'
 import { displayUrl } from '../core/images'
@@ -317,7 +318,7 @@ export function PropsForm({ block }: { block: Block }) {
   let body: React.ReactNode = null
   switch (block.type) {
     case 'cover':
-      body = <>{t('小标签', 'kicker')}{t('标题', 'title', true)}{t('副标题', 'subtitle', true)}{t('时间/地点', 'meta')}{img('封面图')}{variant('cover')}</>
+      body = <>{t('小标签', 'kicker')}{t('标题', 'title', true)}<CoverTitleAlignment value={p.titleAlign} onChange={(v) => upd({ titleAlign: v }, 'titleAlign')} />{t('副标题', 'subtitle', true)}{t('时间/地点', 'meta')}{img('封面图')}{variant('cover')}</>
       break
     case 'heading':
       body = <>{t('序号', 'index')}{t('标题', 'title')}{t('副标题', 'subtitle')}{variant('heading')}</>
