@@ -106,6 +106,8 @@ function ThemePanel() {
 }
 
 function AiPanel() {
+  const selected = useStore(selectedBlock)
+  const [scope, setScope] = useState<'selection' | 'document'>('selection')
   const doc = useStore((s) => s.doc)
   const proposal = useStore((s) => s.proposal)
   const { propose, resolveProposal, clearProposal, notify } = useStore.getState()
@@ -123,7 +125,8 @@ function AiPanel() {
     if (!instruction.trim()) return
     setBusy(true)
     try {
-      const r = await api.aiEdit(aiContext(doc), instruction)
+      const r = await api.aiEdit(aiContext(doc), instruction, undefined, scope === 'selection' ? selected?.id : undefined)
+      if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
       propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [])
     } catch (e: any) {
       notify(e.message, 'error')
@@ -139,6 +142,13 @@ function AiPanel() {
         {ai?.enabled ? `当前模型：${ai.name} / ${ai.model}` : '尚未配置 AI 模型。以下规则动作可离线使用。'}{' '}
         <button className="link" onClick={() => window.dispatchEvent(new Event('open-ai-settings'))}>{ai?.enabled ? '切换' : '去配置'}</button>
       </p>
+      <label className="field"><span>修改范围</span>
+        <select value={selected ? scope : 'document'} onChange={(e) => setScope(e.target.value as 'selection' | 'document')} disabled={busy}>
+          {selected && <option value="selection">仅选中模块：{selected.type}（{selected.id}）</option>}
+          <option value="document">全文</option>
+        </select>
+      </label>
+      <p className="hint">{selected && scope === 'selection' ? '仅生成选中模块的修改建议，其他模块不会被修改。' : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
       <textarea
         rows={3}
         placeholder={ai?.enabled ? '例如：把第二章改成时间轴；给开头加一张数据卡片；整体语气更活泼但不改事实' : '配置大模型后可输入自然语言指令'}

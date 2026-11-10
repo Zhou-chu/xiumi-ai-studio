@@ -4,7 +4,7 @@
 
 ## 快速开始（Windows）
 
-需要 Node.js ≥ 22 与 pnpm。
+需要 Node.js ≥ 22.19（推荐 Node.js 24 LTS）与 pnpm。
 
 ```bash
 pnpm install

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, type AiProfile } from './api'
 import { AI_PRESETS } from './aiPresets'
 import { Modal } from './Modal'
@@ -13,6 +13,10 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [activeId, setActiveId] = useState('')
   const [editing, setEditing] = useState<number>(-1)
   const [testing, setTesting] = useState('')
+  const [modelList, setModelList] = useState<Awaited<ReturnType<typeof api.aiModels>>>([])
+  const [modelStatus, setModelStatus] = useState('')
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const modelRequest = useRef({ generation: 0 })
   const [busy, setBusy] = useState(false)
   // 设置读取完成前不能新增：否则读取结果会覆盖刚选的预设
   const [loaded, setLoaded] = useState(false)
@@ -30,6 +34,31 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }, [notify])
 
   const cur = editing >= 0 ? profiles[editing] : null
+  useEffect(() => {
+    modelRequest.current.generation++
+    setModelList([])
+    setModelStatus('')
+    setFetchingModels(false)
+    const requestState = modelRequest.current
+    return () => { requestState.generation++ }
+  }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey])
+  const fetchModels = async (p: AiProfile) => {
+    const request = ++modelRequest.current.generation
+    setFetchingModels(true)
+    setModelStatus('正在获取模型…')
+    try {
+      const models = await api.aiModels(p)
+      if (request !== modelRequest.current.generation) return
+      setModelList(models)
+      const matched = models.find((m) => m.id === p.model)
+      if (matched?.contextWindow) setProfiles((list) => list.map((x) => x.id === p.id && x.model === p.model ? { ...x, contextWindow: matched.contextWindow } : x))
+      setModelStatus(models.length ? `已获取 ${models.length} 个模型；未提供的参数请查阅服务商文档。` : '服务未返回模型，可手动填写。')
+    } catch (e: any) {
+      if (request === modelRequest.current.generation) setModelStatus(`${e.message}；可继续手动填写。`)
+    } finally {
+      if (request === modelRequest.current.generation) setFetchingModels(false)
+    }
+  }
   const patch = (p: Partial<AiProfile>) => setProfiles((list) => list.map((x, i) => (i === editing ? { ...x, ...p } : x)))
 
   const addFromPreset = (key: string) => {
@@ -106,7 +135,17 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 <span>API Key{preset?.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noreferrer">获取密钥 ↗</a>}</span>
                 <input type="password" value={cur.apiKey} disabled={cur.readonly} placeholder={cur.hasKey ? '已保存（留空则不修改）' : '粘贴密钥'} autoComplete="off" onChange={(e) => patch({ apiKey: e.target.value })} />
               </label>
-              <label className="field"><span>模型名称</span><input value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => patch({ model: e.target.value })} /></label>
+              <label className="field"><span>模型名称</span><input list="ai-discovered-models" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => {
+                const model = modelList.find((m) => m.id === e.target.value)
+                patch({ model: e.target.value, contextWindow: model?.contextWindow, reasoningEffort: undefined })
+              }} /></label>
+              <datalist id="ai-discovered-models">{modelList.map((m) => <option key={m.id} value={m.id} />)}</datalist>
+              <button disabled={!cur.baseUrl || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
+              {modelStatus && <p className="hint" role="status">{modelStatus}</p>}
+              <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input type="number" min="1" step="1" value={cur.contextWindow ?? ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: e.target.value ? Number(e.target.value) : undefined })} /></label>
+              <label className="field"><span>思考强度（留空使用服务商默认）</span><input list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value || undefined })} /></label>
+              <datalist id="ai-reasoning-efforts">{(modelList.find((m) => m.id === cur.model)?.reasoningEfforts ?? ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).map((effort) => <option key={effort} value={effort} />)}</datalist>
+              <p className="hint">仅填写服务商支持的强度；OpenAI 兼容接口发送 reasoning_effort / max_completion_tokens，Claude 发送 output_config.effort。设置强度时不发送 temperature；不支持的参数会显示错误。</p>
               {preset?.note && <p className="hint">{preset.note}</p>}
               <label className="check">
                 <input type="checkbox" checked={cur.jsonMode} disabled={cur.readonly} onChange={(e) => patch({ jsonMode: e.target.checked })} />
