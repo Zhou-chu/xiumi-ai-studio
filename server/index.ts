@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid'
 import { cropAsset, deleteAsset, listAssets, saveAsset, variantPath } from './assets'
 import { listComponents, removeComponent, saveComponent, updateComponent } from './components'
 import { IMAGE_HOST, safeFetch, WECHAT_IMAGE_HOST } from './net'
-import { aiStatus, chatJson, discoverModels, COPY_SYSTEM, DESIGN_SYSTEM, EDIT_SYSTEM, ENRICH_SYSTEM, OUTLINE_SYSTEM, PLACE_SYSTEM } from './ai'
+import { aiStatus, chatJson, discoverModels, testConnection, COPY_SYSTEM, DESIGN_SYSTEM, EDIT_SYSTEM, ENRICH_SYSTEM, OUTLINE_SYSTEM, PLACE_SYSTEM } from './ai'
 import { editPrompt, scopeEditResult } from './aiEdit'
 import { isRoleId } from '../src/core/roles'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
@@ -177,7 +177,7 @@ app.post('/api/settings/ai/models', h(async (req, res) => {
 app.post('/api/settings/ai/test', h(async (req, res) => {
   const profile = await resolveDraftProfile(req.body ?? {})
   const t0 = Date.now()
-  const r = await chatJson('只输出 JSON。', '请输出 {"ok":true,"model":"你的模型名称"}', { profile, maxTokens: 100, temperature: 0 })
+  const r = await testConnection(profile)
   res.json({ ok: r?.ok === true, reply: r, ms: Date.now() - t0 })
 }))
 const pid = (req: Request) => (typeof req.body?.profileId === 'string' ? req.body.profileId : undefined)

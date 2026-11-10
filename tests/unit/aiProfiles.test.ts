@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chatJson, discoverModels } from '../../server/ai'
+import { chatJson, discoverModels, testConnection } from '../../server/ai'
 import type { AiProfile } from '../../server/settings'
 const profile: AiProfile = { id: 'a', name: 'custom', provider: 'openai', baseUrl: 'https://example.com/v1', apiKey: 'test-key', model: 'custom-model', jsonMode: true }
 afterEach(() => vi.unstubAllGlobals())
@@ -37,4 +37,15 @@ describe('model discovery and reasoning', () => {
     expect(body.reasoning_effort).toBeUndefined()
     expect(body.temperature).toBe(0.4)
   })
+  it('gives reasoning connection probes enough budget for hidden reasoning', async () => {
+    let body: any
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] }) })
+    await testConnection({ ...profile, reasoningEffort: 'high' })
+    expect(body.max_completion_tokens).toBe(4096)
+  })
+  it('reports token exhaustion as a responding model, not missing JSON', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ choices: [{ finish_reason: 'length', message: { content: '' } }] }))
+    await expect(chatJson('s', 'u', { profile })).rejects.toThrow('AI 已响应，但输出达到 token 上限')
+  })
+
 })

@@ -85,6 +85,12 @@ export async function discoverModels(p: AiProfile): Promise<DiscoveredModel[]> {
   return [...models.values()]
 }
 
+export function testConnection(profile: AiProfile): Promise<any> {
+  return chatJson('只输出 JSON。', '请输出 {"ok":true,"model":"你的模型名称"}', {
+    profile, maxTokens: profile.reasoningEffort ? 4096 : 100, temperature: 0,
+  })
+}
+
 export async function chatJson(system: string, user: string, opts: ChatOpts = {}): Promise<any> {
   const p = opts.profile ?? (await getProfile(opts.profileId))
   if (!p || !p.baseUrl || !p.model) throw Object.assign(new Error('尚未配置 AI 模型：请在「AI 模型设置」中添加'), { status: 503 })
@@ -106,6 +112,7 @@ export async function chatJson(system: string, user: string, opts: ChatOpts = {}
       })
       if (!res.ok) throw Object.assign(new Error(`AI 请求失败 ${res.status}: ${await readError(res)}`), { status: 502 })
       const data: any = await res.json()
+      if (data.stop_reason === 'max_tokens') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
       return extractJson(data.content?.map((c: any) => c.text ?? '').join('') ?? '')
     }
     const send = (json: boolean) =>
@@ -130,6 +137,7 @@ export async function chatJson(system: string, user: string, opts: ChatOpts = {}
     if (!res.ok && p.jsonMode && res.status === 400) res = await send(false)
     if (!res.ok) throw Object.assign(new Error(`AI 请求失败 ${res.status}: ${await readError(res)}`), { status: 502 })
     const data: any = await res.json()
+    if (data.choices?.[0]?.finish_reason === 'length') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
     return extractJson(data.choices?.[0]?.message?.content ?? '')
   } catch (e: any) {
     if (e.name === 'AbortError') throw Object.assign(new Error('AI 请求超时（180 秒）'), { status: 504 })
