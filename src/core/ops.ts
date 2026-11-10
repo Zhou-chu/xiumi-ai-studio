@@ -88,6 +88,27 @@ export function applyOps(doc: Doc, ops: DocOp[]): Doc {
   return ops.reduce(applyOp, doc)
 }
 
+/** 选中模块的范围：它自己、里面的子模块，以及它所在的顶层位置（文本框里的子模块以文本框为准） */
+export function selectionScope(doc: Doc, selectedId: string | null | undefined): { ids: Set<string>; top: number } | null {
+  const at = findBlock(doc.blocks, selectedId)
+  if (!at) return null
+  const outer = at.parent ?? at.block
+  const ids = new Set<string>()
+  const add = (b: Block) => {
+    ids.add(b.id)
+    if (b.type === 'box') b.props.children.forEach(add)
+  }
+  add(at.block)
+  return { ids, top: doc.blocks.findIndex((b) => b.id === outer.id) }
+}
+
+/** Match the server's exact-module update boundary; fail closed on stale or mixed scope. */
+export function limitToSelection(doc: Doc, selectedId: string | null | undefined, rawOps: any[]): { ops: any[]; dropped: any[] } {
+  if (selectedId == null) return { ops: rawOps, dropped: [] }
+  const valid = findBlock(doc.blocks, selectedId) && rawOps.every(op => op?.op === 'update' && op.id === selectedId)
+  return valid ? { ops: rawOps, dropped: [] } : { ops: [], dropped: rawOps }
+}
+
 /** 人类可读的改动说明，用于差异面板 */
 export function describeOp(doc: Doc, op: DocOp): { title: string; before?: string; after?: string } {
   const label = (b?: Block) => (b ? `${b.type}「${summarize(b).slice(0, 18)}」` : '')

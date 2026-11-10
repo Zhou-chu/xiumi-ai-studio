@@ -7,6 +7,7 @@ import { cropAsset, deleteAsset, listAssets, saveAsset, variantPath } from './as
 import { listComponents, removeComponent, saveComponent, updateComponent } from './components'
 import { IMAGE_HOST, safeFetch, WECHAT_IMAGE_HOST } from './net'
 import { aiStatus, chatJson, discoverModels, testConnection, COPY_SYSTEM, DESIGN_SYSTEM, EDIT_SYSTEM, ENRICH_SYSTEM, OUTLINE_SYSTEM, PLACE_SYSTEM } from './ai'
+import { probeEfforts } from './aiModels'
 import { editPrompt, scopeEditResult } from './aiEdit'
 import { suggestionPrompt, readSuggestion, SUGGESTION_SYSTEM } from './aiSuggestion'
 import { isRoleId } from '../src/core/roles'
@@ -181,6 +182,12 @@ app.post('/api/settings/ai/test', h(async (req, res) => {
   const r = await testConnection(profile)
   res.json({ ok: r?.ok === true, reply: r, ms: Date.now() - t0 })
 }))
+/** 检测这个模型接受哪些思考强度：每个强度发一条极短的请求，会产生少量调用费用 */
+app.post('/api/settings/ai/probe-effort', h(async (req, res) => {
+  const profile = await resolveDraftProfile(req.body ?? {})
+  if (!profile.baseUrl || !profile.model) throw Object.assign(new Error('请先填写接口地址和模型名称'), { status: 400 })
+  res.json(await probeEfforts(profile))
+}))
 const pid = (req: Request) => (typeof req.body?.profileId === 'string' ? req.body.profileId : undefined)
 app.post('/api/ai/outline', h(async (req, res) => {
   const text = String(req.body.text ?? '').slice(0, 30000)
@@ -265,7 +272,8 @@ app.post('/api/ai/suggest-instruction', h(async (req, res) => {
   res.json(readSuggestion(await chatJson(SUGGESTION_SYSTEM, prompt, { maxTokens: 2000, profileId: pid(req) })))
 }))
 app.post('/api/ai/edit', h(async (req, res) => {
-  const { context, instruction, selectedId } = req.body
+  const { context, instruction } = req.body
+  const selectedId = req.body.selectedId ?? context?.focus?.id
   if (selectedId !== undefined && (typeof selectedId !== 'string' || !selectedId)) {
     throw Object.assign(new Error('无效的选中模块'), { status: 400 })
   }

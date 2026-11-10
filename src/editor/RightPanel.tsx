@@ -144,9 +144,9 @@ function AiPanel() {
     if (!instruction.trim()) return
     setBusy(true)
     try {
-      const r = await api.aiEdit(aiContext(doc), instruction, undefined, scope === 'selection' ? selected?.id : undefined)
+      const r = await api.aiEdit(aiContext(doc, selectedId), instruction, undefined, selectedId)
       if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
-      propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [])
+      propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [], selectedId)
     } catch (e: any) {
       notify(e.message, 'error')
     } finally {
