@@ -6,7 +6,7 @@
 
 - 文档首次核查日期：2026-11-10（UTC）。
 - 应用版本：`package.json` 为 `0.1.0`；不能仅凭此版本号区分迭代。
-- 本轮源码基线：`main` 的 `c5dfec0`。后续集成变更应按第 11 节更新；本文件自身提交不等于部署版本。
+- 本轮源码基线：`main` 的 `e5ca86e`（已包含 PR #3 模型列表可见性修复）。后续集成变更应按第 11 节更新；本文件自身提交不等于部署版本。
 - 审核方法：逐项检查 UI、核心函数、服务端接口和仓库测试。没有在本轮用真实付费模型、微信公众号后台或用户 Windows 台式机验证。
 - **已实现**：存在可达的界面或接口及实现路径，不意味着所有输入、外部服务或设备均已验证。
 - **条件实现**：实现已存在，但需要模型服务、公众号配置、网络或手工操作。
@@ -145,12 +145,13 @@
 
 - 保存多套配置、切换当前配置、测试连接；支持 OpenAI 兼容 Chat Completions 和 Anthropic Messages 两种协议。服务商品牌预设不是所有模型已验证兼容的保证。
 - 配置包含名称、Base URL、密钥、模型 ID、JSON 模式、可选上下文窗口与思考强度；`.env` 配置作为只读配置项。
-- 可请求服务商模型列表并手工填写未列出的模型。当前只读取一页；列表只代表服务端返回 ID，不能保证账户有调用权限。
+- 点击“从服务商获取模型列表”后，立即显示可滚动的“可用模型”列表；点击条目填写模型 ID，以及上游实际提供的上下文窗口。仍允许手工填写未列出的模型。当前只读取一页；列表只代表服务端返回 ID，不能保证账户有调用权限。
+- 获取期间显示状态；空结果和错误显示文字提示，可重试或手工填写。切换配置、地址、协议或密钥会清除列表并忽略旧请求结果，防止其他配置的模型列表覆盖当前配置。切换模型会清除旧思考强度，需要按新模型支持情况填写。
 - 只采纳上游真实返回的上下文 / 思考元数据；缺失值不按模型名猜测。上下文窗口目前仅记录，**不会自动分块、截断或扩充上下文**。
 - 思考强度作为字符串传参：OpenAI 使用 `reasoning_effort` / `max_completion_tokens`，Anthropic 使用 `output_config.effort` / `max_tokens`；设置强度时不发送 temperature。专有 thinking 开关、预算参数未自动适配。
 - 密钥保存于本机服务端 `settings.json`，返回浏览器的是打码值；这不是加密密钥保险库。更换服务 origin 或接口协议需重新输入密钥。
 - 模型调用会把请求相关文稿、摘要、指令或描述发送给配置的服务商；“本机编辑”不意味着 AI 内容完全不离开本机。
-- 证据：`server/settings.ts`、`server/ai.ts`、`src/editor/AiSettingsModal.tsx`；`tests/unit/settings.test.ts`、`tests/unit/aiProfiles.test.ts`、`tests/e2e/ai-issues.spec.ts`。详见 [模型能力与边界](ai-models-and-selection.md)。
+- 证据：`server/settings.ts`、`server/ai.ts`、`src/editor/AiSettingsModal.tsx`；`tests/unit/settings.test.ts`、`tests/unit/aiProfiles.test.ts`、`tests/unit/aiSettingsUi.test.ts`、`tests/e2e/ai-issues.spec.ts`。详见 [模型能力与边界](ai-models-and-selection.md)。
 
 ### FR-11 AI 设计助手与选中模块范围｜条件实现
 
@@ -266,7 +267,7 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 6. 在真正的秀米和微信后台检查图片、轮播、背景、宽度、间距；记录客户端和截图。
 7. 配置真实公众号时，显式确认仅创建测试草稿，核对返回结果，绝不把自动化 mock 当作真实发布验收。
 
-本轮在 Linux 工作区复用已安装依赖，以本地工具二进制执行 ESLint、TypeScript、Vitest、Vite：lint、类型检查、21 个文件的 262 条单测与生产构建通过；构建有超过 500 kB 的 chunk 提示。文档中所有源码 / 测试路径和相对链接已检查存在，`git diff --check` 通过。本轮未执行 E2E、Windows 脚本或真实外部服务测试。`pnpm check` 包装器因默认 home 下 pnpm 存储路径不可创建而未运行，因此以上是等价子命令结果，不冒称该包装命令成功。后续集成结果由提交 / PR 记录补充。仓库测试中存在 mock AI 和模拟外部响应，它们证明请求、校验和 UI 流程，不证明真实供应商质量、延迟或计费。后续验证应记录：提交 SHA、命令、环境、通过 / 失败 / 未运行、失败原因和证据链接。
+本轮在更新至 `e5ca86e` 后的 Linux 工作区复用已安装依赖，以本地工具二进制执行 ESLint、TypeScript、Vitest、Vite：lint、类型检查、22 个文件的 266 条单测与生产构建通过；构建有超过 500 kB 的 chunk 提示。文档中所有源码 / 测试路径和相对链接已检查存在，`git diff --check` 通过。本轮未执行 E2E、Windows 脚本或真实外部服务测试。`pnpm check` 包装器因默认 home 下 pnpm 存储路径不可创建而未运行，因此以上是等价子命令结果，不冒称该包装命令成功。后续集成结果由提交 / PR 记录补充。仓库测试中存在 mock AI 和模拟外部响应，它们证明请求、校验和 UI 流程，不证明真实供应商质量、延迟或计费。后续验证应记录：提交 SHA、命令、环境、通过 / 失败 / 未运行、失败原因和证据链接。
 
 ## 11. 持续维护规则
 
@@ -283,3 +284,4 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 | 日期 | 源码基线 | 更新范围 | 验证性质 |
 | --- | --- | --- | --- |
 | 2026-11-10 | `c5dfec0` | 首版：18 类模块、编辑与导入、AI / 模板 / 照片、素材与主题、导出与部署边界 | 源码与测试路径审计；命令结果见本轮 PR |
+| 2026-11-10 | `e5ca86e` | FR-10 更新为已合并的可见模型列表、获取状态与过期响应保护；不含尚未合并的图片模块双击编辑和输入建议 | 重新核对 main 源码，重新执行 lint / 类型 / 单测 / 构建 |
