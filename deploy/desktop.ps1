@@ -66,8 +66,16 @@ function Start-App([string]$Release, [int]$ListenPort, [string]$DataPath) {
   } catch { Stop-OwnedProcess $state; throw }
 }
 function Assert-FreePort([int]$ListenPort) {
-  if (Get-NetTCPConnection -State Listen -LocalPort $ListenPort -ErrorAction SilentlyContinue) {
-    throw "Port $ListenPort is occupied; refusing to stop an unknown process"
+  # CIM TCP State can be missing on some Windows hosts. Probe the actual
+  # loopback bind instead, and fail closed on any socket or permission error.
+  $probe = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, $ListenPort)
+  try {
+    $probe.ExclusiveAddressUse = $true
+    $probe.Start()
+  } catch {
+    throw "Cannot exclusively bind loopback port ${ListenPort}; refusing deployment: $($_.Exception.Message)"
+  } finally {
+    $probe.Stop()
   }
 }
 function Get-ApprovedHead {
