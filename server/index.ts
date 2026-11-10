@@ -8,6 +8,7 @@ import { listComponents, removeComponent, saveComponent, updateComponent } from 
 import { IMAGE_HOST, safeFetch, WECHAT_IMAGE_HOST } from './net'
 import { aiStatus, chatJson, discoverModels, testConnection, COPY_SYSTEM, DESIGN_SYSTEM, EDIT_SYSTEM, ENRICH_SYSTEM, OUTLINE_SYSTEM, PLACE_SYSTEM } from './ai'
 import { editPrompt, scopeEditResult } from './aiEdit'
+import { suggestionPrompt, readSuggestion, SUGGESTION_SYSTEM } from './aiSuggestion'
 import { isRoleId } from '../src/core/roles'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
 import { importFile } from './importer'
@@ -254,6 +255,14 @@ ${JSON.stringify(b.units ?? []).slice(0, 8000)}
 可用版式（按照片张数）：
 ${JSON.stringify(b.layouts ?? {})}`
   res.json(await chatJson(PLACE_SYSTEM, user, { maxTokens: 3000, temperature: 0.3, profileId: pid(req) }))
+}))
+app.post('/api/ai/suggest-instruction', h(async (req, res) => {
+  const { context, selectedId } = req.body
+  if (selectedId !== undefined && (typeof selectedId !== 'string' || !selectedId)) {
+    throw Object.assign(new Error('无效的选中模块'), { status: 400 })
+  }
+  const prompt = suggestionPrompt(context, selectedId)
+  res.json(readSuggestion(await chatJson(SUGGESTION_SYSTEM, prompt, { maxTokens: 2000, profileId: pid(req) })))
 }))
 app.post('/api/ai/edit', h(async (req, res) => {
   const { context, instruction, selectedId } = req.body
