@@ -266,18 +266,35 @@ useStore.subscribe((s, prev) => {
   timer = setTimeout(saveNow, 1200)
 })
 
-export async function saveNow() {
+/** True only when the current document, including its latest edits, is persisted. */
+export async function saveNow(): Promise<boolean> {
   clearTimeout(timer)
   const { doc } = useStore.getState()
   useStore.setState({ saveStatus: 'saving' })
   try {
     await api.saveProject(doc)
-    // 保存期间若有新改动，保持 dirty 以便下一轮保存
-    if (useStore.getState().doc === doc) useStore.setState({ saveStatus: 'saved', saveError: '' })
-    else timer = setTimeout(saveNow, 800)
+    if (useStore.getState().doc === doc) {
+      useStore.setState({ saveStatus: 'saved', saveError: '' })
+      return true
+    }
+    // New edits arrived while saving. Do not let navigation discard them.
+    timer = setTimeout(saveNow, 800)
+    return false
   } catch (e: any) {
-    useStore.setState({ saveStatus: 'error', saveError: e.message })
+    // A late failure from an old project must not change the new project's status.
+    if (useStore.getState().doc.id === doc.id) useStore.setState({ saveStatus: 'error', saveError: e.message })
+    return false
   }
+}
+
+/** Use before replacing the current document or reloading the page. */
+export async function saveBeforeLeave(): Promise<boolean> {
+  if (await saveNow()) return true
+  const { saveStatus, saveError, notify } = useStore.getState()
+  notify(saveStatus === 'error'
+    ? `保存失败，已保留当前内容，请重试或先导出备份：${saveError}`
+    : '还有新修改未保存，已保留当前内容，请保存完成后重试。', 'error')
+  return false
 }
 
 export async function loadCustomThemes() {
