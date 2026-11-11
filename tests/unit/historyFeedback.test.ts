@@ -47,3 +47,29 @@ it('shows failed restoration and keeps the current document', async () => {
   expect(document.body.textContent).toContain('历史版本恢复失败')
   expect(useStore.getState().doc).toBe(original)
 })
+it.each(['cancel', 'switch', 'edit'] as const)('ignores delayed restoration after %s', async (action) => {
+  vi.spyOn(api, 'versions').mockResolvedValue([{ id: 'v1', label: 'snapshot', createdAt: 1, blockCount: 1 }])
+  let finish!: (value: Awaited<ReturnType<typeof api.version>>) => void
+  vi.spyOn(api, 'version').mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  await render()
+  const original = useStore.getState().doc
+  await act(async () => button('恢复').click())
+  await act(async () => {
+    if (action === 'cancel') root.render(null)
+    if (action === 'switch') useStore.getState().load({ ...emptyDoc(), title: 'New project' })
+    if (action === 'edit') useStore.getState().commit({ ...original, title: 'New edits' })
+  })
+  const expected = useStore.getState().doc
+  await act(async () => finish({ doc: { ...original, title: 'OLD SNAPSHOT' } }))
+  expect(useStore.getState().doc).toBe(expected)
+})
+it('restores an unchanged document and keeps restoration undoable', async () => {
+  vi.spyOn(api, 'versions').mockResolvedValue([{ id: 'v1', label: 'snapshot', createdAt: 1, blockCount: 1 }])
+  const original = useStore.getState().doc
+  vi.spyOn(api, 'version').mockResolvedValue({ doc: { ...original, title: 'Saved title' } })
+  await render()
+  await act(async () => button('恢复').click())
+  expect(useStore.getState().doc.title).toBe('Saved title')
+  await act(async () => useStore.getState().undo())
+  expect(useStore.getState().doc).toEqual(original)
+})

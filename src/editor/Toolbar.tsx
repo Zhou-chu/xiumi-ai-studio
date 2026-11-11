@@ -1,6 +1,6 @@
 import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
 import { displayHtml } from '../core/images'
@@ -33,6 +33,11 @@ export function VersionsModal({ onClose }: { onClose: () => void }) {
   const [listError, setListError] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const active = useRef(false)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false }
+  }, [])
   const refresh = async () => {
     try {
       setList(await api.versions(doc.id))
@@ -77,15 +82,21 @@ export function VersionsModal({ onClose }: { onClose: () => void }) {
           <button
             disabled={busy}
             onClick={async () => {
+              const expected = doc
               setBusy(true)
               setError('')
               try {
                 const { doc: old } = await api.version(doc.id, v.id)
+                if (!active.current) return
+                if (useStore.getState().doc !== expected) {
+                  setError('文稿已变化，本次恢复已取消，请重新选择历史版本。')
+                  return
+                }
                 commit(normalizeDoc({ ...old, id: doc.id }))
                 notify(`已恢复「${v.label}」`)
                 onClose()
               } catch {
-                setError('历史版本恢复失败，当前文稿未改变，请重试。')
+                if (active.current) setError('历史版本恢复失败，当前文稿未改变，请重试。')
               } finally {
                 setBusy(false)
               }
