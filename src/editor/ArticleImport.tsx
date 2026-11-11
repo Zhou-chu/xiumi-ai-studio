@@ -13,7 +13,7 @@ import { articleToHtmlBlocks, articleToMarkdown, cardContent, extractArticle, ty
 import { api, assetRef, type Asset } from './api'
 import { ImportWizard } from './ImportWizard'
 import { Modal } from './Modal'
-import { saveNow, useStore } from './store'
+import { saveBeforeLeave, useStore } from './store'
 
 const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
 
@@ -145,9 +145,9 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
         }
         window.dispatchEvent(new Event('components-changed'))
       }
-      await saveNow()
+      if (!(await saveBeforeLeave())) return
       load(doc)
-      await saveNow()
+      if (!(await saveBeforeLeave())) return
       window.dispatchEvent(new Event('templates-changed'))
       const parts = [`已导入 ${kept.length} 个原文片段`, asTemplate && '并保存为模板', asComponents && `新增 ${added} 个组件${repeated ? `（${repeated} 个结构重复未收录）` : ''}`, rehostFailed && `${rehostFailed} 张图片转存失败，请在右侧替换`]
       notify(parts.filter(Boolean).join('，'), rehostFailed ? 'error' : 'ok')

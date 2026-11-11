@@ -17,7 +17,7 @@ import { kitCandidates, KitPicker, layoutOptions, resolveKit, useComponents, typ
 import { Modal } from './Modal'
 import { PhotoPlanner, type PhotoGroup } from './PhotoPlanner'
 import { PlanIssues } from './PlanIssues'
-import { saveNow, useStore } from './store'
+import { saveBeforeLeave, useStore } from './store'
 
 const Copywriter = lazy(() => import('./Copywriter').then((m) => ({ default: m.Copywriter })))
 
@@ -278,10 +278,10 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     }, 'AI 改写中…')
 
   const choose = async (doc: Doc, all?: Variant[]) => {
-    await saveNow()
+    if (!(await saveBeforeLeave())) return
     if (all) for (const v of all) if (v.doc !== doc) await api.saveProject(v.doc)
     load(doc)
-    await saveNow()
+    if (!(await saveBeforeLeave())) return
     notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已打开所选方案')
     onClose()
   }

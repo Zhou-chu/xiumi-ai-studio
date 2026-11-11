@@ -9,7 +9,7 @@ import { TemplateModules } from './TemplateModules'
 import { ComponentLibrary } from './ComponentLibrary'
 import { CropModal } from './CropModal'
 import { KIT_ITEMS, KIT_THEME_ID, type KitItem } from './kitItems'
-import { emptyDoc, saveNow, selectedBlock, useStore } from './store'
+import { emptyDoc, saveBeforeLeave, selectedBlock, useStore } from './store'
 
 type Tab = 'blocks' | 'components' | 'assets' | 'templates' | 'projects'
 
@@ -237,10 +237,10 @@ export function LeftPanel() {
                   <button
                     title="用此模板新建项目"
                     onClick={async () => {
-                      await saveNow()
+                      if (!(await saveBeforeLeave())) return
                       const now = Date.now()
                       load({ ...emptyDoc(), title: t.name, ...(t.themeId && { themeId: t.themeId, themeOverrides: t.themeOverrides }), blocks: t.blocks.map(cloneBlock), createdAt: now, updatedAt: now })
-                      await saveNow()
+                      if (!(await saveBeforeLeave())) return
                       notify(`已用模板「${t.name}」新建项目`)
                     }}
                   >
@@ -269,9 +269,9 @@ export function LeftPanel() {
             <button
               className="wide"
               onClick={async () => {
-                await saveNow()
+                if (!(await saveBeforeLeave())) return
                 load(emptyDoc())
-                await saveNow()
+                if (!(await saveBeforeLeave())) return
                 refreshProjects()
               }}
             >
@@ -282,7 +282,7 @@ export function LeftPanel() {
                 <button
                   className="grow"
                   onClick={async () => {
-                    await saveNow()
+                    if (!(await saveBeforeLeave())) return
                     load(await api.project(p.id))
                   }}
                 >
