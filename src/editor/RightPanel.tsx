@@ -1,3 +1,4 @@
+import { Help } from './Help'
 import { useEffect, useMemo, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { applyOps, describeOp } from '../core/ops'
@@ -31,7 +32,7 @@ function DocSettings() {
         {doc.cover ? <img className="cover-preview" src={variantUrl(doc.cover.src, '235:100', 600)} alt="" /> : <p className="hint">尚未设置</p>}
         <button onClick={() => setDesigning(true)}>🎨 设计封面</button>
       </div>
-      <p className="hint">提示：点击画布中的模块即可编辑该模块；双击正文类模块可直接编辑文字。</p>
+      <Help title="编辑模块">提示：点击画布中的模块即可编辑该模块；双击正文类模块可直接编辑文字。</Help>
       {designing && <CoverDesigner onClose={() => setDesigning(false)} />}
     </div>
   )
@@ -212,7 +213,7 @@ function AiPanel() {
               <button className="primary" onClick={() => resolveProposal('all', 'accepted')} data-testid="accept-all">全部接受（{pending.length}）</button>
             </div>
           )}
-          <p className="hint">接受后的修改可用 Ctrl+Z 撤销。</p>
+          <Help title="撤销修改">接受后的修改可用 Ctrl+Z 撤销。</Help>
         </div>
       )}
       {preview && <PhonePreview html={preview} title="AI 修改预览（未应用）" onClose={() => setPreview(null)} />}
@@ -235,8 +236,7 @@ function ReferencePanel() {
   }
   return (
     <div className="props-form">
-      <h4>参考风格学习</h4>
-      <p className="hint">只提取字号层级、颜色、行距、间距、圆角与装饰倾向等数值参数，生成全新的原创主题；不复制原文结构、文字或素材。</p>
+      <h4><Help title="参考风格学习">只提取字号层级、颜色、行距、间距、圆角与装饰倾向等数值参数，生成全新的原创主题；不复制原文结构、文字或素材。</Help></h4>
       <label className="check">
         <input type="checkbox" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} />
         我确认对参考文章拥有使用权或已获授权
@@ -254,7 +254,7 @@ function ReferencePanel() {
       >
         抓取并分析
       </button>
-      <label className="field"><span>或粘贴文章 HTML（在浏览器中复制正文后，用开发者工具复制 #js_content 元素）</span><textarea rows={4} value={html} onChange={(e) => setHtml(e.target.value)} /></label>
+      <label className="field"><span><Help title="或粘贴文章 HTML">在浏览器中复制正文后，用开发者工具复制 #js_content 元素。</Help></span><textarea aria-label="或粘贴文章 HTML" rows={4} value={html} onChange={(e) => setHtml(e.target.value)} /></label>
       <button disabled={!authorized || !html} onClick={() => analyze(html)}>分析粘贴内容</button>
       {report && draft && (
         <div className="report">

@@ -1,3 +1,4 @@
+import { Help } from './Help'
 // 封面设计：在 canvas 上合成 900×383（2.35:1）公众号封面，导出 PNG 存入素材库。
 import { useEffect, useRef, useState } from 'react'
 import { resolveTheme } from '../core/themes'
@@ -123,7 +124,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="封面设计（900×383，2.35:1）" onClose={onClose} width={980}>
       <canvas ref={canvas} width={W} height={H} className="cover-canvas" />
-      <p className="hint">公众号会从封面中裁出 1:1 区域作为小图，重要内容尽量放在左侧 383px 内。</p>
+      <Help title="封面裁切">公众号会从封面中裁出 1:1 区域作为小图，重要内容尽量放在左侧 383px 内。</Help>
       <div className="row gap wrap">
         <div className="seg">
           {(['gradient', 'block', 'band'] as Layout[]).map((l) => (

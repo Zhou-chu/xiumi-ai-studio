@@ -1,3 +1,4 @@
+import { Help } from './Help'
 import { useDraggable } from '@dnd-kit/core'
 import { useCallback, useEffect, useState } from 'react'
 import { BLOCK_TYPES, blockMeta, cloneBlock, createBlock } from '../core/blocks'
@@ -157,7 +158,7 @@ export function LeftPanel() {
                 <KitLibItem key={k.key} item={k} />
               ))}
             </div>
-            <p className="hint">选中大型文本框后再点模块，会放进框内；也可以直接拖进框里。</p>
+            <Help title="大型文本框">选中大型文本框后再点模块，会放进框内；也可以直接拖进框里。</Help>
           </section>
         )}
         {tab === 'blocks' &&
@@ -180,7 +181,7 @@ export function LeftPanel() {
               <input type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} data-testid="asset-upload" />
               {busy ? '上传中…' : '＋ 上传图片（可多选）'}
             </label>
-            <p className="hint">点击图片插入；选中相册/单图/图文等模块时点击即替换。也可拖到模块上。图片会自动纠正方向并压缩。</p>
+            <Help title="使用素材">点击图片插入；选中相册/单图/图文等模块时点击即替换。也可拖到模块上。图片会自动纠正方向并压缩。</Help>
             <div className="asset-grid">
               {assets.map((a) => (
                 <AssetThumb
@@ -214,7 +215,7 @@ export function LeftPanel() {
             >
               ☆ 收藏当前整篇为模板
             </button>
-            <p className="hint">在画布中选中模块后点击 ☆ 可收藏单个模块。点击模板插入到选中位置之后；「套用」保留模板版式，换上新文稿和照片。</p>
+            <Help title="使用模板">在画布中选中模块后点击 ☆ 可收藏单个模块。点击模板插入到选中位置之后；「套用」保留模板版式，换上新文稿和照片。</Help>
             {templates.map((t) => (
               <div key={t.id} className="tpl-item">
                 <button className="grow" onClick={() => insertBlocks(t.blocks)} title="插入到当前文档选中位置之后" data-testid="template-item">

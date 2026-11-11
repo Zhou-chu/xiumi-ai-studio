@@ -1,3 +1,5 @@
+import { ColorModeControl } from './ColorModeControl'
+import { Help } from './Help'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
@@ -19,7 +21,7 @@ export function PhonePreview({ html, title, onClose }: { html: string; title: st
       <div className="phone-preview">
         <iframe title="手机预览" srcDoc={standaloneHtml(doc, displayHtml(html))} data-testid="preview-frame" />
       </div>
-      <p className="hint">375px 宽度模拟公众号文章页。</p>
+      <Help title="文章预览">375px 宽度模拟公众号文章页。</Help>
     </Modal>
   )
 }
@@ -46,7 +48,7 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
       >
         保存当前为新版本
       </button>
-      <p className="hint">恢复版本后可用 Ctrl+Z 撤回恢复操作；每个项目保留最近 50 个版本。</p>
+      <Help title="历史版本">恢复版本后可用 Ctrl+Z 撤回恢复操作；每个项目保留最近 50 个版本。</Help>
       {list.map((v) => (
         <div key={v.id} className="list-row">
           <div className="grow">
@@ -291,6 +293,7 @@ export function Toolbar() {
         {{ saved: '已保存', dirty: '未保存', saving: '保存中…', error: '保存失败' }[saveStatus]}
       </span>
       <div className="spacer" />
+      <ColorModeControl />
       <button onClick={undo} disabled={!canUndo} title="撤销 Ctrl+Z">↶ 撤销</button>
       <button onClick={redo} disabled={!canRedo} title="重做 Ctrl+Y">↷ 重做</button>
       <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
