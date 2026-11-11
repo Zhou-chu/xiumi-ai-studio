@@ -1,8 +1,8 @@
 // 本地文件存储：项目、历史版本、模板收藏、自定义主题、素材。
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
-import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 
 export const ROOT = resolve(import.meta.dirname, '..')
 export const DATA = resolve(process.env.DATA_DIR ?? join(ROOT, 'data'))
@@ -40,6 +40,7 @@ export async function writeJson(file: string, data: unknown) {
   // 在排队前捕获数据，避免调用方后续修改对象影响本次保存。
   const json = JSON.stringify(data)
   const write = (pendingWrites.get(target) ?? Promise.resolve()).then(async () => {
+    await mkdir(dirname(target), { recursive: true })
     const tmp = `${target}.${process.pid}.${randomUUID()}.tmp`
     try {
       await writeFile(tmp, json, 'utf8')
@@ -61,7 +62,10 @@ export async function writeJson(file: string, data: unknown) {
 export function collection<T extends { id: string }>(dir: string) {
   return {
     async list(): Promise<T[]> {
-      const files = (await readdir(dir)).filter((f) => f.endsWith('.json'))
+      const files = (await readdir(dir).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return []
+        throw error
+      })).filter((f) => f.endsWith('.json'))
       return Promise.all(files.map((f) => readJson<T>(join(dir, f), null as unknown as T))).then((xs) => xs.filter(Boolean))
     },
     get: (id: string) => readJson<T | null>(join(dir, `${safeId(id)}.json`), null),

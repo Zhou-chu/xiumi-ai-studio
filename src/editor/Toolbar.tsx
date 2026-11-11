@@ -26,28 +26,47 @@ export function PhonePreview({ html, title, onClose }: { html: string; title: st
   )
 }
 
-function VersionsModal({ onClose }: { onClose: () => void }) {
+export function VersionsModal({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const { commit, notify } = useStore.getState()
   const [list, setList] = useState<VersionSummary[]>([])
-  const refresh = () => api.versions(doc.id).then(setList).catch(() => {})
-  useEffect(() => {
-    refresh()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [listError, setListError] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const refresh = async () => {
+    try {
+      setList(await api.versions(doc.id))
+      setListError(false)
+    } catch {
+      setListError(true)
+    }
+  }
+  useEffect(() => { void refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal title="历史版本" onClose={onClose}>
       <button
         className="primary wide"
+        disabled={busy}
         onClick={async () => {
           const label = prompt('版本说明', `手动保存 ${new Date().toLocaleTimeString()}`)
           if (label === null) return
-          await api.saveVersion(doc, label || '手动保存')
-          refresh()
-          notify('版本已保存')
+          setBusy(true)
+          setError('')
+          try {
+            await api.saveVersion(doc, label || '手动保存')
+            await refresh()
+            notify('版本已保存')
+          } catch {
+            setError('历史版本保存失败，当前文稿未改变，请重试。')
+          } finally {
+            setBusy(false)
+          }
         }}
       >
         保存当前为新版本
       </button>
+      {error && <p role="alert">{error}</p>}
+      {listError && <p role="alert">历史版本加载失败，请重试。<button disabled={busy} onClick={() => void refresh()}>重试</button></p>}
       <Help title="历史版本">恢复版本后可用 Ctrl+Z 撤回恢复操作；每个项目保留最近 50 个版本。</Help>
       {list.map((v) => (
         <div key={v.id} className="list-row">
@@ -56,18 +75,27 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
             <small>{new Date(v.createdAt).toLocaleString()} · {v.blockCount} 个模块</small>
           </div>
           <button
+            disabled={busy}
             onClick={async () => {
-              const { doc: old } = await api.version(doc.id, v.id)
-              commit(normalizeDoc({ ...old, id: doc.id }))
-              notify(`已恢复「${v.label}」`)
-              onClose()
+              setBusy(true)
+              setError('')
+              try {
+                const { doc: old } = await api.version(doc.id, v.id)
+                commit(normalizeDoc({ ...old, id: doc.id }))
+                notify(`已恢复「${v.label}」`)
+                onClose()
+              } catch {
+                setError('历史版本恢复失败，当前文稿未改变，请重试。')
+              } finally {
+                setBusy(false)
+              }
             }}
           >
             恢复
           </button>
         </div>
       ))}
-      {!list.length && <p className="empty">还没有保存过版本</p>}
+      {!listError && !list.length && <p className="empty">还没有保存过版本</p>}
     </Modal>
   )
 }
