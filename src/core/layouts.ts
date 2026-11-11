@@ -1,7 +1,7 @@
 // 版式配方：Outline + 图片 → 三种结构不同的文档。
 // AI 负责理解（输出 Outline），代码负责排版，保证结果始终是合法的文档 JSON。
 import { createBlock, newId } from './blocks'
-import type { Outline, OutlineSection } from './outline'
+import { sectionTables, type Outline, type OutlineSection } from './outline'
 import { textToRich } from './richtext'
 import type { Block, Doc, ImageRef } from './types'
 
@@ -53,9 +53,9 @@ function ending(o: Outline) {
 function extras(s: OutlineSection, quoteVariant: Block<'quote'>['props']['variant']): Block[] {
   const out: Block[] = []
   if (s.timeline.length) out.push(createBlock('timeline', { items: s.timeline }))
-  if (s.table) out.push(createBlock('table', { ...s.table, caption: '' }))
+  for (const table of sectionTables(s)) out.push(createBlock('table', { ...table, caption: '' }))
   for (const p of s.people) out.push(createBlock('profile', { ...p }))
-  for (const q of s.quotes.slice(0, 2)) out.push(createBlock('quote', { ...q, variant: quoteVariant }))
+  for (const q of s.quotes) out.push(createBlock('quote', { ...q, variant: quoteVariant }))
   return out
 }
 

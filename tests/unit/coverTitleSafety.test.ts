@@ -71,3 +71,24 @@ it('does not mark a background cover ready while a later effect has cleared its 
   expect(button.disabled).toBe(false)
   expect(painted.join('')).toContain(title)
 })
+
+it('ignores an old background image failure after switching to a ready plain cover', async () => {
+  const pending: Array<{ onload?: () => void; onerror?: () => void }> = []
+  vi.stubGlobal('Image', class {
+    width = 900
+    height = 600
+    onload?: () => void
+    onerror?: () => void
+    src = ''
+    constructor() { pending.push(this) }
+  })
+  const title = '保留新的纯色封面'
+  const { button, painted } = await renderTitle(title, true)
+  const plain = [...document.querySelectorAll('button')].find(b => b.textContent === '纯色')!
+  await act(async () => { plain.click() })
+  expect(button.disabled).toBe(false)
+  expect(painted.join('')).toContain(title)
+  await act(async () => { pending[0].onerror!() })
+  expect(button.disabled).toBe(false)
+  expect(painted.join('')).toContain(title)
+})

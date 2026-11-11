@@ -2,16 +2,24 @@
 // 这是无 AI 时的规则版本；有 AI 时由模型输出同样结构的 JSON。
 import { marked } from 'marked'
 
+export interface OutlineTable { headers: string[]; rows: string[][] }
+
 export interface OutlineSection {
   heading: string
   paragraphs: string[]
   quotes: { text: string; source: string }[]
   timeline: { time: string; title: string; desc: string }[]
-  table?: { headers: string[]; rows: string[][] }
+  table?: OutlineTable
+  /** Further tables in source order; table remains the first for old outlines. */
+  additionalTables?: OutlineTable[]
   people: { name: string; role: string; bio: string }[]
   /** 原文中出现在本节的图片（markdown 图片语法） */
   imageRefs: string[]
 }
+
+export const sectionTables = (section: OutlineSection): OutlineTable[] => [
+  ...(section.table ? [section.table] : []), ...(section.additionalTables ?? []),
+]
 
 export interface Outline {
   title: string
@@ -44,16 +52,19 @@ function looksLikeHeading(line: string): boolean {
 export function normalizeOutline(raw: any, fallback: Outline): Outline {
   const str = (v: unknown, d = '') => (typeof v === 'string' ? v.trim() : d)
   const arr = <T>(v: unknown, map: (x: any) => T | undefined): T[] => (Array.isArray(v) ? v.map(map).filter((x): x is T => x !== undefined) : [])
+  const tableOf = (t: any): OutlineTable | undefined => t && Array.isArray(t.headers) && Array.isArray(t.rows)
+    ? { headers: t.headers.map(String), rows: t.rows.map((r: unknown[]) => Array.isArray(r) ? r.map(String) : []) } : undefined
   const sections = arr(raw?.sections, (s): OutlineSection | undefined => {
     const heading = str(s?.heading)
     if (!heading) return undefined
-    const table = s?.table && Array.isArray(s.table.headers) && Array.isArray(s.table.rows) ? { headers: s.table.headers.map(String), rows: s.table.rows.map((r: unknown[]) => (Array.isArray(r) ? r.map(String) : [])) } : undefined
+    const table = tableOf(s.table)
     return {
       heading,
       paragraphs: arr(s.paragraphs, (p) => str(p) || undefined),
       quotes: arr(s.quotes, (q) => (str(q?.text) ? { text: str(q.text), source: str(q.source) } : undefined)),
       timeline: arr(s.timeline, (t) => (str(t?.title) ? { time: str(t.time), title: str(t.title), desc: str(t.desc) } : undefined)),
       table,
+      additionalTables: arr(s.additionalTables, tableOf),
       people: arr(s.people, (p) => (str(p?.name) ? { name: str(p.name), role: str(p.role), bio: str(p.bio) } : undefined)),
       imageRefs: arr(s.imageRefs, (x) => str(x) || undefined),
     }
@@ -97,8 +108,10 @@ function finalize(o: Outline): Outline {
       } else if (TIME_RE.test(p) && p.length < 80 && s.timeline) {
         const time = p.match(TIME_RE)![0]
         const rest = p.slice(time.length).replace(SEP_RE, '')
-        const [title, desc] = rest.split(/[，,；;]/, 2)
-        s.timeline.push({ time, title: title.trim(), desc: (desc ?? '').trim() })
+        const splitAt = rest.search(/[，,；;]/)
+        const title = splitAt < 0 ? rest : rest.slice(0, splitAt)
+        const desc = splitAt < 0 ? '' : rest.slice(splitAt + 1)
+        s.timeline.push({ time, title: title.trim(), desc: desc.trim() })
       } else {
         if (said && s.quotes && said[2].length >= 10) s.quotes.push({ text: said[2], source: said[1] })
         keep.push(p)
@@ -122,7 +135,7 @@ function finalize(o: Outline): Outline {
   // 标题后紧跟的短句视为副标题，不再重复出现在导语中
   if (!o.subtitle && o.intro.length > 1 && o.intro[0].length <= 50) o.subtitle = o.intro.shift()!
   if (!o.subtitle) o.subtitle = (o.intro[0] ?? o.sections[0]?.paragraphs[0] ?? '').split(/[。！？]/)[0].slice(0, 36)
-  o.sections = o.sections.filter((s) => s.paragraphs.length || s.timeline.length || s.quotes.length || s.table || s.imageRefs.length || s.people.length)
+  o.sections = o.sections.filter((s) => s.paragraphs.length || s.timeline.length || s.quotes.length || sectionTables(s).length || s.imageRefs.length || s.people.length)
   return o
 }
 
@@ -179,7 +192,9 @@ function parseMarkdown(text: string): Outline {
       for (const it of tk.items) push(it.text)
     } else if (tk.type === 'table') {
       const sec = cur ?? (o.sections[0] ??= emptySection('正文'))
-      sec.table = { headers: tk.header.map((h: any) => h.text), rows: tk.rows.map((r: any[]) => r.map((c) => c.text)) }
+      const table = { headers: tk.header.map((h: any) => h.text), rows: tk.rows.map((r: any[]) => r.map((c) => c.text)) }
+      if (sec.table) (sec.additionalTables ??= []).push(table)
+      else sec.table = table
     }
   }
   if (!o.title) o.title = o.intro.shift() ?? '未命名推文'
