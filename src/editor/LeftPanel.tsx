@@ -10,6 +10,7 @@ import { ComponentLibrary } from './ComponentLibrary'
 import { CropModal } from './CropModal'
 import { KIT_ITEMS, KIT_THEME_ID, type KitItem } from './kitItems'
 import { emptyDoc, saveBeforeLeave, selectedBlock, useStore } from './store'
+import { loadIfUnchanged } from './documentNavigation'
 
 type Tab = 'blocks' | 'components' | 'assets' | 'templates' | 'projects'
 
@@ -283,7 +284,9 @@ export function LeftPanel() {
                   className="grow"
                   onClick={async () => {
                     if (!(await saveBeforeLeave())) return
-                    load(await api.project(p.id))
+                    const expected = useStore.getState().doc
+                    const target = await api.project(p.id)
+                    loadIfUnchanged(target, expected)
                   }}
                 >
                   <b>{p.title || '未命名'}</b>

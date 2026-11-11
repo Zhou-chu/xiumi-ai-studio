@@ -18,6 +18,7 @@ import { Modal } from './Modal'
 import { PhotoPlanner, type PhotoGroup } from './PhotoPlanner'
 import { PlanIssues } from './PlanIssues'
 import { saveBeforeLeave, useStore } from './store'
+import { loadIfUnchanged } from './documentNavigation'
 
 const Copywriter = lazy(() => import('./Copywriter').then((m) => ({ default: m.Copywriter })))
 
@@ -75,7 +76,7 @@ const HINTS = ['清华风格，庄重典雅', '科技感，冷静理性', '温�
 
 export function ImportWizard({ onClose, initialText, initialImages, initialTemplates }: { onClose: () => void; initialText?: string; initialImages?: Asset[]; initialTemplates?: string[] }) {
   const themes = useStore((s) => s.themes)
-  const { load, notify } = useStore.getState()
+  const { notify } = useStore.getState()
   const [text, setText] = useState(initialText ?? '')
   const [images, setImages] = useState<Asset[]>(initialImages ?? [])
   const [ai, setAi] = useState<AiStatus | null>(null)
@@ -279,8 +280,9 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
 
   const choose = async (doc: Doc, all?: Variant[]) => {
     if (!(await saveBeforeLeave())) return
+    const expected = useStore.getState().doc
     if (all) for (const v of all) if (v.doc !== doc) await api.saveProject(v.doc)
-    load(doc)
+    if (!loadIfUnchanged(doc, expected)) return
     if (!(await saveBeforeLeave())) return
     notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已打开所选方案')
     onClose()
