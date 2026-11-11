@@ -1,0 +1,42 @@
+
+ RUN  v5.0.5 /workspace/scratch/7ae04dc66900/xiumi-concurrency
+
+ ❯ tests/unit/save-concurrency.test.ts (2 tests | 2 failed) 17ms
+   × keeps persistence revision separate from undo history 13ms
+   × coalesces overlapping same-page saves and carries revision into later edits 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/save-concurrency.test.ts > keeps persistence revision separate from undo history
+AssertionError: expected 'v1' to be 'v2' // Object.is equality
+
+Expected: "v2"
+Received: "v1"
+
+ ❯ tests/unit/save-concurrency.test.ts:14:42
+     12|   useStore.getState().undo()
+     13|   await saveNow()
+     14|   expect(save.mock.calls[1][0].revision).toBe('v2')
+       |                                          ^
+     15| })
+     16| it('coalesces overlapping same-page saves and carries revision into la…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/unit/save-concurrency.test.ts > coalesces overlapping same-page saves and carries revision into later edits
+AssertionError: expected "saveProject" to be called 1 times, but got 2 times
+ ❯ tests/unit/save-concurrency.test.ts:22:16
+     20|   useStore.getState().setDocFields({ title: 'during request' })
+     21|   const second = saveNow()
+     22|   expect(save).toHaveBeenCalledTimes(1)
+       |                ^
+     23|   finish({ updatedAt: 1, revision: 'v2' })
+     24|   expect(await first).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  10:12:54
+   Duration  1.34s (environment 71%, transform 24%, import 3%, tests 2%)

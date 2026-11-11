@@ -8,7 +8,7 @@ import { checkedXiumiParts, splitForXiumi, xiumiReport, xiumiSvgBoxes } from '..
 import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
-import { normalizeDoc, saveNow, useStore } from './store'
+import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
 import { compileForWechat, copyRichText, download, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
@@ -266,6 +266,7 @@ export function Toolbar() {
   const doc = useStore((s) => s.doc)
   const saveStatus = useStore((s) => s.saveStatus)
   const saveError = useStore((s) => s.saveError)
+  const saveConflict = useStore((s) => s.saveConflict)
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
   const { undo, redo, setDocFields } = useStore.getState()
@@ -286,6 +287,7 @@ export function Toolbar() {
     }
   }, [])
   return (
+    <>
     <header className="toolbar">
       <div className="brand">XIUMI <b>AI</b> Studio</div>
       <input className="title-input" value={doc.title} onChange={(e) => setDocFields({ title: e.target.value }, 'title')} aria-label="文章标题" />
@@ -317,5 +319,11 @@ export function Toolbar() {
         </Suspense>
       )}
     </header>
+      {saveConflict && <div role="alert" className="save-conflict">
+        <span>其他页面已修改此稿。你的内容仍在当前页。</span>
+        <button disabled={saveStatus === 'saving'} onClick={() => void saveConflictCopy()}>另存冲突副本</button>
+        <button onClick={() => setModal('export')}>导出当前内容</button>
+      </div>}
+    </>
   )
 }

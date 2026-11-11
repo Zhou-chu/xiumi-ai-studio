@@ -1,0 +1,38 @@
+import { expect, test } from '@playwright/test'
+
+test('two real pages preserve the winning draft and recover conflicting edits as a copy', async ({ page, context, request }, testInfo) => {
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  const title = `concurrent-${Date.now()}`
+  await page.getByLabel('文章标题', { exact: true }).fill(title)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
+  const projects = await (await request.get('/api/projects')).json()
+  const id = projects.find((p: { title: string }) => p.title === title).id
+  const other = await context.newPage()
+  await other.goto('/')
+  await expect(other.getByLabel('文章标题', { exact: true })).toHaveValue(title)
+  await page.getByLabel('文章标题', { exact: true }).fill(`${title}-winner`)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
+  await other.getByLabel('文章标题', { exact: true }).fill(`${title}-local`)
+  await expect(other.getByTestId('save-status')).toHaveText('保存失败')
+  await expect(other.getByRole('alert')).toContainText('其他页面已修改')
+  expect((await (await request.get(`/api/projects/${id}`)).json()).title).toBe(`${title}-winner`)
+  await other.screenshot({ path: testInfo.outputPath('conflict-preserved.png') })
+  await other.getByRole('button', { name: '另存冲突副本', exact: true }).click()
+  await expect(other.getByTestId('save-status')).toHaveText('已保存')
+  await expect(other.getByLabel('文章标题', { exact: true })).toHaveValue(`${title}-local（冲突副本）`)
+  await expect(other.getByRole('alert')).toHaveCount(0)
+  const after = await (await request.get('/api/projects')).json()
+  const copy = after.find((p: { title: string }) => p.title === `${title}-local（冲突副本）`)
+  expect(copy.id).not.toBe(id)
+  expect((await (await request.get(`/api/projects/${id}`)).json()).title).toBe(`${title}-winner`)
+  await other.reload()
+  await expect(other.getByLabel('文章标题', { exact: true })).toHaveValue(`${title}-local（冲突副本）`)
+  // Undo after a successful save uses the newest persistence token.
+  await other.getByLabel('文章标题', { exact: true }).fill(`${title}-new`)
+  await expect(other.getByTestId('save-status')).toHaveText('已保存')
+  await other.getByRole('button', { name: '↶ 撤销' }).click()
+  await expect(other.getByTestId('save-status')).toHaveText('已保存')
+  expect((await (await request.get(`/api/projects/${copy.id}`)).json()).title).toBe(`${title}-local（冲突副本）`)
+  await other.close()
+})
