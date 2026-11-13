@@ -1,3 +1,4 @@
+import { importArticleImages } from './articleImages'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
@@ -303,6 +304,7 @@ app.get('/api/wx-image', h(async (req, res) => {
   res.send(Buffer.from(await r.arrayBuffer()))
 }))
 /** 把导入内容里的图片下载到素材库（仅限微信和秀米图床，重定向目标同样检查） */
+app.post('/api/assets/import-article', h(async (req, res) => res.json(await importArticleImages(req.body.urls))))
 app.post('/api/assets/fetch', h(async (req, res) => {
   const urls: string[] = (req.body.urls ?? []).slice(0, 80)
   const out: Record<string, unknown> = {}

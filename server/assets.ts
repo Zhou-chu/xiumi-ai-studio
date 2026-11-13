@@ -13,11 +13,23 @@ export interface Asset {
   width: number
   height: number
   size: number
+  sourceUrl?: string
   createdAt: number
 }
 
 const META = join(DIRS.assets, '_index.json')
 const MAX_EDGE = 2400
+
+let indexWrites: Promise<void> = Promise.resolve()
+function updateIndex(update: (idx: Record<string, Asset>) => void | Promise<void>): Promise<void> {
+  const next = indexWrites.then(async () => {
+    const idx = await index()
+    await update(idx)
+    await writeJson(META, idx)
+  })
+  indexWrites = next.catch(() => {})
+  return next
+}
 
 async function index(): Promise<Record<string, Asset>> {
   return readJson(META, {})
@@ -28,7 +40,7 @@ export async function listAssets(): Promise<Asset[]> {
 }
 
 /** 保存上传图片：纠正 EXIF 方向、限制最长边、统一为 jpg/png */
-export async function saveAsset(buf: Buffer, name: string): Promise<Asset> {
+export async function saveAsset(buf: Buffer, name: string, sourceUrl?: string): Promise<Asset> {
   const id = nanoid(12).replace(/[^\w-]/g, '_')
   const img = sharp(buf, { animated: false }).rotate()
   const meta = await img.metadata()
@@ -38,20 +50,19 @@ export async function saveAsset(buf: Buffer, name: string): Promise<Asset> {
   const file = `${id}${ext}`
   const pipeline = img.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
   const info = await (keepPng ? pipeline.png({ compressionLevel: 9 }) : pipeline.jpeg({ quality: 86, mozjpeg: true })).toFile(join(DIRS.assets, file))
-  const asset: Asset = { id, file, name, width: info.width, height: info.height, size: info.size, createdAt: Date.now() }
-  const idx = await index()
-  idx[id] = asset
-  await writeJson(META, idx)
+  const asset: Asset = { id, file, name, width: info.width, height: info.height, size: info.size, ...(sourceUrl ? { sourceUrl } : {}), createdAt: Date.now() }
+  await updateIndex(idx => { idx[id] = asset })
   return asset
 }
 
 export async function deleteAsset(id: string) {
-  const idx = await index()
-  const a = idx[safeId(id)]
-  if (!a) return
-  delete idx[id]
-  await writeJson(META, idx)
-  await rm(join(DIRS.assets, a.file), { force: true })
+  safeId(id)
+  await updateIndex(async idx => {
+    const a = idx[id]
+    if (!a) return
+    await rm(join(DIRS.assets, a.file), { force: true })
+    delete idx[id]
+  })
 }
 
 /** 裁剪（像素坐标）后另存为新素材，原图保留 */

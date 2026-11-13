@@ -1,3 +1,5 @@
+import { ArticleImageImport } from './ArticleImageImport'
+import { isImageLibraryRequest } from '../core/articleImages'
 import { UiIcon } from './UiIcon'
 import { Help } from './Help'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -116,6 +118,8 @@ function AiPanel() {
   const { propose, notify } = useStore.getState()
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [instruction, setInstruction] = useState('')
+  const [collectImages, setCollectImages] = useState(false)
+  const imageCommand = isImageLibraryRequest(instruction)
   const [busy, setBusy] = useState(false)
   const [autoSuggest, setAutoSuggest] = useState(readSuggestionPreference)
   const [suggestion, setSuggestion] = useState({ key: '', text: '', error: '' })
@@ -144,6 +148,7 @@ function AiPanel() {
   useEffect(() => () => { request.current++; requesting.current = false }, [])
   const run = async () => {
     if (!instruction.trim() || requesting.current) return
+    if (imageCommand) { setCollectImages(true); return }
     requesting.current = true
     const generation = ++request.current
     setBusy(true)
@@ -174,9 +179,11 @@ function AiPanel() {
       <p className="hint">{selected && scope === 'selection' ? '仅生成选中模块的修改建议，其他模块不会被修改。' : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
       <label className="hint"><input type="checkbox" checked={autoSuggest} onChange={(e) => { saveSuggestionPreference(e.target.checked); setAutoSuggest(e.target.checked) }} /> 自动生成输入建议</label>
       <p className="hint">开启后会将当前范围的文稿发送到当前模型，可能产生 API 费用；当前页面的建议请求间隔至少 30 秒。不发送图片文件。</p>
-      <SuggestionInput value={instruction} onChange={setInstruction} disabled={!ai?.enabled || busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
+      <SuggestionInput value={instruction} onChange={setInstruction} disabled={busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
       {autoSuggest && suggestion.key === contextKey && suggestion.error && <p className="hint" role="status">{suggestion.error}</p>}
-      <button className="primary wide" disabled={!ai?.enabled || busy} onClick={run}>{busy ? 'AI 思考中…' : '生成修改建议'}</button>
+      <button className="primary wide" data-testid={imageCommand ? 'ai-image-library-command' : undefined} disabled={(!ai?.enabled && !imageCommand) || busy} onClick={run}>{imageCommand ? '收集图片到素材库' : busy ? 'AI 思考中…' : '生成修改建议'}</button>
+      <button disabled={busy} onClick={() => setCollectImages(true)} data-testid="collect-article-images">收集当前范围图片到素材库</button>
+      {collectImages && <ArticleImageImport doc={doc} selectedId={selectedId} onClose={() => setCollectImages(false)} />}
       <h4>规则动作</h4>
       <div className="quick-grid">
         {QUICK_ACTIONS.map((a) => (
