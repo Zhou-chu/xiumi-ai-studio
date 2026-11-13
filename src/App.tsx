@@ -64,7 +64,7 @@ function useShortcuts(enabled: boolean) {
       const mod = e.ctrlKey || e.metaKey
       if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        saveNow()
+        void saveNow()
         return
       }
       if (typing) return

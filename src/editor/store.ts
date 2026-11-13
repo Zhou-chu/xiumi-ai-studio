@@ -156,7 +156,7 @@ export const useStore = create<State>((set, get) => ({
     const repaired = JSON.stringify(doc.blocks) !== JSON.stringify(raw.blocks)
     set({ doc, savedRevision: raw.revision, saveConflict: false, saveError: '', past: [], future: [], selectedId: null, selectedIds: [], editingId: null, pickingId: null, proposal: null, saveStatus: repaired ? 'dirty' : 'saved', lastCoalesce: null })
     if (repaired) {
-      saveNow()
+      void saveNow()
       get().notify('已自动修复文档中格式异常的模块')
     }
   },

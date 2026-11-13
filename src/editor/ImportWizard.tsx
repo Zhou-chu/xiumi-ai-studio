@@ -120,7 +120,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
   const refreshTemplates = () => api.templates().then(setTemplates).catch(() => {})
   useEffect(() => {
     api.aiStatus().then(setAi).catch(() => setAi(null))
-    refreshTemplates()
+    void refreshTemplates()
     window.addEventListener('templates-changed', refreshTemplates)
     return () => window.removeEventListener('templates-changed', refreshTemplates)
   }, [])
@@ -506,7 +506,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
                 模板套用
                 <button disabled={!!busy} onClick={() => run(() => fillKit(parseCopy(text)), '套用中…')} data-testid="refill">{busy || (aiOn ? '重新安排照片' : '重新套用')}</button>
               </h4>
-              {tplDocs.length > 0 ? <div className="variant-grid">{tplDocs.map(card)}</div> : <p className="empty">{busy || '没有生成结果'}</p>}
+              {tplDocs.length > 0 ? <div className="variant-grid">{tplDocs.map((variant, index) => card(variant, index))}</div> : <p className="empty">{busy || '没有生成结果'}</p>}
             </>
           )}
           {aiOn && (
@@ -518,11 +518,11 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
                   <button disabled={!!busy} onClick={() => run(() => designWithAi(outline), 'AI 设计中…')} data-testid="redesign">{busy || (aiDocs.length ? '重新设计' : '生成 AI 设计方案')}</button>
                 </span>
               </h4>
-              {aiDocs.length > 0 ? <div className="variant-grid">{aiDocs.map(card)}</div> : <p className="empty">{busy || '套用模板时不会自动生成 AI 设计方案，需要时点击右侧按钮'}</p>}
+              {aiDocs.length > 0 ? <div className="variant-grid">{aiDocs.map((variant, index) => card(variant, index))}</div> : <p className="empty">{busy || '套用模板时不会自动生成 AI 设计方案，需要时点击右侧按钮'}</p>}
             </>
           )}
           <h4 className="variants-title">内置版式</h4>
-          <div className="variant-grid">{builtin.map(card)}</div>
+          <div className="variant-grid">{builtin.map((variant, index) => card(variant, index))}</div>
           <div className="modal-actions">
             <button disabled={!!busy} data-testid="save-all-variants" onClick={() => void choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
           </div>

@@ -1,6 +1,6 @@
 import { blockLabel } from '../core/blocks'
 import { findBlock } from '../core/tree'
-import { useSelectionScope } from './useSelectionScope'
+import { selectionIdentity, useSelectionScope } from './useSelectionScope'
 import { ArticleImageImport } from './ArticleImageImport'
 import { isImageLibraryRequest } from '../core/articleImages'
 import { UiIcon } from './UiIcon'
@@ -147,7 +147,7 @@ function ThemePanel() {
 function AiPanel() {
   const selected = useStore(selectedBlock)
   const selectedIds = useStore(s => s.selectedIds)
-  const selectionKey = JSON.stringify([...selectedIds].sort())
+  const selectionKey = selectionIdentity(selectedIds)
   const doc = useStore((s) => s.doc)
   const proposal = useStore((s) => s.proposal)
   const { scope, setScope } = useSelectionScope(doc.id, selectedIds)
@@ -175,7 +175,7 @@ function AiPanel() {
   }, [autoSuggest, ai, instruction, busy, context, contextKey, selectedId])
   useEffect(() => {
     const load = () => api.aiStatus().then(setAi).catch(() => setAi(null))
-    load()
+    void load()
     window.addEventListener('ai-settings-changed', load)
     return () => window.removeEventListener('ai-settings-changed', load)
   }, [])
@@ -200,7 +200,7 @@ function AiPanel() {
     try {
       const r = await api.aiEdit(aiContext(doc, selectedId), instruction, undefined, selectedId)
       if (generation !== request.current) return
-      if (JSON.stringify([...useStore.getState().selectedIds].sort()) !== selectionKey) throw new Error('选择范围已变化，请重新生成建议')
+      if (selectionIdentity(useStore.getState().selectedIds) !== selectionKey) throw new Error('选择范围已变化，请重新生成建议')
       if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
       propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [], selectedId)
     } catch (e: any) {

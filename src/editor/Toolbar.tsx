@@ -38,7 +38,7 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
     if (active.current && useStore.getState().doc.id === doc.id) setList(items)
   }).catch(() => {})
   useEffect(() => {
-    refresh()
+    void refresh()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal title="历史版本" onClose={onClose}>

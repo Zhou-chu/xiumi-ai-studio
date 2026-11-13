@@ -2,7 +2,7 @@
 import { act,createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach,afterEach,it,expect } from 'vitest'
-import { useSelectionScope } from '../../src/editor/useSelectionScope'
+import { selectionIdentity, useSelectionScope } from '../../src/editor/useSelectionScope'
 let root:Root, host:HTMLDivElement, current:ReturnType<typeof useSelectionScope>
 function Probe({docId,selectedId}:{docId:string;selectedId?:string|string[]}) { current=useSelectionScope(docId,selectedId);return createElement('span',null,current.scope) }
 const show=(selectedId?:string|string[],docId='doc')=>act(()=>root.render(createElement(Probe,{docId,selectedId})))
@@ -24,4 +24,12 @@ it('multi-selection membership resets the override but order alone does not',()=
 
 it('cannot force selection scope when no module exists',()=>{
  show([]);act(()=>current.setScope('selection'));expect(current.scope).toBe('document')
+})
+
+it('uses deterministic code-unit identity without mutating selection order',()=>{
+ const ids=['2','a','10','A','a']
+ expect(selectionIdentity(ids)).toBe('["10","2","A","a","a"]')
+ expect(ids).toEqual(['2','a','10','A','a'])
+ expect(selectionIdentity([...ids].reverse())).toBe(selectionIdentity(ids))
+ expect(selectionIdentity([])).toBe('[]')
 })
