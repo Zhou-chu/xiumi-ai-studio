@@ -27,6 +27,8 @@ export function PhonePreview({ html, title, onClose }: { html: string; title: st
 }
 
 function VersionsModal({ onClose }: { onClose: () => void }) {
+  const active = useRef(true)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
   const doc = useStore((s) => s.doc)
   const { commit, notify } = useStore.getState()
   const [list, setList] = useState<VersionSummary[]>([])
@@ -57,10 +59,20 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
           </div>
           <button
             onClick={async () => {
-              const { doc: old } = await api.version(doc.id, v.id)
-              commit(normalizeDoc({ ...old, id: doc.id }))
-              notify(`已恢复「${v.label}」`)
-              onClose()
+              const expected = useStore.getState().doc
+              try {
+                const { doc: old } = await api.version(expected.id, v.id)
+                if (!active.current) return
+                if (useStore.getState().doc !== expected) {
+                  notify('等待期间文稿已变化，已保留当前内容。请重新选择恢复版本。', 'error')
+                  return
+                }
+                commit(normalizeDoc({ ...old, id: expected.id }))
+                notify(`已恢复「${v.label}」`)
+                onClose()
+              } catch (e: any) {
+                if (active.current) notify(e.message, 'error')
+              }
             }}
           >
             恢复

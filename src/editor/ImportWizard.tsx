@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { buildFromDesign, normalizeDesign, outlineBrief } from '../core/aiDesign'
 import { assemble, kitLevels, type Placement } from '../core/assemble'
 import { normalizeBlocks } from '../core/blocks'
@@ -19,6 +19,7 @@ import { PhotoPlanner, type PhotoGroup } from './PhotoPlanner'
 import { PlanIssues } from './PlanIssues'
 import { saveBeforeLeave, useStore } from './store'
 import { loadIfUnchanged } from './documentNavigation'
+import { createVariantSaver } from './variantPersistence'
 
 const Copywriter = lazy(() => import('./Copywriter').then((m) => ({ default: m.Copywriter })))
 
@@ -83,6 +84,14 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
   const [useAi, setUseAi] = useState(true)
   const [hint, setHint] = useState('')
   const [busy, setBusy] = useState('')
+  const [choiceError, setChoiceError] = useState('')
+  const choosing = useRef(false)
+  const mounted = useRef(true)
+  const [variantSaver] = useState(() => createVariantSaver(doc => api.saveProject(doc), id => api.project(id)))
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
   const [outline, setOutline] = useState<Outline | null>(null)
   const [aiDocs, setAiDocs] = useState<Variant[]>([])
   const [themeFor, setThemeFor] = useState<string[]>(RECIPES.map((r) => r.defaultTheme))
@@ -279,13 +288,30 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     }, 'AI 改写中…')
 
   const choose = async (doc: Doc, all?: Variant[]) => {
-    if (!(await saveBeforeLeave())) return
-    const expected = useStore.getState().doc
-    if (all) for (const v of all) if (v.doc !== doc) await api.saveProject(v.doc)
-    if (!loadIfUnchanged(doc, expected)) return
-    if (!(await saveBeforeLeave())) return
-    notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已打开所选方案')
-    onClose()
+    if (choosing.current || busy) return
+    choosing.current = true
+    setBusy('保存方案中…')
+    setChoiceError('')
+    try {
+      if (!(await saveBeforeLeave()) || !mounted.current) return
+      const expected = useStore.getState().doc
+      const isCurrent = () => mounted.current && useStore.getState().doc === expected
+      // Save the chosen draft last. A failure leaves the current editor untouched.
+      const docs = [...(all ?? []).filter(v => v.doc.id !== doc.id).map(v => v.doc), doc]
+      const saved = await variantSaver.saveAll(docs, isCurrent)
+      if (!saved) {
+        if (mounted.current) setChoiceError('等待期间当前文稿已变化，已保留编辑。已保存的方案可在项目中找到；请重试。')
+        return
+      }
+      if (!loadIfUnchanged(saved[saved.length - 1], expected)) return
+      notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已保存并打开所选方案')
+      onClose()
+    } catch (error) {
+      if (mounted.current) setChoiceError(`方案保存未完成，当前文稿未替换。已成功保存的方案会保留，可直接重试：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      choosing.current = false
+      if (mounted.current) setBusy('')
+    }
   }
 
   const card = (v: Variant, i: number) => (
@@ -295,14 +321,14 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
       </h4>
       <p className="hint concept">{v.description}</p>
       {v.recipe !== undefined && (
-        <select value={themeFor[v.recipe]} onChange={(e) => setThemeFor((t) => t.map((x, j) => (j === v.recipe ? e.target.value : x)))}>
+        <select disabled={!!busy} value={themeFor[v.recipe]} onChange={(e) => setThemeFor((t) => t.map((x, j) => (j === v.recipe ? e.target.value : x)))}>
           {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       )}
       {v.warnings?.map((w) => <p key={w} className="warn">{w}</p>)}
       <MiniPreview doc={v.doc} />
       <p className="hint">{v.doc.blocks.length} 个模块 · {compileDoc(v.doc).charCount.toLocaleString()} 字符</p>
-      <button className="primary wide" onClick={() => choose(v.doc)} data-testid={`choose-${v.key}`}>使用此方案</button>
+      <button className="primary wide" disabled={!!busy} onClick={() => void choose(v.doc)} data-testid={`choose-${v.key}`}>使用此方案</button>
     </div>
   )
 
@@ -466,11 +492,13 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
         </div>
       ) : (
         <div className="variants">
+          {choiceError && <p role="alert" className="warn" data-testid="variant-save-error">{choiceError}</p>}
+          {busy && <p role="status">{busy}</p>}
           <p className="hint">
             {kitMode
               ? `文案有 ${counts.map((c, i) => (c ? `${['一', '二', '三'][i]}级标题 ${c} 个` : '')).filter(Boolean).join('、') || '0 个标题'}，${images.length} 张照片。`
               : `识别到 ${outline.sections.length} 个章节、${outline.sections.reduce((n, s) => n + s.timeline.length, 0)} 个时间节点、${outline.sections.reduce((n, s) => n + s.quotes.length, 0)} 条引语、${images.length} 张图片。`}
-            <button className="link" onClick={() => setOutline(null)}>← 返回修改</button>
+            <button className="link" disabled={!!busy} onClick={() => setOutline(null)}>← 返回修改</button>
           </p>
           {kitMode && (
             <>
@@ -496,7 +524,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
           <h4 className="variants-title">内置版式</h4>
           <div className="variant-grid">{builtin.map(card)}</div>
           <div className="modal-actions">
-            <button onClick={() => choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
+            <button disabled={!!busy} data-testid="save-all-variants" onClick={() => void choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
           </div>
         </div>
       )}

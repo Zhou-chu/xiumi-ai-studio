@@ -47,6 +47,10 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
   const [titleTooLong, setTitleTooLong] = useState(false)
   const [renderedKey, setRenderedKey] = useState('')
   const renderKey = JSON.stringify([bg, title, kicker, layout, theme])
+  const currentRenderKey = useRef(renderKey)
+  currentRenderKey.current = renderKey
+  const active = useRef(true)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
 
   useEffect(() => {
     api.assets().then(setAssets).catch(() => {})
@@ -127,18 +131,25 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
       notify('封面尚未准备好或标题过长，请缩短标题并等待预览更新。', 'error')
       return
     }
+    const expected = useStore.getState().doc
     setBusy(true)
     try {
       const blob = await new Promise<Blob>((r) => canvas.current!.toBlob((b) => r(b!), 'image/jpeg', 0.92))
       const [a] = await api.uploadAssets([new File([blob], `cover-${Date.now()}.jpg`, { type: 'image/jpeg' })])
+      if (!active.current) return
+      if (useStore.getState().doc !== expected || currentRenderKey.current !== renderKey) {
+        notify('等待期间文稿或封面已变化，已保留当前内容。生成图片仍可从素材库选择。', 'error')
+        window.dispatchEvent(new Event('assets-changed'))
+        return
+      }
       setDocFields({ cover: assetRef(a) })
       window.dispatchEvent(new Event('assets-changed'))
       notify('封面已生成并设置')
       onClose()
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (active.current) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      if (active.current) setBusy(false)
     }
   }
 

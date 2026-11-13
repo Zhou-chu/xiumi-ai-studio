@@ -31,7 +31,7 @@ test('two real pages preserve the winning draft and recover conflicting edits as
   // Undo after a successful save uses the newest persistence token.
   await other.getByLabel('文章标题', { exact: true }).fill(`${title}-new`)
   await expect(other.getByTestId('save-status')).toHaveText('已保存')
-  await other.getByRole('button', { name: '↶ 撤销' }).click()
+  await other.getByRole('button', { name: '撤销', exact: true }).click()
   await expect(other.getByTestId('save-status')).toHaveText('已保存')
   expect((await (await request.get(`/api/projects/${copy.id}`)).json()).title).toBe(`${title}-local（冲突副本）`)
   await other.close()

@@ -59,6 +59,8 @@ export async function writeJson(file: string, data: unknown) {
 }
 
 export function collection<T extends { id: string }>(dir: string) {
+  // Version collections are nested per project and may be opened before any save.
+  mkdirSync(dir, { recursive: true })
   return {
     async list(): Promise<T[]> {
       const files = (await readdir(dir)).filter((f) => f.endsWith('.json'))
