@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 
+async function exposeSecondary(page: Page, control = page.getByTestId('color-mode-select')) {
+  if (!await control.isVisible()) await page.getByTestId('toolbar-more').click()
+}
+
 async function openEditor(page: Page) {
   const now = Date.now()
   const id = `color-${now}-${Math.random().toString(36).slice(2)}`
@@ -16,6 +20,7 @@ async function openEditor(page: Page) {
 test('manual themes persist, theme dialogs and controls, and preserve the article and preview', async ({ page }) => {
   await openEditor(page)
   const control = page.getByRole('combobox', { name: '界面主题', exact: true })
+  await exposeSecondary(page)
   await control.selectOption('light')
   const article = page.locator('.block-html').first()
   const content = await article.innerHTML()
@@ -37,12 +42,15 @@ test('manual themes persist, theme dialogs and controls, and preserve the articl
   await expect(page.getByRole('dialog')).toHaveCSS('background-color', darkPanel)
   await page.getByRole('button', { name: '关闭', exact: true }).click()
 
+  await exposeSecondary(page, page.getByTestId('open-ai-settings'))
   await page.getByTestId('open-ai-settings').click()
   await expect(page.getByRole('dialog')).toHaveCSS('background-color', darkPanel)
   await page.getByRole('button', { name: '关闭', exact: true }).click()
   await page.reload()
+  await exposeSecondary(page)
   await expect(control).toHaveValue('dark')
   await expect(page.locator('html')).toHaveAttribute('data-color-mode', 'dark')
+  await exposeSecondary(page)
   await control.selectOption('light')
   await expect(page.locator('.panel.left')).toHaveCSS('background-color', lightPanel)
 })

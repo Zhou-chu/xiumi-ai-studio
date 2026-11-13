@@ -8,6 +8,9 @@ import './styles.css'
 import './help.css'
 import './color-mode.css'
 import './responsive.css'
+import './theme/fonts/fonts.css'
+import './editorial-dark.css'
+import './editorial-layout.css'
 
 /** 最外层兜底：任何未捕获的渲染错误都显示可恢复的提示，而不是白屏 */
 function Crashed({ error, reset }: { error: Error; reset: () => void }) {

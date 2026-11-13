@@ -1,0 +1,18 @@
+{
+  "sans": [
+    {
+      "familyName": "Noto Sans SC Thin",
+      "postScriptName": "Noto-Sans-SC-Thin-SemiBold",
+      "isCustomFont": true,
+      "glyphCount": 7
+    }
+  ],
+  "serif": [
+    {
+      "familyName": "Noto Serif SC ExtraLight",
+      "postScriptName": "Noto-Serif-SC-ExtraLight-Bold",
+      "isCustomFont": true,
+      "glyphCount": 7
+    }
+  ]
+}
