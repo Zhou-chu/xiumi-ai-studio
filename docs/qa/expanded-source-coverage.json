@@ -1,33 +1,33 @@
 {
-  "measuredAt": "2026-11-13T19:36:32.778Z",
+  "measuredAt": "2026-11-13T20:52:14.156Z",
   "scope": "All production JS/TS: src, server, scripts, templates; declaration-only files excluded. PowerShell reported separately in native command metric. Tests/configuration/generated HTML/fonts are not executable-source denominators.",
-  "sourceSha256": "3aa2d90388764772a7a24a23e50f25c27a9665e1e172a8be131be9dcc5b9968e",
-  "fileCount": 118,
-  "tests": 1223,
+  "sourceSha256": "675be65bb9b448983df37b37f00cbc5d3c65fdfe638bce431f61c50a0f9c2a3a",
+  "fileCount": 120,
+  "tests": 1257,
   "total": {
     "lines": {
-      "total": 8035,
-      "covered": 7908,
+      "total": 8126,
+      "covered": 7999,
       "skipped": 0,
-      "pct": 98.41
+      "pct": 98.43
     },
     "statements": {
-      "total": 10752,
-      "covered": 10430,
+      "total": 10888,
+      "covered": 10566,
       "skipped": 0,
-      "pct": 97
+      "pct": 97.04
     },
     "functions": {
-      "total": 2815,
-      "covered": 2740,
+      "total": 2839,
+      "covered": 2765,
       "skipped": 0,
-      "pct": 97.33
+      "pct": 97.39
     },
     "branches": {
-      "total": 8576,
-      "covered": 7907,
+      "total": 8645,
+      "covered": 7972,
       "skipped": 0,
-      "pct": 92.19
+      "pct": 92.21
     },
     "branchesTrue": {
       "total": 0,
@@ -281,31 +281,31 @@
       "path": "server/assets.ts",
       "metrics": {
         "lines": {
-          "total": 54,
-          "covered": 54,
+          "total": 74,
+          "covered": 74,
           "skipped": 0,
           "pct": 100
         },
         "functions": {
-          "total": 15,
-          "covered": 14,
+          "total": 19,
+          "covered": 19,
           "skipped": 0,
-          "pct": 93.33
+          "pct": 100
         },
         "statements": {
-          "total": 66,
-          "covered": 66,
+          "total": 95,
+          "covered": 95,
           "skipped": 0,
           "pct": 100
         },
         "branches": {
-          "total": 40,
-          "covered": 40,
+          "total": 56,
+          "covered": 54,
           "skipped": 0,
-          "pct": 100
+          "pct": 96.42
         }
       },
-      "sha256": "eedf2ebbe8fabc5b26da9e989349082ec6c91ad272631d4bc4dee6da63a1b33e"
+      "sha256": "337826ed302d811712c8926cdfa44202e95748d5340e6763d725832cdd7cca9c"
     },
     {
       "path": "server/components.ts",
@@ -338,34 +338,94 @@
       "sha256": "b47d871827e7789fc9226f8f1bd6683d8b6e307951740fc3ea5eba9f71569507"
     },
     {
-      "path": "server/importer.ts",
+      "path": "server/docxBudget.ts",
       "metrics": {
         "lines": {
-          "total": 36,
-          "covered": 36,
+          "total": 31,
+          "covered": 31,
           "skipped": 0,
           "pct": 100
         },
         "functions": {
-          "total": 10,
-          "covered": 10,
+          "total": 12,
+          "covered": 12,
           "skipped": 0,
           "pct": 100
         },
         "statements": {
-          "total": 46,
-          "covered": 46,
+          "total": 58,
+          "covered": 58,
           "skipped": 0,
           "pct": 100
         },
         "branches": {
-          "total": 25,
-          "covered": 24,
+          "total": 27,
+          "covered": 27,
           "skipped": 0,
-          "pct": 96
+          "pct": 100
         }
       },
-      "sha256": "52ed4130cdc4b555d53a0248c194d570aaacce6deda9843c632612e869b84f76"
+      "sha256": "f32112ee46b4cf4b1c3ea34ae12e6e889aadae1c906970d522e9c410279a05a5"
+    },
+    {
+      "path": "server/imageBudget.ts",
+      "metrics": {
+        "lines": {
+          "total": 12,
+          "covered": 12,
+          "skipped": 0,
+          "pct": 100
+        },
+        "functions": {
+          "total": 4,
+          "covered": 4,
+          "skipped": 0,
+          "pct": 100
+        },
+        "statements": {
+          "total": 14,
+          "covered": 14,
+          "skipped": 0,
+          "pct": 100
+        },
+        "branches": {
+          "total": 6,
+          "covered": 6,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "sha256": "a8e49bc2a6da9c563abf46aee9b7126ad1111beeead31c943cb59941578a40c7"
+    },
+    {
+      "path": "server/importer.ts",
+      "metrics": {
+        "lines": {
+          "total": 62,
+          "covered": 62,
+          "skipped": 0,
+          "pct": 100
+        },
+        "functions": {
+          "total": 14,
+          "covered": 14,
+          "skipped": 0,
+          "pct": 100
+        },
+        "statements": {
+          "total": 82,
+          "covered": 82,
+          "skipped": 0,
+          "pct": 100
+        },
+        "branches": {
+          "total": 45,
+          "covered": 42,
+          "skipped": 0,
+          "pct": 93.33
+        }
+      },
+      "sha256": "f7b04893c0408243c1443a0095eba3ba5584c6230c1e3603eb1c8c151e09a2a5"
     },
     {
       "path": "server/index.ts",
@@ -521,8 +581,8 @@
       "path": "server/uploadGate.ts",
       "metrics": {
         "lines": {
-          "total": 40,
-          "covered": 40,
+          "total": 42,
+          "covered": 42,
           "skipped": 0,
           "pct": 100
         },
@@ -533,10 +593,10 @@
           "pct": 100
         },
         "statements": {
-          "total": 96,
-          "covered": 95,
+          "total": 95,
+          "covered": 94,
           "skipped": 0,
-          "pct": 98.95
+          "pct": 98.94
         },
         "branches": {
           "total": 36,
@@ -545,7 +605,7 @@
           "pct": 94.44
         }
       },
-      "sha256": "d609c9b9707441c8f736e86d9d2697ef6a9a70542dbe97fdabdd763af7fe0d67"
+      "sha256": "9b670d0b198a92252699b824e4e93ebdfc6ef982d7bc6f6ac27f7e66e0fb7262"
     },
     {
       "path": "server/uploadStorage.ts",

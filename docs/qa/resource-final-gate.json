@@ -1,0 +1,58 @@
+{
+  "sourceCommit": "66b59e2e7f2c7a0aeaa276b8adf590dc1a3285ac",
+  "verifiedAt": "2026-11-13T21:01:45.167Z",
+  "unitTests": 1257,
+  "productionFiles": 120,
+  "coverage": {
+    "lines": {
+      "total": 8126,
+      "covered": 7999,
+      "skipped": 0,
+      "pct": 98.43
+    },
+    "statements": {
+      "total": 10888,
+      "covered": 10566,
+      "skipped": 0,
+      "pct": 97.04
+    },
+    "functions": {
+      "total": 2839,
+      "covered": 2765,
+      "skipped": 0,
+      "pct": 97.39
+    },
+    "branches": {
+      "total": 8645,
+      "covered": 7972,
+      "skipped": 0,
+      "pct": 92.21
+    },
+    "branchesTrue": {
+      "total": 0,
+      "covered": 0,
+      "skipped": 0,
+      "pct": 100
+    }
+  },
+  "e2e": {
+    "passed": 134,
+    "failed": 0,
+    "exitCode": 0,
+    "reportSha256": "40e02b4570d9e2266a7bc5ac2ec441da2d784ef6b5a92fadd1b23a833574046e"
+  },
+  "deployment": {
+    "passed": 20,
+    "failed": 0,
+    "commands": "211/215",
+    "note": "Nested-shell result-export command-loading failure; unchanged independent rerun exit 0."
+  },
+  "static": "passed",
+  "build": "passed with existing chunk-size advisory",
+  "live": {
+    "passed": true,
+    "seconds": 12.5,
+    "settingsUnchanged": true
+  },
+  "sonar": "exact-candidate rescan pending; no S5693 risk acceptance"
+}
