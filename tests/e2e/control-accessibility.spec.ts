@@ -17,7 +17,7 @@ test('keyboard selects the model editor independently of active model and resize
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 for(const touch of [false,true])test(`native image replacement works with ${touch?'touch':'keyboard'} without deleting text`,async({browser})=>{
- const context=await browser.newContext({viewport:{width:touch?390:1440,height:touch?844:900},hasTouch:touch});const page=await context.newPage()
+ const context=await browser.newContext({viewport:{width:touch?390:1440,height:touch?844:900},hasTouch:touch});await context.addInitScript(()=>localStorage.setItem('xiumi-color-mode','dark'));const page=await context.newPage()
  try{await setup(page);await page.locator('.block[data-block-id="original"]').click({position:{x:3,y:3}})
  if(touch)await page.getByTestId('workspace-right').tap()
  const choose=page.getByRole('button',{name:'替换第 1 张图片',exact:true});if(touch)await choose.tap();else{await choose.focus();await page.keyboard.press('Space')}
