@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getProposalItemIssue, rebaseProposalOp } from './proposalSafety'
 import { cloneBlock, createBlock, newId, normalizeBlocks } from '../core/blocks'
 import { applyOp, limitToSelection, validateOp } from '../core/ops'
 import { allThemes, registerTheme } from '../core/themes'
@@ -10,7 +11,8 @@ const HISTORY_LIMIT = 100
 
 export interface ProposalItem {
   op: DocOp
-  status: 'pending' | 'accepted' | 'rejected'
+  status: 'pending' | 'accepted' | 'rejected' | 'stale'
+  error?: string
 }
 export interface Proposal {
   summary: string
@@ -65,7 +67,7 @@ interface State {
   redo: () => void
   /** selectedId：用户选中了模块时，只接受落在这个模块上的操作 */
   propose: (summary: string, rawOps: any[], selectedId?: string | null) => void
-  resolveProposal: (index: number | 'all', status: 'accepted' | 'rejected') => void
+  resolveProposal: (index: number | 'all', status: 'accepted' | 'rejected', expectedProposal?: Proposal) => void
   clearProposal: () => void
   refreshThemes: () => void
   notify: (text: string, kind?: 'ok' | 'error') => void
@@ -206,13 +208,15 @@ export const useStore = create<State>((set, get) => ({
     get().commit({ ...get().doc, ...fields }, coalesceKey)
   },
   undo() {
-    const { past, doc, future } = get()
+    const { past, doc, future, proposal } = get()
     if (!past.length) return
+    if (proposal) { set({ proposal: null }); get().notify('已撤销，AI 审阅已关闭，请重新生成建议') }
     set({ doc: past[past.length - 1], past: past.slice(0, -1), future: [doc, ...future], lastCoalesce: null, saveStatus: 'dirty', editingId: null })
   },
   redo() {
-    const { past, doc, future } = get()
+    const { past, doc, future, proposal } = get()
     if (!future.length) return
+    if (proposal) { set({ proposal: null }); get().notify('已重做，AI 审阅已关闭，请重新生成建议') }
     set({ doc: future[0], future: future.slice(1), past: [...past, doc], lastCoalesce: null, saveStatus: 'dirty', editingId: null })
   },
 
@@ -229,24 +233,30 @@ export const useStore = create<State>((set, get) => ({
     }
     set({ proposal: { summary, items, errors, base } })
   },
-  resolveProposal(index, status) {
+  resolveProposal(index, status, expectedProposal) {
     const { proposal, doc, commit } = get()
-    if (!proposal) return
-    const targets = index === 'all' ? proposal.items.map((_, i) => i).filter((i) => proposal.items[i].status === 'pending') : [index]
+    if (!proposal || (expectedProposal && expectedProposal !== proposal)) return
+    const targets = index === 'all' ? proposal.items.map((_, i) => i) : [index]
     let next = doc
     const items = [...proposal.items]
+    let handled = false
     for (const i of targets) {
+      if (!Number.isInteger(i) || !items[i] || items[i].status !== 'pending') continue
+      handled = true
       if (status === 'accepted') {
-        // 用户可能在提案之后改过文档：按当前文档重新校验
-        const { op } = validateOp(next, items[i].op)
-        if (!op) {
-          items[i] = { ...items[i], status: 'rejected' }
-          continue
-        }
+        const working = { ...proposal, items }
+        const issue = getProposalItemIssue(working, next, i)
+        if (issue) { items[i] = { ...items[i], status: 'stale', error: issue }; continue }
+        const rebased = rebaseProposalOp(working, next, i)
+        const { op, error } = validateOp(next, rebased)
+        if (!op) { items[i] = { ...items[i], status: 'stale', error: error ?? '此建议已失效' }; continue }
+        // Validation must not give an accepted insertion a different anchor identity.
+        if (op.op === 'insert' && rebased.op === 'insert') op.block.id = rebased.block.id
         next = applyOp(next, op)
       }
       items[i] = { ...items[i], status }
     }
+    if (!handled) return
     if (next !== doc) commit(next)
     set({ proposal: { ...proposal, items } })
   },

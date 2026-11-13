@@ -130,7 +130,7 @@ test('选中模块后，AI 只改选中的模块', async ({ page }) => {
   await page.getByPlaceholder(/例如：把第二章/).fill('改简洁')
   await page.getByRole('button', { name: '生成修改建议' }).click()
   await expect(page.getByTestId('proposal')).toBeVisible()
-  await expect(page.locator('.proposal .op')).toHaveCount(0)
+  await expect(page.getByTestId('review-count')).toContainText('0')
   await expect(page.getByTestId('proposal')).toContainText('已忽略 3 条')
   await expect(page.getByTestId('proposal')).toContainText('修改其他模块不在选中的模块上')
   expect(bodies[0].context.focus).toEqual({ id: 'p2', type: 'paragraph' })
@@ -142,7 +142,7 @@ test('选中模块后，AI 只改选中的模块', async ({ page }) => {
   // 切回整篇文章：所有修改都接受
   await page.getByLabel('修改范围').selectOption('document')
   await page.getByRole('button', { name: '生成修改建议' }).click()
-  await expect(page.locator('.proposal .op')).toHaveCount(3)
+  await expect(page.getByTestId('review-count')).toContainText('3')
   expect(bodies[1].context.focus).toBeUndefined()
 })
 

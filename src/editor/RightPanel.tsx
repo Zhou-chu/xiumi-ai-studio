@@ -1,8 +1,7 @@
 import { UiIcon } from './UiIcon'
 import { Help } from './Help'
-import { useEffect, useMemo, useState } from 'react'
-import { compileDoc, variantUrl } from '../core/compiler'
-import { applyOps, describeOp } from '../core/ops'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { variantUrl } from '../core/compiler'
 import { QUICK_ACTIONS, aiContext } from '../core/quickActions'
 import { analyzeStyle, themeFromReport, type StyleReport } from '../core/styleExtract'
 import { getTheme, registerTheme, resolveTheme } from '../core/themes'
@@ -14,7 +13,6 @@ import { SuggestionInput } from './SuggestionInput'
 import { instructionSuggestions } from './suggestionQueue'
 import { PropsForm } from './PropsForm'
 import { selectedBlock, useStore } from './store'
-import { PhonePreview } from './Toolbar'
 
 type Tab = 'style' | 'theme' | 'ai' | 'reference'
 
@@ -115,11 +113,10 @@ function AiPanel() {
   const [scope, setScope] = useState<'selection' | 'document'>('selection')
   const doc = useStore((s) => s.doc)
   const proposal = useStore((s) => s.proposal)
-  const { propose, resolveProposal, clearProposal, notify } = useStore.getState()
+  const { propose, notify } = useStore.getState()
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [instruction, setInstruction] = useState('')
   const [busy, setBusy] = useState(false)
-  const [preview, setPreview] = useState<string | null>(null)
   const [autoSuggest, setAutoSuggest] = useState(readSuggestionPreference)
   const [suggestion, setSuggestion] = useState({ key: '', text: '', error: '' })
   const selectedId = scope === 'selection' ? selected?.id : undefined
@@ -142,20 +139,25 @@ function AiPanel() {
     window.addEventListener('ai-settings-changed', load)
     return () => window.removeEventListener('ai-settings-changed', load)
   }, [])
+  const request = useRef(0)
+  const requesting = useRef(false)
+  useEffect(() => () => { request.current++; requesting.current = false }, [])
   const run = async () => {
-    if (!instruction.trim()) return
+    if (!instruction.trim() || requesting.current) return
+    requesting.current = true
+    const generation = ++request.current
     setBusy(true)
     try {
       const r = await api.aiEdit(aiContext(doc, selectedId), instruction, undefined, selectedId)
+      if (generation !== request.current) return
       if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
       propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [], selectedId)
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (generation === request.current) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      if (generation === request.current) { requesting.current = false; setBusy(false) }
     }
   }
-  const pending = proposal?.items.filter((i) => i.status === 'pending') ?? []
   return (
     <div className="props-form">
       <h4>AI 设计助手</h4>
@@ -181,43 +183,7 @@ function AiPanel() {
           <button key={a.id} onClick={() => { const r = a.run(doc); propose(r.summary, r.ops) }} data-testid={`qa-${a.id}`}>{a.label}</button>
         ))}
       </div>
-      {proposal && (
-        <div className="proposal" data-testid="proposal">
-          <div className="proposal-head">
-            <b>{proposal.summary}</b>
-            <button className="link" onClick={clearProposal}>关闭</button>
-          </div>
-          {proposal.errors.length > 0 && <p className="warn">已忽略 {proposal.errors.length} 条无效操作：{proposal.errors.join('；')}</p>}
-          {proposal.items.map((it, i) => {
-            const d = describeOp(proposal.base, it.op)
-            return (
-              <div key={i} className={`op ${it.status}`}>
-                <div className="op-title">{d.title}</div>
-                {it.op.reason && <div className="op-reason">{it.op.reason}</div>}
-                {d.before && <div className="diff del">− {d.before.slice(0, 160)}</div>}
-                {d.after && <div className="diff add">＋ {d.after.slice(0, 160)}</div>}
-                {it.status === 'pending' ? (
-                  <div className="op-actions">
-                    <button onClick={() => resolveProposal(i, 'rejected')}>拒绝</button>
-                    <button className="primary" onClick={() => resolveProposal(i, 'accepted')}>接受</button>
-                  </div>
-                ) : (
-                  <div className="op-state">{it.status === 'accepted' ? '已接受' : '已拒绝'}</div>
-                )}
-              </div>
-            )
-          })}
-          {pending.length > 0 && (
-            <div className="op-actions all">
-              <button onClick={() => setPreview(compileDoc(applyOps(doc, pending.map((p) => p.op))).html)}>预览效果</button>
-              <button onClick={() => resolveProposal('all', 'rejected')}>全部拒绝</button>
-              <button className="primary" onClick={() => resolveProposal('all', 'accepted')} data-testid="accept-all">全部接受（{pending.length}）</button>
-            </div>
-          )}
-          <Help title="撤销修改">接受后的修改可用 Ctrl+Z 撤销。</Help>
-        </div>
-      )}
-      {preview && <PhonePreview html={preview} title="AI 修改预览（未应用）" onClose={() => setPreview(null)} />}
+      {proposal && <button className="wide" onClick={() => window.dispatchEvent(new CustomEvent('workspace-view', { detail: 'canvas' }))}>在文中审阅修改（{proposal.items.filter(i => i.status === 'pending').length}）</button>}
     </div>
   )
 }

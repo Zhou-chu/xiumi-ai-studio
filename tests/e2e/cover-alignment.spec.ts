@@ -34,6 +34,7 @@ test('cover title supports manual alignment and scoped AI alignment without chan
   await expect(page.getByLabel('修改范围')).toHaveValue('selection')
   await page.getByPlaceholder(/例如：把第二章/).fill('标题改为居中')
   await page.getByRole('button', { name: '生成修改建议', exact: true }).click()
+  await page.locator('.review-menu summary').click()
   await page.getByTestId('accept-all').click()
   expect(requests[0].selectedId).toBe(await cover.getAttribute('data-block-id'))
   expect(requests[0].context.blocks.find((b: any) => b.id === requests[0].selectedId).type).toBe('cover')

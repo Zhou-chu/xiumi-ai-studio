@@ -69,6 +69,14 @@ export function Workspace({ children }: { children: ReactNode }) {
       observer.disconnect()
     }
   }, [])
+  useEffect(() => {
+    const show = (event: Event) => {
+      const next = (event as CustomEvent).detail
+      if (next === 'canvas' || next === 'left' || next === 'right') setView(next)
+    }
+    window.addEventListener('workspace-view', show)
+    return () => window.removeEventListener('workspace-view', show)
+  }, [])
   const [widths, setWidths] = useState<Widths>(load)
   const [dragging, setDragging] = useState<Side | null>(null)
   // 拖动开始时的指针位置和侧栏宽度：按指针移动的距离改宽度，开始拖动时不会跳一下

@@ -1,3 +1,4 @@
+import { InlineReview } from './InlineReview'
 import { Help } from './Help'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -534,6 +535,7 @@ export function Canvas() {
           </div>
         </div>
       </div>
+      <InlineReview />
       <div className={`zoom-bar ${zoom === 1 ? '' : 'on'}`} role="group" aria-label="文章缩放">
         <button title="缩小（Ctrl + 滚轮向下 / Ctrl + -）" onClick={() => setZoom((z) => z - 0.1)} disabled={zoom <= ZOOM_MIN} data-testid="zoom-out">−</button>
         <button className="zoom-val" title="恢复 100%（Ctrl + 0）" onClick={() => setZoom(1)} data-testid="zoom-reset">{Math.round(zoom * 100)}%</button>

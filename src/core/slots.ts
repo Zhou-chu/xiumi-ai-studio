@@ -609,3 +609,8 @@ export function setSlotAlign(html: string, id: string, align: Align, parse: Pars
   }
   return root.innerHTML
 }
+
+/** Read-only correspondence between stable scan order and actual rendered nodes. */
+export function readSlotNodes(root: Element): Array<{ slot: Slot; node: Node }> {
+  return scan(root)
+}

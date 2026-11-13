@@ -1,0 +1,40 @@
+{
+  "url": "http://127.0.0.1:5176/",
+  "provider": "synthetic intercepted routes; no real model calls or data writes",
+  "report": [
+    {
+      "mode": "desktop",
+      "width": 1440,
+      "height": 900,
+      "marker": true,
+      "bubble": {
+        "x": 702.390625,
+        "y": 230.390625,
+        "width": 330,
+        "height": 276
+      },
+      "articleUnchangedBeforeAcceptance": true,
+      "acceptedHeading": true,
+      "rejectedSentence": true,
+      "writesMocked": 2,
+      "unexpectedMutations": 0
+    },
+    {
+      "mode": "phone",
+      "width": 390,
+      "height": 844,
+      "marker": true,
+      "bubble": {
+        "x": 52,
+        "y": 311.390625,
+        "width": 330,
+        "height": 276
+      },
+      "articleUnchangedBeforeAcceptance": true,
+      "acceptedHeading": true,
+      "rejectedSentence": true,
+      "writesMocked": 2,
+      "unexpectedMutations": 0
+    }
+  ]
+}
