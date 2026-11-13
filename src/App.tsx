@@ -49,9 +49,13 @@ function outsideBox(blocks: Block[], t: { parentId: string | null; index: number
   return { parentId: null, index: rest.findIndex((b) => b.id === t.parentId) + 1 }
 }
 
-function useShortcuts() {
+function useShortcuts(enabled: boolean) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!enabled) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') e.preventDefault()
+        return
+      }
       // Dialogs own their keyboard interactions; never edit the article behind them.
       if (document.querySelector('[role="dialog"]')) return
       const t = e.target as HTMLElement
@@ -78,7 +82,7 @@ function useShortcuts() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [enabled])
 }
 
 export default function App() {
@@ -87,28 +91,70 @@ export default function App() {
   const [dragLabel, setDragLabel] = useState<string | null>(null)
   const toast = useStore((s) => s.toast)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
-  useShortcuts()
+  useShortcuts(ready)
 
   useEffect(() => {
-    ;(async () => {
+    let generation = 0
+    let disposed = false
+    let initialized = false
+    let initialWrite: Promise<boolean> | undefined
+    const cancel = () => { generation++ }
+    const initialize = async () => {
+      const current = ++generation
+      const cancelled = () => disposed || current !== generation
+      // A persisted page can resume while its first PUT is still in flight.
+      // Await that exact write; never create another initial document.
+      if (initialWrite) {
+        await initialWrite
+        if (cancelled()) return
+        initialized = true
+        setReady(true)
+        return
+      }
       await loadCustomThemes()
+      if (cancelled()) return
       try {
         const list = await api.projects()
-        if (list.length) useStore.getState().load(await api.project(list[0].id))
+        if (cancelled()) return
+        if (!Array.isArray(list)) throw new Error('项目列表响应格式无效')
+        if (list.length) {
+          const id = list[0]?.id
+          if (typeof id !== 'string' || !id) throw new Error('项目列表条目无效')
+          const doc = await api.project(id)
+          if (cancelled()) return
+          if (!doc || doc.id !== id || !Array.isArray(doc.blocks)) throw new Error('文稿响应格式无效')
+          useStore.getState().load(doc)
+        }
         else {
           useStore.getState().load(emptyDoc())
-          await saveNow()
+          initialWrite = saveNow()
+          await initialWrite
+          if (cancelled()) return
         }
       } catch (e: any) {
+        if (cancelled()) return
         useStore.getState().notify(`无法连接本地服务：${e.message}（请用 pnpm dev 启动）`, 'error')
       }
+      initialized = true
       setReady(true)
-    })()
+    }
+    const resume = (event: PageTransitionEvent) => {
+      if (event.persisted && !initialized && !disposed) void initialize()
+    }
+    window.addEventListener('pagehide', cancel)
+    window.addEventListener('pageshow', resume)
+    void initialize()
     const beforeUnload = (e: BeforeUnloadEvent) => {
       if (useStore.getState().saveStatus !== 'saved') e.preventDefault()
     }
     window.addEventListener('beforeunload', beforeUnload)
-    return () => window.removeEventListener('beforeunload', beforeUnload)
+    return () => {
+      disposed = true
+      cancel()
+      window.removeEventListener('pagehide', cancel)
+      window.removeEventListener('pageshow', resume)
+      window.removeEventListener('beforeunload', beforeUnload)
+    }
   }, [])
 
   const onDragStart = (e: DragStartEvent) => {
@@ -186,6 +232,8 @@ export default function App() {
       else s.moveBlockTo(active, t.parentId, t.index)
     }
   }
+
+  if (!ready) return <div className="app" role="status" data-testid="app-loading">正在加载文稿…</div>
 
   return (
     <DndContext

@@ -93,9 +93,12 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
     init.headers = { 'content-type': 'application/json' }
   }
   const res = await fetch(url, init)
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new ApiError(data.error ?? `${res.status} ${res.statusText}`, res.status)
-  return data as T
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new ApiError(data?.error ?? `${res.status} ${res.statusText}`, res.status)
+  }
+  // A failed/aborted success body is not an empty document or project list.
+  return await res.json() as T
 }
 
 export const assetRef = (a: Asset): ImageRef => ({ src: `/media/${a.file}`, assetId: a.id, alt: a.name, width: a.width, height: a.height })

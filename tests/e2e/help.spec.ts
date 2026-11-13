@@ -46,7 +46,10 @@ test('touch can explicitly open and dismiss annotation on phone', async ({ brows
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
   const page = await context.newPage()
   await page.goto('/')
-  if(await page.getByTestId('workspace-right').isVisible()) await page.getByTestId('workspace-right').tap()
+  // Startup intentionally exposes no editing controls until its document is loaded.
+  await expect(page.locator('.workspace')).toBeVisible()
+  await expect(page.getByTestId('workspace-right')).toBeVisible()
+  await page.getByTestId('workspace-right').tap()
   await page.getByRole('button', { name: '参考风格', exact: true }).tap()
   const help = page.getByRole('button', { name: '参考风格学习说明' })
   await help.tap()
