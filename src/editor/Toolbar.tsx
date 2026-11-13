@@ -1,6 +1,6 @@
 import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
 import { displayHtml } from '../core/images'
@@ -271,6 +271,27 @@ export function Toolbar() {
   const { undo, redo, setDocFields } = useStore.getState()
   const [modal, setModal] = useState<'' | 'preview' | 'versions' | 'export' | 'import' | 'ai' | 'article'>('')
   const [wizardTemplates, setWizardTemplates] = useState<string[] | undefined>()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const moreButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!moreOpen || modal) return
+    const outside = (event: PointerEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setMoreOpen(false)
+      moreButton.current?.focus()
+    }
+    window.addEventListener('pointerdown', outside)
+    window.addEventListener('keydown', escape)
+    return () => {
+      window.removeEventListener('pointerdown', outside)
+      window.removeEventListener('keydown', escape)
+    }
+  }, [moreOpen, modal])
+
   useEffect(() => {
     // 从「模板」面板打开时带上预选的模板
     const open = (e: Event) => {
@@ -293,15 +314,22 @@ export function Toolbar() {
         {{ saved: '已保存', dirty: '未保存', saving: '保存中…', error: '保存失败' }[saveStatus]}
       </span>
       <div className="spacer" />
-      <ColorModeControl />
-      <button onClick={undo} disabled={!canUndo} title="撤销 Ctrl+Z">↶ 撤销</button>
-      <button onClick={redo} disabled={!canRedo} title="重做 Ctrl+Y">↷ 重做</button>
-      <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
-      <button onClick={() => setModal('preview')} data-testid="open-preview">📱 手机预览</button>
-      <button onClick={() => setModal('ai')} data-testid="open-ai-settings">⚙ AI 模型</button>
-      <button onClick={() => setModal('article')} data-testid="open-article-import">⤓ 导入推文</button>
-      <button className="accent" onClick={() => (setWizardTemplates(undefined), setModal('import'))} data-testid="open-import">✨ AI 一键排版</button>
-      <button className="primary" onClick={() => setModal('export')} data-testid="open-export">导出 / 发布</button>
+
+      <button className="toolbar-undo" onClick={undo} disabled={!canUndo} title="撤销 Ctrl+Z" aria-label="撤销"><span aria-hidden="true">↶</span><span className="toolbar-action-label"> 撤销</span></button>
+      <button className="toolbar-redo" onClick={redo} disabled={!canRedo} title="重做 Ctrl+Y" aria-label="重做"><span aria-hidden="true">↷</span><span className="toolbar-action-label"> 重做</span></button>
+      <button onClick={() => setModal('article')} data-testid="open-article-import"><span className="toolbar-legacy-icon" aria-hidden="true">⤓ </span><span className="toolbar-label-full">导入推文</span><span className="toolbar-label-short" aria-hidden="true">导入</span></button>
+      <button className="accent" onClick={() => (setWizardTemplates(undefined), setModal('import'))} data-testid="open-import"><span className="toolbar-legacy-icon" aria-hidden="true">✨ </span><span className="toolbar-label-full">AI 一键排版</span><span className="toolbar-label-short" aria-hidden="true">AI 排版</span></button>
+      <button onClick={() => setModal('preview')} data-testid="open-preview"><span className="toolbar-legacy-icon" aria-hidden="true">📱 </span><span className="toolbar-label-full">手机预览</span><span className="toolbar-label-short" aria-hidden="true">预览</span></button>
+      <div className="toolbar-overflow" ref={moreRef} data-open={moreOpen}>
+        <button ref={moreButton} className="toolbar-more" type="button" data-testid="toolbar-more"
+          aria-expanded={moreOpen} aria-controls="toolbar-secondary" onClick={() => setMoreOpen(!moreOpen)}>更多</button>
+        <div className="toolbar-secondary" id="toolbar-secondary">
+          <ColorModeControl />
+          <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
+          <button onClick={() => setModal('ai')} data-testid="open-ai-settings"><span className="toolbar-legacy-icon" aria-hidden="true">⚙ </span>AI 模型</button>
+        </div>
+      </div>
+      <button className="primary" onClick={() => setModal('export')} data-testid="open-export"><span className="toolbar-label-full">导出 / 发布</span><span className="toolbar-label-short" aria-hidden="true">导出</span></button>
       {modal === 'preview' && <PhonePreview html={compileDoc(doc).html} title="手机预览" onClose={() => setModal('')} />}
       {modal === 'versions' && <VersionsModal onClose={() => setModal('')} />}
       {modal === 'export' && <ExportModal onClose={() => setModal('')} />}

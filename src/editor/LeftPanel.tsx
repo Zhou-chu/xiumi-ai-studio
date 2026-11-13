@@ -1,3 +1,4 @@
+import { UiIcon } from './UiIcon'
 import { Help } from './Help'
 import { useDraggable } from '@dnd-kit/core'
 import { useCallback, useEffect, useState } from 'react'
@@ -26,7 +27,7 @@ function LibItem({ type }: { type: BlockType }) {
       title="点击插入到选中模块之后，或拖入画布"
       data-testid={`lib-${type}`}
     >
-      <span className="lib-icon">{m.icon}</span>
+      <span className="lib-icon" aria-hidden="true"><span className="ui-legacy-icon">{m.icon}</span><UiIcon name={type} /></span>
       <span>{m.label}</span>
     </button>
   )
@@ -44,7 +45,7 @@ function KitLibItem({ item }: { item: KitItem }) {
       title="点击插入到选中模块之后（选中大型文本框时放进框内），或拖入画布"
       data-testid={`kit-${item.key}`}
     >
-      <span className="lib-icon">{item.icon}</span>
+      <span className="lib-icon" aria-hidden="true"><span className="ui-legacy-icon">{item.icon}</span><UiIcon name={item.key} /></span>
       <span>{item.label}</span>
     </button>
   )

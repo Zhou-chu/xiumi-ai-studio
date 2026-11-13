@@ -157,6 +157,7 @@ test('AI 模型设置：从上游取模型列表和参数，检测思考强度�
     await route.fulfill({ json: { activeId: '', profiles: [] } })
   })
   await page.goto('/')
+  if (!(await page.getByTestId('open-ai-settings').isVisible())) await page.getByTestId('toolbar-more').click()
   await page.getByTestId('open-ai-settings').click()
   await page.getByTestId('ai-add-preset').selectOption('custom')
   await page.getByPlaceholder('https://…/v1').fill('http://127.0.0.1:5999/v1')

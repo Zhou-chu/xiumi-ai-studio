@@ -55,6 +55,7 @@ test('配置 AI 模型并生成三套 AI 设计方案', async ({ page }) => {
   await page.goto('/')
   // 测试服务器刚启动时可能还在预构建依赖并刷新页面：等页面稳定后再操作
   await page.waitForLoadState('networkidle')
+  if (!(await page.getByTestId('open-ai-settings').isVisible())) await page.getByTestId('toolbar-more').click()
   await page.getByTestId('open-ai-settings').click()
   await page.getByTestId('ai-add-preset').selectOption('custom')
   await page.getByLabel('名称', { exact: true }).fill('本地模拟模型')

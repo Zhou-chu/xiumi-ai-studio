@@ -48,6 +48,27 @@ const save = (w: Widths) => {
 
 export function Workspace({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLElement>(null)
+  const [view, setView] = useState<'left' | 'canvas' | 'right'>('canvas')
+  // Preserve keyboard editing when resize/theme changes collapse the surrounding UI.
+  useEffect(() => {
+    const revealFocusedPanel = () => {
+      const workspace = ref.current
+      const switcher = workspace?.querySelector('.workspace-switcher')
+      const active = document.activeElement
+      if (!workspace || !switcher || !active || !workspace.contains(active) || getComputedStyle(switcher).display === 'none') return
+      const region = Array.from(workspace.children).find((child) => child.contains(active))
+      if (region?.matches('.panel.left')) setView('left')
+      else if (region?.matches('.panel.right')) setView('right')
+      else if (region?.matches('.canvas-wrap,.canvas-scroll')) setView('canvas')
+    }
+    window.addEventListener('resize', revealFocusedPanel)
+    const observer = new MutationObserver(revealFocusedPanel)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-color-mode'] })
+    return () => {
+      window.removeEventListener('resize', revealFocusedPanel)
+      observer.disconnect()
+    }
+  }, [])
   const [widths, setWidths] = useState<Widths>(load)
   const [dragging, setDragging] = useState<Side | null>(null)
   // 拖动开始时的指针位置和侧栏宽度：按指针移动的距离改宽度，开始拖动时不会跳一下
@@ -125,10 +146,16 @@ export function Workspace({ children }: { children: ReactNode }) {
   )
   return (
     <main
-      className="workspace"
+      className="workspace" data-workspace-view={view}
       ref={ref}
       style={{ ...(shown.left !== undefined && { ['--left-w' as string]: `${shown.left}px` }), ...(shown.right !== undefined && { ['--right-w' as string]: `${shown.right}px` }) }}
     >
+      <nav className="workspace-switcher" aria-label="编辑工作区">
+        {([['left', '资源'], ['canvas', '画布'], ['right', '属性']] as const).map(([value, label]) => (
+          <button key={value} type="button" data-testid={`workspace-${value}`} aria-pressed={view === value}
+            onClick={() => setView(value)}>{label}</button>
+        ))}
+      </nav>
       {children}
       {handle('left')}
       {handle('right')}
