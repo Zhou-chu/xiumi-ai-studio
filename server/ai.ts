@@ -199,10 +199,71 @@ export async function discoverModels(p: AiProfile): Promise<DiscoveredModel[]> {
   return (await fetchModels(p)).map((m) => ({ ...m, ...(m.efforts ? { reasoningEfforts: m.efforts } : {}) }))
 }
 
-export function testConnection(profile: AiProfile): Promise<any> {
-  return chatJson('只输出 JSON。', '请输出 {"ok":true,"model":"你的模型名称"}', {
-    profile, maxTokens: profile.reasoningEffort ? 4096 : 100, temperature: 0,
-  })
+/** Connection is not a full generation-quality check. Never return private reasoning. */
+export async function testConnection(profile: AiProfile) {
+  const budgetTokens = Math.min(128, profile.maxOutputTokens || 128)
+  let url: URL
+  try { url = new URL(profile.baseUrl) } catch {
+    return { ok: false, stage: 'configuration', message: '接口地址无效。' }
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || !profile.model) {
+    return { ok: false, stage: 'configuration', message: '请填写 HTTP(S) 接口地址和模型名称。' }
+  }
+  // Official DeepSeek defaults to thinking even when reasoning_effort is blank.
+  // This cheap connectivity probe alone disables it; saved/business settings stay intact.
+  const thinkingDisabled = profile.provider === 'openai' && url.protocol === 'https:' && url.hostname === 'api.deepseek.com' && /^\/(v1\/?)?$/.test(url.pathname)
+  const effort = thinkingDisabled ? '' : profile.reasoningEffort || ''
+  let wire: Wire = { json: profile.jsonMode && profile.provider !== 'anthropic', tokenField: effort && profile.provider !== 'anthropic' ? 'max_completion_tokens' : 'max_tokens', temperature: false, effort: !!effort, maxTokens: budgetTokens }
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 20_000)
+  const base = { budgetTokens, thinkingDisabled, probeOnly: true }
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const extra = extraBodyOf(profile)
+      delete extra.n
+      const anthropic = profile.provider === 'anthropic'
+      const body = anthropic ? {
+        ...extra, model: profile.model, max_tokens: wire.maxTokens,
+        ...(wire.effort ? { output_config: { effort } } : {}),
+        system: 'Reply only with JSON.', messages: [{ role: 'user', content: '{"ok":true}' }],
+      } : {
+        ...extra, model: profile.model, n: 1, [wire.tokenField]: wire.maxTokens,
+        ...(wire.effort ? { reasoning_effort: effort } : {}),
+        ...(wire.json ? { response_format: { type: 'json_object' } } : {}),
+        ...(thinkingDisabled ? { thinking: { type: 'disabled' } } : {}),
+        messages: [{ role: 'system', content: 'Reply only with JSON.' }, { role: 'user', content: 'Return exactly {"ok":true}.' }],
+      }
+      const res = await fetch(anthropic ? `${anthropicBase(profile.baseUrl)}/messages` : `${profile.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+        method: 'POST', redirect: 'error', signal: ctrl.signal,
+        headers: { 'content-type': 'application/json', ...(anthropic ? { 'x-api-key': profile.apiKey, 'anthropic-version': '2023-06-01' } : profile.apiKey ? { authorization: `Bearer ${profile.apiKey}` } : {}) },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const detail = await readError(res)
+        const next = attempt === 0 && [400,422].includes(res.status) ? adjustWire(wire, detail, true) : null
+        if (next) { wire = next; continue }
+        const stage = [401,403].includes(res.status) ? 'authentication' : res.status === 404 ? 'model_or_endpoint' : [400,422].includes(res.status) ? 'request' : 'service'
+        const message = stage === 'authentication' ? '鉴权被拒绝，请检查密钥及访问权限。' : stage === 'model_or_endpoint' ? '模型或接口路径不存在，请核对模型名称及 Base URL。' : stage === 'request' ? '服务拒绝了探针参数，请核对模型接口兼容性；未更改你的设置。' : '服务暂时拒绝请求，请检查限流、配额或服务状态。'
+        return { ...base, ok: false, stage, httpStatus: res.status, message }
+      }
+      const data = await res.json().catch(() => null)
+      const message = data?.choices?.[0]?.message
+      if (anthropic ? !Array.isArray(data?.content) : !message || typeof message !== 'object') {
+        return { ...base, ok: false, stage: 'response', message: '接口返回了响应，但不是兼容的模型响应结构。' }
+      }
+      if (anthropic ? data.stop_reason === 'max_tokens' : data.choices[0].finish_reason === 'length') {
+        return { ...base, ok: true, stage: 'budget_limited', message: '连接已确认；低预算探针达到输出上限，尚未验证完整 JSON 输出。这不代表业务生成已通过。' }
+      }
+      const text = anthropic ? data.content.map((item: { text?: string }) => item.text || '').join('') : message.content
+      let valid = false
+      try { valid = typeof text === 'string' && extractJson(text)?.ok === true } catch { /* Accepted request, but formatting remains unverified. */ }
+      return { ...base, ok: true, stage: valid ? 'complete' : 'format_warning', message: valid ? '连接成功，最小 JSON 响应正常；不代表完整业务生成已验证。' : '连接已确认，但最小 JSON 格式未通过；请检查结构化输出兼容性。' }
+    }
+    return { ...base, ok: false, stage: 'request', message: '探针兼容性重试已停止。' }
+  } catch (error) {
+    const timeout = ctrl.signal.aborted || (error as Error).name === 'AbortError'
+    return { ...base, ok: false, stage: timeout ? 'timeout' : 'transport', message: timeout ? '连接测试超时（20 秒），已停止，不自动重复请求。' : '网络连接失败，请检查地址、网络或代理。' }
+  } finally { clearTimeout(timer) }
 }
 
 export const OUTLINE_SYSTEM = `你是资深的微信公众号主编。把用户提供的文稿整理为结构化大纲，用于自动排版。

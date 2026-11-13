@@ -20,6 +20,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [activeId, setActiveId] = useState('')
   const [editing, setEditing] = useState<number>(-1)
   const [testing, setTesting] = useState('')
+  const [testRunning, setTestRunning] = useState(false)
+  const testBusy = useRef(false)
   const [probing, setProbing] = useState(false)
   const [effortNote, setEffortNote] = useState('')
   const actionRequest = useRef({ probe: 0, test: 0 })
@@ -80,6 +82,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     setProbing(false)
     setEffortNote('')
     setTesting('')
+    testBusy.current = false
+    setTestRunning(false)
     return () => { state.probe++; state.test++ }
   }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey, cur?.model, cur?.extraBody, cur?.jsonMode, cur?.maxOutputTokens])
 
@@ -89,6 +93,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     setModelStatus('')
     setEffortNote('')
     setTesting('')
+    testBusy.current = false
+    setTestRunning(false)
     modelRequest.current.generation++
     actionRequest.current.probe++
     actionRequest.current.test++
@@ -102,6 +108,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     actionRequest.current.test++
     setProbing(false)
     setTesting('')
+    testBusy.current = false
+    setTestRunning(false)
     setEffortNote('')
     setProfiles((list) => list.map((x, i) => i === editing ? {
       ...x,
@@ -162,14 +170,27 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   const test = async (p: AiProfile) => {
+    if (testBusy.current) return
+    testBusy.current = true
+    setTestRunning(true)
     const request = ++actionRequest.current.test
-    setTesting('测试中…')
+    setTesting('测试中…（低预算连接检查）')
     try {
       const r = await api.testAi(p)
       if (request !== actionRequest.current.test) return
-      setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : `已响应但格式异常：${JSON.stringify(r.reply).slice(0, 80)}`)
+      const reply = r.reply && typeof r.reply === 'object' ? r.reply as {stage?: string; message?: string} : null
+      const message = typeof reply?.message === 'string' ? reply.message : ''
+      if (reply?.stage && message) {
+        const prefix = !r.ok ? '✕ ' : reply.stage === 'complete' ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）：` : '⚠ '
+        setTesting(prefix + message)
+      } else setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : '接口有响应，但最小 JSON 检查未通过。')
     } catch (e: any) {
       if (request === actionRequest.current.test) setTesting(`✕ ${e.message}`)
+    } finally {
+      if (request === actionRequest.current.test) {
+        testBusy.current = false
+        setTestRunning(false)
+      }
     }
   }
 
@@ -250,7 +271,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 请求 JSON 模式（response_format；服务不支持时会自动关闭重试）
               </label>
               <div className="row gap">
-                <button onClick={() => test(cur)} disabled={!cur.baseUrl || !cur.model}>测试连接</button>
+                <button onClick={() => test(cur)} disabled={!cur.baseUrl || !cur.model || testRunning}>测试连接</button>
                 {!cur.readonly && (
                   <button
                     className="danger"
@@ -263,7 +284,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                     删除
                   </button>
                 )}
-                <span className="hint">{testing}</span>
+                <span className="hint" role="status" data-testid="ai-test-note">{testing}</span>
               </div>
             </>
           )}

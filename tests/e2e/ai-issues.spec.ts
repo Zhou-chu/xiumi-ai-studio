@@ -12,7 +12,7 @@ test('discovers custom models, imports context and keeps manual reasoning settin
     await page.getByLabel('名称', { exact: true }).fill('Discovery test')
     await page.getByPlaceholder('https://…/v1').fill('https://example.com/v1')
     await page.getByRole('button', { name: '从服务商获取模型列表' }).click()
-    await expect(page.getByRole('dialog', { name: 'AI 模型设置' }).getByRole('status')).toContainText('已获取 1 个模型')
+    await expect(page.getByRole('dialog', { name: 'AI 模型设置' }).getByTestId('ai-model-note')).toContainText('已获取 1 个模型')
     const models = page.getByRole('listbox', { name: '可用模型' })
     await expect(models).toBeVisible()
     await expect(models.getByRole('option', { name: 'custom-reasoner（128000 tokens）' })).toBeAttached()

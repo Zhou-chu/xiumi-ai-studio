@@ -125,3 +125,31 @@
   :root[data-color-mode='dark'] .save-conflict:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { padding: 8px; }
   :root[data-color-mode='dark'] .save-conflict > button:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { min-height: 44px; }
 }
+
+/* Soft overlays only: authored content and the editing workspace remain opaque. */
+:root[data-color-mode='dark'] .modal-mask:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:rgb(0 0 0 / 48%); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+:root[data-color-mode='dark'] .modal-mask > .modal:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { border-radius:16px; background:#1b1b1a; border:1px solid rgb(236 236 230 / 26%); box-shadow:0 20px 64px rgb(0 0 0 / 32%), inset 0 1px 0 rgb(255 255 245 / 8%); overflow:hidden; }
+:root[data-color-mode='dark'] .modal-mask > .modal > header:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { flex:none; background:rgb(255 255 245 / 2%); }
+:root[data-color-mode='dark'] .modal-mask .modal-body:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:#1b1b1a; }
+:root[data-color-mode='dark'] .toolbar .toolbar-secondary:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { border-radius:8px; box-shadow:0 8px 24px rgb(0 0 0 / 24%), inset 0 1px 0 rgb(255 255 245 / 6%); }
+:root[data-color-mode='dark'] .modal-body .ai-settings:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { grid-template-columns:minmax(180px, 30%) minmax(0,1fr); gap:20px; align-items:start; min-height:0; }
+:root[data-color-mode='dark'] .modal-body .ai-list:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { min-width:0; padding-right:16px; }
+:root[data-color-mode='dark'] .modal-body .ai-item:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { padding:10px 8px; margin-bottom:4px; }
+@media (max-width:600px) {
+:root[data-color-mode='dark'] .modal-mask:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { padding:16px 0 0; place-items:end center; }
+:root[data-color-mode='dark'] .modal-mask > .modal:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { width:100% !important; max-width:100%; max-height:calc(100dvh - 16px); border-radius:16px 16px 0 0; border-bottom:0; }
+:root[data-color-mode='dark'] .modal-mask > .modal > header:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { padding:16px; }
+:root[data-color-mode='dark'] .modal-mask .modal-body:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { padding:16px 16px max(16px, env(safe-area-inset-bottom)); }
+:root[data-color-mode='dark'] .modal-body .ai-settings:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { grid-template-columns:minmax(0,1fr); gap:16px; }
+:root[data-color-mode='dark'] .modal-body .ai-list:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { padding:0 0 12px; max-height:200px; overflow:auto; border-right:0; }
+}
+@media (prefers-reduced-transparency:reduce) {
+:root[data-color-mode='dark'] .modal-mask:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:rgb(0 0 0 / 78%); -webkit-backdrop-filter:none; backdrop-filter:none; }
+:root[data-color-mode='dark'] .modal-mask > .modal > header:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:#1b1b1a; }
+}
+@media (forced-colors:active) {
+:root[data-color-mode='dark'] .modal-mask:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:Canvas; -webkit-backdrop-filter:none; backdrop-filter:none; }
+:root[data-color-mode='dark'] .modal-mask > .modal:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:Canvas; color:CanvasText; border:1px solid CanvasText; box-shadow:none; }
+:root[data-color-mode='dark'] .modal-mask > .modal > header:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:Canvas; color:CanvasText; }
+:root[data-color-mode='dark'] .modal-mask .modal-body:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview *,.comp-preview *,.paste-box *)) { background:Canvas; color:CanvasText; }
+}

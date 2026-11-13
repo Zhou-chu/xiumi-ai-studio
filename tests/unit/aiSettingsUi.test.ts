@@ -152,3 +152,17 @@ it('does not publish a late probe or connection completion after unmount', async
   // Create an empty root for the common cleanup without calling unmount twice.
   root = createRoot(host)
 })
+
+it('shows limited connection verification honestly and blocks duplicate probes', async () => {
+  let finish!: (result: {ok:boolean;reply:unknown;ms:number}) => void
+  vi.mocked(api.testAi).mockReturnValue(new Promise(resolve => {finish=resolve}))
+  const button=[...host.querySelectorAll('button')].find(b=>b.textContent==='测试连接')!
+  await act(async()=>button.click())
+  expect(button.disabled).toBe(true)
+  await act(async()=>button.click())
+  expect(api.testAi).toHaveBeenCalledTimes(1)
+  await act(async()=>finish({ok:true,reply:{stage:'budget_limited',message:'连接已确认；完整 JSON 尚未验证'},ms:100}))
+  expect(host.textContent).toContain('完整 JSON 尚未验证')
+  expect(host.textContent).not.toContain('✓ 连接成功')
+  expect(button.disabled).toBe(false)
+})
