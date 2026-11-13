@@ -41,3 +41,13 @@ Four observed failing regression tests were made green (output limit/cache bypas
 ## Atomic variant publication
 
 A deferred-encoding regression exposed that direct writes to the final cache path allowed a second request to return a partial file. Variants now encode to a unique same-directory temporary filename and publish only after successful encoding with rename. Errors remove only the writer's temporary file, never an existing final cache file. Tests cover an actual partial-file/deferred promise, concurrent readers, and publication failure after another writer has produced a valid final output. 20 focused tests, TypeScript and changed-file lint pass. Hard termination may still leave temporary files, as documented above.
+
+## Repeated DOCX image references
+
+A small real Mammoth fixture referencing the same archive image 10 times produced 10 distinct saveAsset invocations. ZIP entry/output validation alone therefore did not bound repeated conversion work. Red tests also demonstrated that 257 references and cumulative asset sizes above 128 MiB previously returned success.
+
+The importer now permits at most 256 successful-image conversion attempts and 128 MiB cumulative newly encoded asset sizes per document. Exceeding either returns 413 and rolls back all assets created by that import; a latched resource error prevents remaining callbacks from starting further image reads/conversions. Exact 256-image and 128 MiB boundaries and ordinary 10-reference documents remain valid. No source-image deduplication or content alteration is introduced.
+
+The output quota is checked against saveAsset's actual encoded-size receipt after each image is written, not an input header. Thus the image that crosses the quota may temporarily exist before rollback; this is not a hard filesystem byte reservation or process RSS/time ceiling. The existing 2,400-pixel normalized saved-image dimensions and serialized image pipeline separately bound each conversion. Budget tests use the real Mammoth relationship traversal with controlled asset-size receipts, not allocations of hundreds of megabytes merely to exercise arithmetic.
+
+35 focused DOCX/import tests passed; TypeScript and changed-file lint passed. Full integration gates and exact-commit Sonar analysis remain required.

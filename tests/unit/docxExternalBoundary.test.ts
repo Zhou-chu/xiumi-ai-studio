@@ -98,3 +98,21 @@ it('keeps the original safety error even when rollback fails',async()=>{
  assets.save.mockResolvedValueOnce({id:'owned',file:'one.png'}).mockRejectedValueOnce(Object.assign(Error('pixel budget'),{status:413}));assets.remove.mockRejectedValue(Error('disk cleanup failed'))
  await expect(importFile(await zip.generateAsync({type:'nodebuffer'}),'cleanup.docx')).rejects.toMatchObject({status:413,cleanupFailures:1})
 })
+async function repeatedImages(count:number):Promise<Buffer>{
+ const zip=await JSZip.loadAsync(await fixture());const xml=await zip.file('word/document.xml').async('string');const end=xml.lastIndexOf('</w:body>'),start=xml.lastIndexOf('<w:p><w:r><w:drawing>');zip.file('word/document.xml',xml.slice(0,xml.indexOf('<w:p><w:r><w:drawing>'))+xml.slice(start,end).repeat(count)+xml.slice(end));return zip.generateAsync({type:'nodebuffer'})
+}
+it('demonstrates that repeated references cause distinct real converter invocations',async()=>{
+ assets.save.mockImplementation(async(_data,name)=>({id:name,file:name,size:10}));const result=await importFile(await repeatedImages(10),'ten.docx');expect(assets.save).toHaveBeenCalledTimes(10);expect(result.assets).toHaveLength(10)
+})
+it('caps repeated embedded image conversions and rolls back this import at 257',async()=>{
+ assets.save.mockImplementation(async(_data,name)=>({id:name,file:name,size:10}));assets.remove.mockResolvedValue(undefined)
+ await expect(importFile(await repeatedImages(257),'repeated.docx')).rejects.toMatchObject({status:413});expect(assets.save).toHaveBeenCalledTimes(256);expect(assets.remove).toHaveBeenCalledTimes(256)
+},30000)
+it('rejects cumulative new-asset output above 128MiB and rolls back every created asset',async()=>{
+ assets.save.mockImplementation(async(_data,name)=>({id:name,file:name,size:65*1024*1024}));assets.remove.mockResolvedValue(undefined)
+ await expect(importFile(await repeatedImages(3),'output.docx')).rejects.toMatchObject({status:413});expect(assets.save).toHaveBeenCalledTimes(2);expect(assets.remove).toHaveBeenCalledTimes(2)
+})
+it('preserves exact conversion and output budget boundaries',async()=>{
+ assets.save.mockImplementation(async(_data,name)=>({id:name,file:name,size:1}));expect((await importFile(await repeatedImages(256),'boundary-count.docx')).assets).toHaveLength(256)
+ assets.save.mockReset();assets.save.mockImplementation(async(_data,name)=>({id:name,file:name,size:64*1024*1024}));expect((await importFile(await repeatedImages(2),'boundary-output.docx')).assets).toHaveLength(2)
+})

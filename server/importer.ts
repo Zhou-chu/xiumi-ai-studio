@@ -47,6 +47,7 @@ export async function importFile(buf: Buffer, name: string): Promise<{ text: str
     }
     const assets: Asset[] = []
     let resourceError: unknown
+    let imageCount = 0, imageOutputBytes = 0
     const imageTasks: Promise<unknown>[] = []
     const rollback = async (cause: unknown) => {
       await Promise.allSettled(imageTasks)
@@ -64,14 +65,19 @@ export async function importFile(buf: Buffer, name: string): Promise<{ text: str
         externalFileAccess: false,
         convertImage: mammoth.images.imgElement((image: any) => {
           const task = (async () => {
+            if (resourceError) throw resourceError
             const data = Buffer.from(await image.read('base64'), 'base64')
             let a: Asset
-            try { a = await saveAsset(data, `word-image-${assets.length + 1}.${(image.contentType ?? 'image/png').split('/')[1]}`)
+            try {
+              if (++imageCount > 256) throw Object.assign(new Error('Word document exceeds the 256-image conversion limit. Split the document and retry.'), { status: 413 })
+              a = await saveAsset(data, `word-image-${assets.length + 1}.${(image.contentType ?? 'image/png').split('/')[1]}`)
+              assets.push(a)
+              imageOutputBytes += a.size ?? 0
+              if (imageOutputBytes > 128 * 1024 * 1024) throw Object.assign(new Error('Word document exceeds the 128 MiB new-image output budget. Reduce images or split the document.'), { status: 413 })
             } catch (error) {
               if ([413, 429].includes((error as { status?: number }).status ?? 0)) resourceError ??= error
               throw error
             }
-            assets.push(a)
             return { src: `/media/${a.file}` }
           })()
           imageTasks.push(task)
