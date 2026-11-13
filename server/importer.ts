@@ -44,6 +44,8 @@ export async function importFile(buf: Buffer, name: string): Promise<{ text: str
     const { value } = await mammoth.convertToHtml(
       { buffer: buf },
       {
+        // Keep uploaded DOCX relationships inside the archive; never read host files.
+        externalFileAccess: false,
         convertImage: mammoth.images.imgElement(async (image: any) => {
           const data = Buffer.from(await image.read('base64'), 'base64')
           const a = await saveAsset(data, `word-image-${assets.length + 1}.${(image.contentType ?? 'image/png').split('/')[1]}`)

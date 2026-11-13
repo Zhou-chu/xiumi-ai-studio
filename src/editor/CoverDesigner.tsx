@@ -44,6 +44,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
   const [kicker, setKicker] = useState((doc.blocks.find((b) => b.type === 'cover') as any)?.props.kicker ?? '')
   const [layout, setLayout] = useState<Layout>('gradient')
   const [busy, setBusy] = useState(false)
+  const saving = useRef(false)
   const [titleTooLong, setTitleTooLong] = useState(false)
   const [renderedKey, setRenderedKey] = useState('')
   const renderKey = JSON.stringify([bg, title, kicker, layout, theme])
@@ -62,7 +63,8 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
     ;(async () => {
       const cv = canvas.current
       if (!cv) return
-      const ctx = cv.getContext('2d')!
+      const ctx = cv.getContext('2d')
+      if (!ctx) throw new Error('Canvas unavailable')
       const c = theme.colors
       ctx.fillStyle = c.primary
       ctx.fillRect(0, 0, W, H)
@@ -120,18 +122,25 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
       lines.slice(0, maxLines).forEach((l, i) => ctx.fillText(l, x, y + i * size * 1.3))
       setTitleTooLong(overflow)
       setRenderedKey(renderKey)
-    })()
+    })().catch(() => {
+      if (!cancelled) {
+        setRenderedKey('')
+        notify('封面预览生成失败，请调整标题或版式后重试。', 'error')
+      }
+    })
     return () => {
       cancelled = true
     }
-  }, [bg, title, kicker, layout, theme, renderKey])
+  }, [bg, title, kicker, layout, theme, renderKey, notify])
 
   const save = async () => {
+    if (saving.current) return
     if (renderedKey !== renderKey || titleTooLong) {
       notify('封面尚未准备好或标题过长，请缩短标题并等待预览更新。', 'error')
       return
     }
     const expected = useStore.getState().doc
+    saving.current = true
     setBusy(true)
     try {
       const blob = await new Promise<Blob>((r) => canvas.current!.toBlob((b) => r(b!), 'image/jpeg', 0.92))
@@ -149,6 +158,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
     } catch (e: any) {
       if (active.current) notify(e.message, 'error')
     } finally {
+      saving.current = false
       if (active.current) setBusy(false)
     }
   }

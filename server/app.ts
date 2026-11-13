@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
+import { boundedMemoryStorage } from './uploadStorage'
 import { nanoid } from 'nanoid'
 import { cropAsset, deleteAsset, listAssets, saveAsset, variantPath } from './assets'
 import { listComponents, removeComponent, saveComponent, updateComponent } from './components'
@@ -32,7 +33,7 @@ export function createApp() {
   const app = express()
   app.disable('x-powered-by')
   app.use(express.json({ limit: '20mb' }))
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 50 } })
+  const upload = multer({ storage: boundedMemoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 50, fields: 8, fieldSize: 64 * 1024, parts: 58 } })
   
   const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next)
   const MAX_IMPORT_IMAGE = 30 * 1024 * 1024
@@ -362,7 +363,7 @@ ${JSON.stringify(b.layouts ?? {})}`
   }
   
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status ?? 500
+    const status = err.status ?? (err instanceof multer.MulterError ? 413 : 500)
     if (status >= 500) console.error(err)
     res.status(status).json({ error: err.message ?? String(err) })
   })

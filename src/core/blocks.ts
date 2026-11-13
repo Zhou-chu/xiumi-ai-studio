@@ -131,8 +131,8 @@ export function cloneBlock<T extends Block>(b: T): T {
   return copy
 }
 
-export function isBlockType(t: string): t is BlockType {
-  return t in META
+export function isBlockType(t: unknown): t is BlockType {
+  return typeof t === 'string' && Object.hasOwn(META, t)
 }
 
 // ---------- 属性校验：AI 输出与历史数据都要经过这里，保证类型正确 ----------
@@ -159,9 +159,16 @@ const OPTIONAL_IMAGE: BlockType[] = ['cover', 'imageText', 'image', 'profile', '
 
 const str = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'object' ? '' : String(v))
 const isRich = (v: any) => v && typeof v === 'object' && v.type === 'doc' && Array.isArray(v.content)
+/** JSON objects must never be implicitly converted through user-supplied methods. */
+function finiteNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
 function imageRef(v: any) {
   if (!v || typeof v !== 'object' || typeof v.src !== 'string' || !v.src) return undefined
-  return { src: v.src, ...(typeof v.displayWidth === 'number' && Number.isFinite(v.displayWidth) && { displayWidth: Math.max(10, Math.min(100, v.displayWidth)) }), ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(typeof v.alt === 'string' && { alt: v.alt }), ...(Number(v.width) > 0 && { width: Number(v.width) }), ...(Number(v.height) > 0 && { height: Number(v.height) }) }
+  const width = finiteNumber(v.width), height = finiteNumber(v.height)
+  return { src: v.src, ...(typeof v.displayWidth === 'number' && Number.isFinite(v.displayWidth) && { displayWidth: Math.max(10, Math.min(100, v.displayWidth)) }), ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(typeof v.alt === 'string' && { alt: v.alt }), ...(width !== undefined && width > 0 && { width }), ...(height !== undefined && height > 0 && { height }) }
 }
 
 /**
@@ -191,11 +198,11 @@ export function coerceProps<T extends BlockType>(type: T, raw: unknown, partial 
     if (en) out[k] = en.includes(v as string) ? v : d
     else if (k === 'content') out[k] = isRich(v) ? v : textToRich(str(v))
     else if (k === 'images') out[k] = Array.isArray(v) ? v.map(imageRef).filter(Boolean) : d
-    else if (k === 'columns') out[k] = Math.min(3, Math.max(1, Math.round(Number(v)) || 2))
+    else if (k === 'columns') out[k] = Math.min(3, Math.max(1, Math.round(finiteNumber(v) ?? 0) || 2))
     else if (k === 'items') out[k] = Array.isArray(v) ? v.filter((x) => x && typeof x === 'object').map((x) => ({ time: str(x.time), title: str(x.title), desc: str(x.desc) })) : d
     else if (k === 'headers') out[k] = Array.isArray(v) ? v.map(str) : d
     else if (k === 'rows') out[k] = Array.isArray(v) ? v.filter(Array.isArray).map((r: unknown[]) => r.map(str)) : d
-    else if (k === 'count') out[k] = Math.min(4, Math.max(2, Math.round(Number(v)) || 2))
+    else if (k === 'count') out[k] = Math.min(4, Math.max(2, Math.round(finiteNumber(v) ?? 0) || 2))
     else if (k === 'pics') out[k] = Array.isArray(v) ? v.slice(0, 30).map((x) => ({ ...(imageRef(x?.image) && { image: imageRef(x.image) }), caption: str(x?.caption) })) : d
     // 文本框不能嵌套：子模块里的文本框直接丢弃
     else if (k === 'children') out[k] = normalizeBlocks(v).filter((c) => c.type !== 'box')

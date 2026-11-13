@@ -42,10 +42,44 @@ function DocSettings() {
   )
 }
 
+/** Saving a theme may outlive this panel or the document it was requested for. */
+function useThemeSave() {
+  const active = useRef(true)
+  const pending = useRef(false)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
+  const save = async (theme: Theme) => {
+    if (pending.current) return
+    pending.current = true
+    setSaving(true)
+    const expected = useStore.getState().doc
+    const { commit, notify, refreshThemes } = useStore.getState()
+    try {
+      await api.saveTheme(theme)
+      registerTheme(theme)
+      refreshThemes()
+      if (!active.current) return
+      if (useStore.getState().doc !== expected) {
+        notify('主题已保存，但文稿已变化，未应用到当前文稿。可从主题列表手动选择。', 'error')
+        return
+      }
+      commit({ ...expected, themeId: theme.id, themeOverrides: undefined })
+      notify(`主题已保存并应用「${theme.name}」`)
+    } catch (error) {
+      if (active.current) notify(error instanceof Error ? error.message : '主题保存失败，请重试', 'error')
+    } finally {
+      pending.current = false
+      if (active.current) setSaving(false)
+    }
+  }
+  return { save, saving }
+}
+
 function ThemePanel() {
   const doc = useStore((s) => s.doc)
   const themes = useStore((s) => s.themes)
-  const { commit, notify, refreshThemes } = useStore.getState()
+  const { commit } = useStore.getState()
+  const { save, saving } = useThemeSave()
   const theme = resolveTheme(doc)
   const setOverride = (patch: Partial<ThemeTokens>, key: string) => {
     const o = doc.themeOverrides ?? {}
@@ -96,15 +130,12 @@ function ThemePanel() {
       {num('图片圆角', 'imageRadius', 0, 20)}
       <button
         className="wide"
+        disabled={saving}
         onClick={async () => {
           const name = prompt('保存为我的主题，名称：', `${getTheme(doc.themeId).name} · 自定义`)
           if (!name) return
           const t: Theme = { ...theme, id: `custom-${Date.now().toString(36)}`, name, description: '用户自定义主题' }
-          await api.saveTheme(t)
-          registerTheme(t)
-          refreshThemes()
-          commit({ ...doc, themeId: t.id, themeOverrides: undefined })
-          notify('主题已保存')
+          await save(t)
         }}
       >
         保存为我的主题
@@ -215,7 +246,8 @@ function ReferencePanel() {
   const [url, setUrl] = useState('')
   const [report, setReport] = useState<StyleReport | null>(null)
   const [authorized, setAuthorized] = useState(false)
-  const { commit, notify, refreshThemes } = useStore.getState()
+  const { notify } = useStore.getState()
+  const { save, saving } = useThemeSave()
   const draft = useMemo(() => (report ? themeFromReport(report, '参考风格主题') : null), [report])
   const analyze = (source: string) => {
     const dom = new DOMParser().parseFromString(source, 'text/html')
@@ -261,14 +293,12 @@ function ReferencePanel() {
           <p>标题样式 {draft.headingVariant} · 引言 {draft.quoteVariant} · 卡片 {draft.cardVariant}</p>
           <button
             className="primary wide"
+            disabled={saving}
             onClick={async () => {
-              const name = prompt('新主题名称', '我的参考风格') ?? '我的参考风格'
+              const name = prompt('新主题名称', '我的参考风格')
+              if (!name) return
               const t = { ...draft, name }
-              await api.saveTheme(t)
-              registerTheme(t)
-              refreshThemes()
-              commit({ ...useStore.getState().doc, themeId: t.id, themeOverrides: undefined })
-              notify(`已创建并应用主题「${name}」`)
+              await save(t)
             }}
           >
             保存并应用为新主题

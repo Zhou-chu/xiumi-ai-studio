@@ -156,12 +156,18 @@ function isBold(el: Element | null, stop: Node): boolean {
   return false
 }
 
-const longest = (list: Text[]) => list.reduce((a, b) => ((b.textContent ?? '').trim().length > (a.textContent ?? '').trim().length ? b : a))
+function longest(list: Text[]): Text | undefined {
+  let main = list[0]
+  for (const candidate of list.slice(1)) {
+    if ((candidate.textContent ?? '').trim().length > (main.textContent ?? '').trim().length) main = candidate
+  }
+  return main
+}
 
 function textSlot(id: string, node: Node, ctx: Element): TextSlot {
   const text = node.nodeType === 3 ? cleanText(node.textContent ?? '') : readText(node as Element)
   const main = node.nodeType === 3 ? (node as Text) : longest(textNodes(node))
-  const host = main.parentElement ?? ctx
+  const host = main?.parentElement ?? ctx
   const tight = !!ctx.closest('svg')
   const size = fontSize(host)
   const len = [...text].length
@@ -283,6 +289,7 @@ function setLine(el: Element, line: string, doc: Document, bold: boolean) {
   if (!texts.length) return
   const hadText = Array.from(el.querySelectorAll('*')).filter((e) => INLINE.has(tagOf(e)) && tagOf(e) !== 'br' && hasText(e))
   const main = longest(texts)
+  if (!main) return
   for (const t of texts) if (t !== main) t.textContent = ''
   el.querySelectorAll('br').forEach((b) => b.remove())
   main.replaceWith(...inlineNodes(line, doc, !!main.parentElement?.closest('text'), bold))

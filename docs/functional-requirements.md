@@ -423,3 +423,13 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 全部997项单测及122项浏览器回归通过，完整104文件的语句/分支/函数/行覆盖分别96.84%/91.82%/97.30%/98.32%；构建、类型、lint及两种PowerShell部署保护测试通过。真实DeepSeek已在台式机可见浏览器通过分章重排与单选修改、审阅接受、保存刷新。详见docs/qa/integrated-candidate-ledger.md与integrated-coverage.json。
 
 最新共同规范见docs/design/shared-ui.md（与Notebook同一SHA256版本）。新增code smell评分>90尚未测得原生分数；83条ESLint质量警告不是分数。因该新门槛未闭合，不把技术回归通过当作已发布到main。
+
+### 2026-11-13 安全与完整覆盖补充
+
+- 未信任的 AI 操作名称、模块类型、位置、数值属性和原因须校验后才能进入文稿；原型继承键、非法 JSON 类型及非有限数值不能造成界面崩溃。
+- 模型生成或导入的 HTML 在实际渲染前解析实体与命名空间，禁止脚本 URL、事件及危险动画目标；保留安全文字、内联排版和受限 SVG 动画。
+- 图片批量上传保留单文件 30 MiB、最多 50 文件；每次文件累计上限 64 MiB，超限明确返回 413，用户可分批重试。这不是整个进程的内存上限。
+- 主题保存、历史版本保存和封面生成必须处理失败、重复点击、关闭后迟到及切换文稿；迟到主题不能覆盖当前新稿或同稿的后续编辑。
+- Node 生成脚本导入时不得读写用户资料；测试只使用临时目录及合成输入。部署测试不得执行真实进程、网络、端口或计划任务操作。
+- 覆盖率分母已扩展到全部 src、server、scripts、templates 的可执行 JS/TS；V8 四指标各 >90。两份完整 PowerShell 产品脚本另用 Pester 原生命令覆盖 >90，分支/函数等工具不支持项明确 N/A，不与 V8 混算。
+- Sonar 全量可维护性 A、安全/可靠性问题核验及真实 Quality Gate 是独立发布条件；旧 main 扫描和仅 new-code Gate 不代表当前候选全量通过。当前证据及未完成项见 `docs/qa/sonar-security-followup.md`。

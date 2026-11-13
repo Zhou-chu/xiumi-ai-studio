@@ -29,7 +29,7 @@ export function parseCopy(input: string): Copy {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
   const marked = lines.some((l) => /^#{2,4}\s/.test(l) || LABELED_RE.test(l))
   if (!marked) return fromOutline(text)
-  const depths = [...new Set(lines.map((l) => l.match(/^(#{2,4})\s/)?.[1].length).filter((d): d is number => !!d))].sort()
+  const depths = [...new Set(lines.map((l) => l.match(/^(#{2,4})\s/)?.[1].length).filter((d): d is number => !!d))].sort((a, b) => a - b)
   const copy: Copy = { title: '', subtitle: '', items: [], credits: [] }
   let n = 0
   const id = () => `P${++n}`

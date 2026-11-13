@@ -32,7 +32,11 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const { commit, notify } = useStore.getState()
   const [list, setList] = useState<VersionSummary[]>([])
-  const refresh = () => api.versions(doc.id).then(setList).catch(() => {})
+  const pendingSave = useRef(false)
+  const [saving, setSaving] = useState(false)
+  const refresh = () => api.versions(doc.id).then(items => {
+    if (active.current && useStore.getState().doc.id === doc.id) setList(items)
+  }).catch(() => {})
   useEffect(() => {
     refresh()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -40,12 +44,25 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
     <Modal title="历史版本" onClose={onClose}>
       <button
         className="primary wide"
+        disabled={saving}
         onClick={async () => {
+          if (pendingSave.current) return
           const label = prompt('版本说明', `手动保存 ${new Date().toLocaleTimeString()}`)
           if (label === null) return
-          await api.saveVersion(doc, label || '手动保存')
-          refresh()
-          notify('版本已保存')
+          pendingSave.current = true
+          setSaving(true)
+          const expected = useStore.getState().doc
+          try {
+            await api.saveVersion(expected, label || '手动保存')
+            if (!active.current || useStore.getState().doc !== expected) return
+            await refresh()
+            if (active.current && useStore.getState().doc === expected) notify('版本已保存')
+          } catch {
+            if (active.current && useStore.getState().doc === expected) notify('版本保存失败，当前文稿未改变，请重试。', 'error')
+          } finally {
+            pendingSave.current = false
+            if (active.current) setSaving(false)
+          }
         }}
       >
         保存当前为新版本

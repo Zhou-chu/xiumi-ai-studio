@@ -155,8 +155,7 @@ function sectionBlocks(s: OutlineSection, plan: DesignSpec['sections'][number], 
       paras.splice(0).forEach((p, j) => out.push(j < 3 && p.length < 260 ? createBlock('card', { title: '', content: textToRich(p), variant: 'auto' }) : para(p)))
       break
     case 'galleryLead':
-      if (imgs.length === 1) out.push(...imagesBlock(imgs.splice(0)))
-      else out.push(...imagesBlock(imgs.splice(0)))
+      out.push(...imagesBlock(imgs.splice(0)))
       paras.splice(0).forEach((p) => out.push(para(p)))
       break
     case 'quoteLead':

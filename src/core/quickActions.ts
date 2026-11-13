@@ -108,5 +108,5 @@ export function aiContext(doc: Doc, focusId?: string | string[] | null) {
     const focus = Array.isArray(focusId) ? { ids } : { id: selected[0]!.block.id, type: selected[0]!.block.type }
     return { title: doc.title, themeId: doc.themeId, focus, blocks: selected.map(found => block(found!.block, found!.index)) }
   }
-  return { title: doc.title, themeId: doc.themeId, blocks: doc.blocks.map(block) }
+  return { title: doc.title, themeId: doc.themeId, blocks: doc.blocks.map((item, index) => block(item, index)) }
 }

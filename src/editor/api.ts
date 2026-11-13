@@ -104,6 +104,13 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 
 export const assetRef = (a: Asset): ImageRef => ({ src: `/media/${a.file}`, assetId: a.id, alt: a.name, width: a.width, height: a.height })
 
+// Match the server's resource-ID grammar before interpolating into a route.
+// Encoding alone is insufficient: URL parsers normalize dot path segments.
+function resourceId(value: string): string {
+  if (typeof value !== 'string' || !/^[\w-]{1,64}$/.test(value)) throw new ApiError('Invalid resource ID', 400)
+  return encodeURIComponent(value)
+}
+
 export const api = {
   assets: () => req<Asset[]>('GET', '/api/assets'),
   uploadAssets(files: File[] | FileList) {
@@ -111,8 +118,8 @@ export const api = {
     for (const f of Array.from(files)) fd.append('files', f)
     return req<Asset[]>('POST', '/api/assets', fd)
   },
-  cropAsset: (id: string, box: { x: number; y: number; width: number; height: number }) => req<Asset>('POST', `/api/assets/${id}/crop`, box),
-  deleteAsset: (id: string) => req('DELETE', `/api/assets/${id}`),
+  cropAsset: async (id: string, box: { x: number; y: number; width: number; height: number }) => req<Asset>('POST', `/api/assets/${resourceId(id)}/crop`, box),
+  deleteAsset: async (id: string) => req('DELETE', `/api/assets/${resourceId(id)}`),
   importFile(file: File) {
     const fd = new FormData()
     fd.append('file', file)
@@ -121,25 +128,25 @@ export const api = {
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
-  project: (id: string) => req<Doc>('GET', `/api/projects/${id}`),
-  saveProject: (doc: Doc) => req<{ updatedAt: number; revision?: string }>('PUT', `/api/projects/${doc.id}`, doc),
-  deleteProject: (id: string) => req('DELETE', `/api/projects/${id}`),
-  versions: (id: string) => req<VersionSummary[]>('GET', `/api/projects/${id}/versions`),
-  saveVersion: (doc: Doc, label: string) => req<VersionSummary>('POST', `/api/projects/${doc.id}/versions`, { doc, label }),
-  version: (pid: string, vid: string) => req<{ doc: Doc }>('GET', `/api/projects/${pid}/versions/${vid}`),
+  project: async (id: string) => req<Doc>('GET', `/api/projects/${resourceId(id)}`),
+  saveProject: async (doc: Doc) => req<{ updatedAt: number; revision?: string }>('PUT', `/api/projects/${resourceId(doc.id)}`, doc),
+  deleteProject: async (id: string) => req('DELETE', `/api/projects/${resourceId(id)}`),
+  versions: async (id: string) => req<VersionSummary[]>('GET', `/api/projects/${resourceId(id)}/versions`),
+  saveVersion: async (doc: Doc, label: string) => req<VersionSummary>('POST', `/api/projects/${resourceId(doc.id)}/versions`, { doc, label }),
+  version: async (pid: string, vid: string) => req<{ doc: Doc }>('GET', `/api/projects/${resourceId(pid)}/versions/${resourceId(vid)}`),
 
   templates: () => req<Template[]>('GET', '/api/templates'),
   saveTemplate: (name: string, blocks: Block[], theme?: Pick<Doc, 'themeId' | 'themeOverrides'>) =>
     req<Template>('POST', '/api/templates', { name, blocks, themeId: theme?.themeId, themeOverrides: theme?.themeOverrides }),
-  deleteTemplate: (id: string) => req('DELETE', `/api/templates/${id}`),
-  updateTemplate: (id: string, patch: { name?: string; roles?: Record<string, RoleId> }) => req<Template>('PUT', `/api/templates/${id}`, patch),
+  deleteTemplate: async (id: string) => req('DELETE', `/api/templates/${resourceId(id)}`),
+  updateTemplate: async (id: string, patch: { name?: string; roles?: Record<string, RoleId> }) => req<Template>('PUT', `/api/templates/${resourceId(id)}`, patch),
   components: () => req<LibraryComponent[]>('GET', '/api/components'),
   saveComponent: (draft: ComponentDraft) => req<{ component: LibraryComponent; duplicate: boolean }>('POST', '/api/components', draft),
-  updateComponent: (id: string, patch: { name?: string; tags?: string[]; kind?: string; role?: RoleId }) => req<LibraryComponent>('PUT', `/api/components/${id}`, patch),
-  deleteComponent: (id: string) => req('DELETE', `/api/components/${id}`),
+  updateComponent: async (id: string, patch: { name?: string; tags?: string[]; kind?: string; role?: RoleId }) => req<LibraryComponent>('PUT', `/api/components/${resourceId(id)}`, patch),
+  deleteComponent: async (id: string) => req('DELETE', `/api/components/${resourceId(id)}`),
   themes: () => req<Theme[]>('GET', '/api/themes'),
   saveTheme: (t: Theme) => req('POST', '/api/themes', t),
-  deleteTheme: (id: string) => req('DELETE', `/api/themes/${id}`),
+  deleteTheme: async (id: string) => req('DELETE', `/api/themes/${resourceId(id)}`),
 
   aiStatus: () => req<AiStatus>('GET', '/api/ai/status'),
   aiSettings: () => req<AiSettings>('GET', '/api/settings/ai'),

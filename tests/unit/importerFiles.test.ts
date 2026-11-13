@@ -16,6 +16,11 @@ describe('Word import file/image boundaries',()=>{
     const result=await importFile(Buffer.from('fake-docx'),'SOURCE.DOCX')
     expect(result.text).toBe('# Title\n\nBody');expect(result.assets).toHaveLength(2)
   })
+  it('explicitly disables external document file access', async () => {
+    mock.convertToHtml.mockResolvedValue({value:'<p>Safe</p>'})
+    await importFile(Buffer.from('docx'),'external.docx')
+    expect(mock.convertToHtml).toHaveBeenCalledWith({buffer:Buffer.from('docx')}, expect.objectContaining({externalFileAccess:false}))
+  })
   it('preserves an existing first-level heading instead of promoting another paragraph',async()=>{
     mock.convertToHtml.mockResolvedValue({value:'<h1>Heading</h1><p>Body</p>'})
     expect((await importFile(Buffer.from('x'),'source.docx')).text).toBe('# Heading\n\nBody')
