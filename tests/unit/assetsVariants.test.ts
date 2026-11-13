@@ -100,3 +100,29 @@ it('records failed cleanup without hiding the original encoder error',async()=>{
 it('removes newly encoded output when its index write fails and keeps later writes usable',async()=>{
  mock.failIndex=true;const before=await readdir(mock.dirs.assets);await expect(saveAsset(Buffer.from('source'),'index.jpg')).rejects.toThrow('index unavailable');expect(await readdir(mock.dirs.assets)).toEqual(before);mock.failIndex=false;await expect(saveAsset(Buffer.from('source'),'next.jpg')).resolves.toMatchObject({name:'next.jpg'})
 })
+it('rejects explosive output before cache lookup but preserves a safe wide ratio',async()=>{
+ await writeFile(join(mock.dirs.assets,'ratio.png'),'source');await writeFile(join(mock.dirs.cache,'ratio_1x999_2400.png'),'unsafe-old-cache')
+ await expect(variantPath('ratio.png','1:999',2400)).rejects.toMatchObject({status:413});expect(mock.sharp).not.toHaveBeenCalled()
+ await variantPath('ratio.png','999:1',2400);expect(mock.resize).toHaveBeenLastCalledWith({width:2400,height:2,fit:'cover',position:'attention'})
+})
+it('enforces the output pixel boundary without changing ordinary ratios',async()=>{
+ await writeFile(join(mock.dirs.assets,'boundary.png'),'source')
+ await variantPath('boundary.png','1:16',2000);expect(mock.resize).toHaveBeenLastCalledWith({width:2000,height:32000,fit:'cover',position:'attention'})
+ await expect(variantPath('boundary.png','1:16',2001)).rejects.toMatchObject({status:413})
+ await variantPath('boundary.png','4:5',1080);expect(mock.resize).toHaveBeenLastCalledWith({width:1080,height:1350,fit:'cover',position:'attention'})
+ for(const fit of ['0:1','1:0','999:1'])await expect(variantPath('boundary.png',fit,64)).rejects.toMatchObject({status:400})
+})
+it('uses identical integer width for cache and rendering and removes a failed new cache output',async()=>{
+ await writeFile(join(mock.dirs.assets,'round.png'),'source');const output=await variantPath('round.png','2:1',400.4)
+ expect(output).toBe(join(mock.dirs.cache,'round_2x1_400.png'));expect(mock.resize).toHaveBeenLastCalledWith({width:400,height:200,fit:'cover',position:'attention'})
+ const error=Error('cache encoder failed');mock.toFile.mockImplementationOnce(async(path:string)=>{await writeFile(path,'partial');throw error})
+ await expect(variantPath('round.png','2:1',500)).rejects.toBe(error);expect(await readdir(mock.dirs.cache)).toEqual(['round_2x1_400.png'])
+})
+it('rechecks cache after acquiring the image slot for concurrent identical requests',async()=>{
+ await writeFile(join(mock.dirs.assets,'same.png'),'source');const first=variantPath('same.png','1:1',400),second=variantPath('same.png','1:1',400)
+ expect(await first).toBe(await second);expect(mock.toFile).toHaveBeenCalledTimes(1)
+})
+it('preserves a variant error and reports cleanup failure without invalidating other cached outputs',async()=>{
+ await writeFile(join(mock.dirs.assets,'cleanup.png'),'source');const warning=vi.spyOn(console,'warn').mockImplementation(()=>{});const remove=vi.spyOn(fileSystem,'rm').mockRejectedValueOnce(Error('cleanup failure'));mock.toFile.mockRejectedValueOnce(Object.assign(Error('variant encoder failed'),{status:507}))
+ await expect(variantPath('cleanup.png','1:1',400)).rejects.toMatchObject({status:507,cleanupFailures:1});expect(warning).toHaveBeenCalledWith('Image variant cleanup failed for a newly created output');remove.mockRestore();warning.mockRestore()
+})

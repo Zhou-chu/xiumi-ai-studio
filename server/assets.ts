@@ -88,6 +88,7 @@ export async function cropAsset(id: string, box: { x: number; y: number; width: 
   return saveAsset(buf, a.name.replace(/(\.\w+)?$/, '-crop$1'))
 }
 
+const MAX_VARIANT_PIXELS = 64_000_000
 const FIT_RE = /^(\d{1,3}):(\d{1,3})$/
 
 /**
@@ -98,18 +99,33 @@ export async function variantPath(file: string, fit?: string, w?: number): Promi
   if (!/^[\w-]+\.(jpg|png)$/.test(file)) throw Object.assign(new Error('非法文件名'), { status: 400 })
   const src = join(DIRS.assets, file)
   if (!existsSync(src)) throw Object.assign(new Error('素材不存在'), { status: 404 })
-  const width = Math.min(2400, Math.max(64, Number(w) || 1080))
+  const width = Math.round(Math.min(2400, Math.max(64, Number(w) || 1080)))
   const m = fit ? fit.match(FIT_RE) : null
+  const height = m ? Math.round((width * Number(m[2])) / Number(m[1])) : undefined
+  if (height !== undefined) {
+    if (!Number.isSafeInteger(height) || height < 1) throw Object.assign(new Error('Image aspect ratio must produce a positive integer height.'), { status: 400 })
+    if (width * height > MAX_VARIANT_PIXELS) throw Object.assign(new Error('Image variant exceeds the 64-megapixel output limit. Reduce its width or choose a less extreme aspect ratio.'), { status: 413 })
+  }
   if (!m && width >= 2400) return src
   const key = `${file.replace(/\.\w+$/, '')}_${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
   const out = join(DIRS.cache, key)
   if (existsSync(out)) return out
   await withImageBudget(async () => {
+    if (existsSync(out)) return // Another queued request may have completed this exact variant.
     let img = sharp(src, { limitInputPixels: MAX_INPUT_PIXELS })
     img = m
-      ? img.resize({ width, height: Math.round((width * Number(m[2])) / Number(m[1])), fit: 'cover', position: sharp.strategy.attention })
+      ? img.resize({ width, height, fit: 'cover', position: sharp.strategy.attention })
       : img.resize({ width, withoutEnlargement: true })
-    await (file.endsWith('.png') ? img.png() : img.jpeg({ quality: 84, mozjpeg: true })).toFile(out)
+    try {
+      await (file.endsWith('.png') ? img.png() : img.jpeg({ quality: 84, mozjpeg: true })).toFile(out)
+    } catch (error) {
+      try { await rm(out, { force: true }) }
+      catch {
+        if (error instanceof Error) Object.assign(error, { cleanupFailures: 1 })
+        console.warn('Image variant cleanup failed for a newly created output')
+      }
+      throw error
+    }
   })
   return out
 }
