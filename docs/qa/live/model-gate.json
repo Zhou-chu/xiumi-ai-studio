@@ -1,11 +1,15 @@
 {
-  "at": "2026-11-13T17:23:06.614Z",
+  "at": "2026-11-13T18:25:55.558Z",
   "profile": {
     "provider": "openai",
     "model": "deepseek-flash"
   },
-  "syntheticDocument": "live-gate-1794590577621",
+  "syntheticDocument": "live-gate-1794594345433",
   "realProvider": true,
+  "connectionProbe": {
+    "ok": true,
+    "stage": "complete"
+  },
   "layoutOps": [
     {
       "op": "setTheme",
@@ -16,10 +20,6 @@
       "id": "live-html",
       "layout": "chapters",
       "themeId": "tsinghua-purple"
-    },
-    {
-      "op": "update",
-      "id": "live-heading"
     }
   ],
   "selectedOps": [
