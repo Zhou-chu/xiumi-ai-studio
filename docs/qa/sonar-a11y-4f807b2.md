@@ -71,37 +71,37 @@
 ## 3d20857e-42f0-48b6-897b-64a7cd5b9980
 - 位置：`src/editor/InlineReview.tsx:90`，`typescript:S6848`（原始报告行号）。
 - 判定：保留，审阅事件隔离。
-- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览内容inert，不能把包装层变成button或移除保护。
+- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览由 sandbox="allow-same-origin" 的 iframe 呈现，iframe 设置 tabIndex=-1（并非 HTML inert 属性），不能把包装层变成button或移除保护。
 - 回归证据：inlineReviewDom.test.tsx wrapper variants；inline-review.spec.ts Delete/Backspace、Escape、导出隔离。
 
 ## dd156474-6763-48df-a7af-b550cd1caf2d
 - 位置：`src/editor/InlineReview.tsx:91`，`typescript:S6848`（原始报告行号）。
 - 判定：保留，审阅事件隔离。
-- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览内容inert，不能把包装层变成button或移除保护。
+- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览由 sandbox="allow-same-origin" 的 iframe 呈现，iframe 设置 tabIndex=-1（并非 HTML inert 属性），不能把包装层变成button或移除保护。
 - 回归证据：inlineReviewDom.test.tsx wrapper variants；inline-review.spec.ts Delete/Backspace、Escape、导出隔离。
 
 ## ce720a30-9e9c-4638-a318-7201cbab001c
 - 位置：`src/editor/InlineReview.tsx:96`，`typescript:S6848`（原始报告行号）。
 - 判定：保留，审阅事件隔离。
-- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览内容inert，不能把包装层变成button或移除保护。
+- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览由 sandbox="allow-same-origin" 的 iframe 呈现，iframe 设置 tabIndex=-1（并非 HTML inert 属性），不能把包装层变成button或移除保护。
 - 回归证据：inlineReviewDom.test.tsx wrapper variants；inline-review.spec.ts Delete/Backspace、Escape、导出隔离。
 
 ## abaab5c3-5d5b-4b2a-887d-1fff51c65e28
 - 位置：`src/editor/InlineReview.tsx:102`，`typescript:S6848`（原始报告行号）。
 - 判定：保留，审阅事件隔离。
-- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览内容inert，不能把包装层变成button或移除保护。
+- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览由 sandbox="allow-same-origin" 的 iframe 呈现，iframe 设置 tabIndex=-1（并非 HTML inert 属性），不能把包装层变成button或移除保护。
 - 回归证据：inlineReviewDom.test.tsx wrapper variants；inline-review.spec.ts Delete/Backspace、Escape、导出隔离。
 
 ## d985e5b5-246a-4a88-a2a9-5d7a9a974cbf
 - 位置：`src/editor/InlineReview.tsx:104`，`typescript:S6848`（原始报告行号）。
 - 判定：保留，审阅事件隔离。
-- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览内容inert，不能把包装层变成button或移除保护。
+- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览由 sandbox="allow-same-origin" 的 iframe 呈现，iframe 设置 tabIndex=-1（并非 HTML inert 属性），不能把包装层变成button或移除保护。
 - 回归证据：inlineReviewDom.test.tsx wrapper variants；inline-review.spec.ts Delete/Backspace、Escape、导出隔离。
 
 ## 91a7e920-cdbc-4420-b062-b23f9b67590e
 - 位置：`src/editor/InlineReview.tsx:121`，`typescript:S6848`（原始报告行号）。
 - 判定：保留，审阅事件隔离。
-- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览内容inert，不能把包装层变成button或移除保护。
+- 依据：外壳拦截审阅区域事件，避免Delete/Backspace删除原稿或点击改写选区；真实接受/拒绝/定位为原生button，建议预览由 sandbox="allow-same-origin" 的 iframe 呈现，iframe 设置 tabIndex=-1（并非 HTML inert 属性），不能把包装层变成button或移除保护。
 - 回归证据：inlineReviewDom.test.tsx wrapper variants；inline-review.spec.ts Delete/Backspace、Escape、导出隔离。
 
 ## 1fab548d-e79b-49df-ab23-34405c0b7f16
@@ -138,5 +138,41 @@
 - 新Canvas语义契约测试先红：tabindex为空，而非0；实现后通过。
 - 7个定向DOM文件55/55通过；另字体控件DOM 11/11通过，合计66项。完整TypeScript检查及本轮变更ESLint通过。
 - 独立5373/5374、独立合成data-e2e：25/25浏览器通过（53.9秒）。包含真实Tab进入HTML编辑区、Ctrl/Cmd选择、方向键片段导航、手机触摸模拟、模型虚拟焦点/40项滚动、审阅Delete/Backspace保护及导出隔离。
-- 不移动handler隐藏告警；不为option添加Tab；未改变作品HTML、预览inert、拖放或焦点trap。
+- 不移动handler隐藏告警；不为option添加Tab；未改变作品HTML、预览 sandbox iframe / tabIndex=-1 隔离、拖放或焦点trap。
 - 未实测屏幕阅读器/真机触摸；未在此独立树重跑全仓或Sonar。剩余20项需依据上列issueKey正式逐条审阅，不宣称已被扫描器消除。
+
+## 对抗复核与证据措辞修订
+
+本修订纠正此前将审阅预览描述为 HTML inert 的不准确说法。当前实现是 sandbox iframe 与 tabIndex=-1；不将此属性组合夸称为所有辅助技术均不可进入。以下 FP 判断针对被标记外壳的事件委托/保护，而不是证明预览或整个产品全面无障碍。
+
+重新只读核对当前代码与既有测试：
+- Modal 背景关闭仅在 target===currentTarget 执行，原生“关闭”按钮使用相同 onClose；Escape 关闭最上层 dialog。展开 picker 先关闭 picker，再次 Escape 关闭 dialog，有既有测试。
+- Canvas 空白点击取消选择与 App.useShortcuts 非输入、无 dialog 时的 Escape 均调用 select(null)。编辑输入与弹窗中的例外是保护，不应取消。
+- FragmentPicker 键盘候选调用与指针同一 pickElement；前/后、方向键、Home/End、扩大/缩小与收藏/取消均有原生按钮入口。简单段落场景的导航/回焦有浏览器证据；对任意导入结构的全部等价性依据代码推理，并未声称穷举浏览器测试。
+- ModelPicker DOM 焦点在 listbox，aria-activedescendant 指向 option；active 与 selected 区分，Escape 回 trigger、Tab 离开、40 项列表滚动已有 DOM/浏览器验证。option 不应逐项添加 Tab 停点。
+- 其余被标记外壳只隔离事件，真正操作由内部原生控件承担。未发现这20处告警对应的实际键盘操作缺失；没有运行屏幕阅读器或真机辅助技术测试。
+
+可依上述证据正式逐条审阅为 FP 的20个原始 issueKey（含本次措辞修订）：
+```
+21e320b0-853e-488e-8de9-6b1457437203
+a4743892-5b16-478c-967d-ff98fc431c5e
+49a76937-ef3a-46c0-babc-ba356988418b
+e515d902-4f0c-4dc2-9a4e-f637cb2e1541
+5a53abac-e6a3-4be4-9d8f-d27fb9d4200d
+2402fff7-2ec4-4420-8d40-62973adf8592
+430bf194-6881-4499-a205-bc51025f603f
+f35f613b-dddb-49cc-a8b8-be09119698c1
+971f1138-6985-4708-a917-dac1ac85950f
+3d20857e-42f0-48b6-897b-64a7cd5b9980
+dd156474-6763-48df-a7af-b550cd1caf2d
+ce720a30-9e9c-4638-a318-7201cbab001c
+abaab5c3-5d5b-4b2a-887d-1fff51c65e28
+d985e5b5-246a-4a88-a2a9-5d7a9a974cbf
+91a7e920-cdbc-4420-b062-b23f9b67590e
+1fab548d-e79b-49df-ab23-34405c0b7f16
+1a166198-4c55-45c3-9417-d7d5e48de0ca
+bae5f7e8-ab9a-4d1d-ae11-92759c9fd9a4
+1b86fa5e-1a32-4ed7-8d05-91160bb2df28
+4bb79e72-25dc-419d-876d-ed77e54e6100
+```
+本清单不包含已修改的两项语义属性，也不是自动关闭 Sonar issue 的记录。
