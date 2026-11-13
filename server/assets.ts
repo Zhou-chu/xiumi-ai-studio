@@ -1,7 +1,7 @@
 import { MAX_INPUT_PIXELS, withImageBudget } from './imageBudget'
 // 素材库：上传、按需裁切缩放（微信相册统一比例）、裁剪另存。
 import { existsSync } from 'node:fs'
-import { readFile, readdir, rm, stat } from 'node:fs/promises'
+import { readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { nanoid } from 'nanoid'
 import sharp from 'sharp'
@@ -116,10 +116,12 @@ export async function variantPath(file: string, fit?: string, w?: number): Promi
     img = m
       ? img.resize({ width, height, fit: 'cover', position: sharp.strategy.attention })
       : img.resize({ width, withoutEnlargement: true })
+    const temporary = join(DIRS.cache, `.${key}.${nanoid()}.tmp`)
     try {
-      await (file.endsWith('.png') ? img.png() : img.jpeg({ quality: 84, mozjpeg: true })).toFile(out)
+      await (file.endsWith('.png') ? img.png() : img.jpeg({ quality: 84, mozjpeg: true })).toFile(temporary)
+      await rename(temporary, out)
     } catch (error) {
-      try { await rm(out, { force: true }) }
+      try { await rm(temporary, { force: true }) }
       catch {
         if (error instanceof Error) Object.assign(error, { cleanupFailures: 1 })
         console.warn('Image variant cleanup failed for a newly created output')

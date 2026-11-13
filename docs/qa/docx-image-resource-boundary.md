@@ -37,3 +37,7 @@ A separate output ceiling now guards explicit ratio variants before cache lookup
 The shared image slot rechecks the cache, so concurrent identical requests do not overwrite an already completed output. New failed cache output is removed; cleanup failure is recorded without replacing the original error. Existing cached files are not deleted merely because a newly enforced budget rejects a request.
 
 Four observed failing regression tests were made green (output limit/cache bypass, exact 64MP boundary, integer cache-width consistency, concurrent duplicate rendering); an additional cleanup-failure test passes. 18 focused tests passed. Assets/image-budget diagnostic coverage: statements 100% (107/107), branches 96.77% (60/62), functions 100% (23/23), lines 100% (84/84). TypeScript and changed-file lint passed. These remain focused results, not a full candidate gate.
+
+## Atomic variant publication
+
+A deferred-encoding regression exposed that direct writes to the final cache path allowed a second request to return a partial file. Variants now encode to a unique same-directory temporary filename and publish only after successful encoding with rename. Errors remove only the writer's temporary file, never an existing final cache file. Tests cover an actual partial-file/deferred promise, concurrent readers, and publication failure after another writer has produced a valid final output. 20 focused tests, TypeScript and changed-file lint pass. Hard termination may still leave temporary files, as documented above.

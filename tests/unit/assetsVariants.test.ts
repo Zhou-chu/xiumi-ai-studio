@@ -1,5 +1,5 @@
 import * as fileSystem from 'node:fs/promises'
-vi.mock('node:fs/promises', async importOriginal => { const actual = await importOriginal<typeof import('node:fs/promises')>(); return {...actual, rm: vi.fn(actual.rm)} })
+vi.mock('node:fs/promises', async importOriginal => { const actual = await importOriginal<typeof import('node:fs/promises')>(); return {...actual, rm: vi.fn(actual.rm), rename: vi.fn(actual.rename)} })
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -125,4 +125,15 @@ it('rechecks cache after acquiring the image slot for concurrent identical reque
 it('preserves a variant error and reports cleanup failure without invalidating other cached outputs',async()=>{
  await writeFile(join(mock.dirs.assets,'cleanup.png'),'source');const warning=vi.spyOn(console,'warn').mockImplementation(()=>{});const remove=vi.spyOn(fileSystem,'rm').mockRejectedValueOnce(Error('cleanup failure'));mock.toFile.mockRejectedValueOnce(Object.assign(Error('variant encoder failed'),{status:507}))
  await expect(variantPath('cleanup.png','1:1',400)).rejects.toMatchObject({status:507,cleanupFailures:1});expect(warning).toHaveBeenCalledWith('Image variant cleanup failed for a newly created output');remove.mockRestore();warning.mockRestore()
+})
+it('never publishes a partial cache file to a concurrent reader',async()=>{
+ await writeFile(join(mock.dirs.assets,'atomic.png'),'source');let release!:()=>void;const held=new Promise<void>(resolve=>release=resolve);let written!:()=>void;const partial=new Promise<void>(resolve=>written=resolve)
+ mock.toFile.mockImplementationOnce(async(path:string)=>{await writeFile(path,'partial');written();await held;await writeFile(path,'complete');return {width:400,height:400,size:8}})
+ const first=variantPath('atomic.png','1:1',400);await partial;let settled=false;const second=variantPath('atomic.png','1:1',400).then(value=>{settled=true;return value});await new Promise(resolve=>setImmediate(resolve));const early=settled;release();const [a,b]=await Promise.all([first,second]);expect(early).toBe(false);expect(a).toBe(b);expect(await readFile(b,'utf8')).toBe('complete')
+})
+
+it('removes only its own temporary file if publication fails after another writer has published',async()=>{
+ await writeFile(join(mock.dirs.assets,'publish.png'),'source');const final=join(mock.dirs.cache,'publish_1x1_400.png');const failure=Object.assign(Error('publication denied'),{code:'EACCES'});const publish=vi.spyOn(fileSystem,'rename').mockRejectedValueOnce(failure)
+ mock.toFile.mockImplementationOnce(async(path:string)=>{expect(path).not.toBe(final);await writeFile(path,'partial-own');await writeFile(final,'other-complete');return {width:400,height:400,size:12}})
+ await expect(variantPath('publish.png','1:1',400)).rejects.toBe(failure);expect(await readFile(final,'utf8')).toBe('other-complete');expect(await readdir(mock.dirs.cache)).toEqual(['publish_1x1_400.png']);publish.mockRestore()
 })
