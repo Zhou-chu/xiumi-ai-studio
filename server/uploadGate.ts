@@ -20,10 +20,10 @@ export function createUploadGate({ concurrency = 2, timeoutMs = 120000 }: { conc
   if (!Number.isSafeInteger(concurrency) || concurrency < 1 || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new RangeError('Invalid upload gate budget')
   let active = 0
   return (parser: RequestHandler, handle: (req: Request, res: Response) => Promise<void>): RequestHandler => (req, res, next) => {
-    if (active >= concurrency) { res.setHeader('Retry-After', '1'); req.resume(); next(failure(429, 'Two uploads are already being processed. Retry shortly.')); return }
+    if (active >= concurrency) { res.setHeader('Retry-After', '1'); res.setHeader('Connection', 'close'); req.resume(); next(failure(429, 'Two uploads are already being processed. Retry shortly.')); return }
     active++
     const context = uploadContext(req)
-    let responseOver = false, uploaded = false, processing = false, released = false, delivered = false
+    let responseOver = false, uploaded = false, processing = false, released = false, delivered = false, parserCompleted = false
     const deliver = (error: unknown) => { if (!delivered && !responseOver) { delivered = true; next(error) } }
     const release = () => {
       if (released || !responseOver || !uploaded || processing || context.pending.size) return
@@ -41,6 +41,8 @@ export function createUploadGate({ concurrency = 2, timeoutMs = 120000 }: { conc
     timer.unref?.()
     req.once('aborted', onAbort); res.once('finish', onFinish); res.once('close', onClose)
     const parsed = (error?: unknown) => {
+      if (parserCompleted) return
+      parserCompleted = true
       clearTimeout(timer); uploaded = true
       if (context.controller.signal.aborted) { deliver(context.controller.signal.reason); release(); return }
       if (error) { deliver(error); release(); return }
