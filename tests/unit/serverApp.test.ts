@@ -291,3 +291,19 @@ it('preserves exact pre-extraction prompt output for every multiline AI route',a
     expect(boundary.ai.chatJson.mock.lastCall?.[1]).toBe(fixture.prompt)
   }
 })
+it('preserves uploads larger than the generic 8 MB recommendation',async()=>{
+ const bytes=new Uint8Array(9*1024*1024);bytes[0]=17;bytes[bytes.length-1]=29
+ const data=new FormData();data.append('files',new Blob([bytes]),'large.png')
+ const response=await fetch(url+'/api/assets',{method:'POST',body:data});expect(response.status).toBe(200)
+ const actual=boundary.assets.saveAsset.mock.calls[0][0] as Buffer
+ expect(actual.length).toBe(bytes.length);expect(actual[0]).toBe(17);expect(actual.at(-1)).toBe(29)
+},30000)
+it('rejects a third real upload while two business handlers are still processing',async()=>{
+ const completed:Array<()=>void>=[]
+ boundary.assets.saveAsset.mockImplementation(()=>new Promise(resolve=>completed.push(()=>resolve({id:'uploaded'}))))
+ const first=upload('/api/assets','one.png'),second=upload('/api/assets','two.png')
+ await vi.waitFor(()=>expect(completed).toHaveLength(2))
+ const third=await upload('/api/assets','three.png');expect(third.status).toBe(429);expect(third.headers.get('retry-after')).toBe('1')
+ completed.forEach(done=>done());expect((await first).status).toBe(200);expect((await second).status).toBe(200)
+ boundary.assets.saveAsset.mockResolvedValue({id:'next'});expect((await upload('/api/assets','next.png')).status).toBe(200)
+})

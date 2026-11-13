@@ -1,9 +1,10 @@
+import { createUploadGate } from './uploadGate'
 import { importArticleImages } from './articleImages'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
-import { boundedMemoryStorage } from './uploadStorage'
+import { boundedDiskStorage } from './uploadStorage'
 import { nanoid } from 'nanoid'
 import { cropAsset, deleteAsset, listAssets, saveAsset, variantPath } from './assets'
 import { listComponents, removeComponent, saveComponent, updateComponent } from './components'
@@ -33,7 +34,8 @@ export function createApp() {
   const app = express()
   app.disable('x-powered-by')
   app.use(express.json({ limit: '20mb' }))
-  const upload = multer({ storage: boundedMemoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 50, fields: 8, fieldSize: 64 * 1024, parts: 58 } })
+  const uploadRoute = createUploadGate()
+  const upload = multer({ storage: boundedDiskStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 50, fields: 8, fieldSize: 64 * 1024, parts: 58 } })
   
   const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next)
   const MAX_IMPORT_IMAGE = 30 * 1024 * 1024
@@ -46,7 +48,7 @@ export function createApp() {
     res.sendFile(p)
   }))
   app.get('/api/assets', h(async (_req, res) => res.json(await listAssets())))
-  app.post('/api/assets', upload.array('files'), h(async (req, res) => {
+  app.post('/api/assets', uploadRoute(upload.array('files'), async (req, res) => {
     const files = (req.files as Express.Multer.File[]) ?? []
     const out = []
     for (const f of files) out.push(await saveAsset(f.buffer, fixName(f.originalname)))
@@ -59,7 +61,7 @@ export function createApp() {
   }))
   
   // ---------- 导入 ----------
-  app.post('/api/import', upload.single('file'), h(async (req, res) => {
+  app.post('/api/import', uploadRoute(upload.single('file'), async (req, res) => {
     if (!req.file) throw Object.assign(new Error('缺少文件'), { status: 400 })
     res.json(await importFile(req.file.buffer, fixName(req.file.originalname)))
   }))
