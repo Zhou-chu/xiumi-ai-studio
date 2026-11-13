@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Help } from './Help'
 import { CoverTitleAlignment } from './CoverTitleAlignment'
 import { blockTextFields, textFieldPatch } from '../core/blockTextEditing'
@@ -9,6 +10,9 @@ export function BlockTextEditor({ block, onChange, onDone }: {
   onChange: (props: Record<string, unknown>, field: string) => void
   onDone: () => void
 }) {
+  const firstField = useRef<HTMLTextAreaElement>(null)
+  // This component mounts only after the user explicitly chooses text editing.
+  useEffect(() => { firstField.current?.focus() }, [])
   return (
     <div className="props-form" data-testid="inline-block-text" style={{ padding: 12, background: '#fff' }}
       onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}
@@ -16,7 +20,7 @@ export function BlockTextEditor({ block, onChange, onDone }: {
       <Help title="文字编辑">正在编辑文字，图片和版式保持不变。修改自动保存，可撤销。</Help>
       {blockTextFields(block).map((field, i) => (
         <label key={field.key} className="field"><span>{field.label}</span>
-          <textarea autoFocus={i === 0} rows={2} value={field.value} onChange={(e) => onChange(textFieldPatch(block, field.key, e.target.value), field.key)} />
+          <textarea ref={i === 0 ? firstField : undefined} rows={2} value={field.value} onChange={(e) => onChange(textFieldPatch(block, field.key, e.target.value), field.key)} />
         </label>
       ))}
       {block.type === 'cover' && <CoverTitleAlignment value={block.props.titleAlign} onChange={(v) => onChange({ titleAlign: v }, 'titleAlign')} />}

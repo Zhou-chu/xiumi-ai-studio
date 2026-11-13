@@ -1,33 +1,33 @@
 {
-  "measuredAt": "2026-11-13T17:19:45.880Z",
+  "measuredAt": "2026-11-13T18:13:49.803Z",
   "scope": "All production JS/TS: src, server, scripts, templates; declaration-only files excluded. PowerShell reported separately in native command metric. Tests/configuration/generated HTML/fonts are not executable-source denominators.",
-  "sourceSha256": "7d3306716b51ab2deedc0cfe2a8fd578aaa8c382c6db753e68af0d62424ae3d9",
-  "fileCount": 113,
-  "tests": 1128,
+  "sourceSha256": "b19cdcfb04cbc95c3d3002c35cf982ecdaf086beebcabb7d3cfb1943b15aa39c",
+  "fileCount": 116,
+  "tests": 1195,
   "total": {
     "lines": {
-      "total": 7784,
-      "covered": 7656,
+      "total": 7936,
+      "covered": 7810,
       "skipped": 0,
-      "pct": 98.35
+      "pct": 98.41
     },
     "statements": {
-      "total": 10331,
-      "covered": 10011,
+      "total": 10545,
+      "covered": 10221,
       "skipped": 0,
-      "pct": 96.9
+      "pct": 96.92
     },
     "functions": {
-      "total": 2746,
-      "covered": 2675,
+      "total": 2782,
+      "covered": 2707,
       "skipped": 0,
-      "pct": 97.41
+      "pct": 97.3
     },
     "branches": {
-      "total": 8268,
-      "covered": 7595,
+      "total": 8463,
+      "covered": 7791,
       "skipped": 0,
-      "pct": 91.86
+      "pct": 92.05
     },
     "branchesTrue": {
       "total": 0,
@@ -64,7 +64,8 @@
           "skipped": 0,
           "pct": 95
         }
-      }
+      },
+      "sha256": "1e1e9b4328f2ec03161ef75fed015a21db68f1efcdc37abcdfce5783475b867c"
     },
     {
       "path": "scripts/make-xiumi-probe.ts",
@@ -93,16 +94,17 @@
           "skipped": 0,
           "pct": 92.1
         }
-      }
+      },
+      "sha256": "f26a2a68d908f164fca95d1f4edc89f49f9d2ec15af9b0ff026ccd537f27e562"
     },
     {
       "path": "server/ai.ts",
       "metrics": {
         "lines": {
-          "total": 132,
-          "covered": 131,
+          "total": 134,
+          "covered": 133,
           "skipped": 0,
-          "pct": 99.24
+          "pct": 99.25
         },
         "functions": {
           "total": 33,
@@ -111,18 +113,19 @@
           "pct": 96.96
         },
         "statements": {
-          "total": 165,
-          "covered": 162,
+          "total": 167,
+          "covered": 164,
           "skipped": 0,
-          "pct": 98.18
+          "pct": 98.2
         },
         "branches": {
-          "total": 224,
-          "covered": 219,
+          "total": 228,
+          "covered": 223,
           "skipped": 0,
-          "pct": 97.76
+          "pct": 97.8
         }
-      }
+      },
+      "sha256": "89b712ab33ad344c7c4044a70edbe564239c1f82c661a514b9f6468a298ed3ef"
     },
     {
       "path": "server/aiEdit.ts",
@@ -151,7 +154,8 @@
           "skipped": 0,
           "pct": 89.28
         }
-      }
+      },
+      "sha256": "1b44822aae9b608eea43ba7df035918c4553e3a819340b32645c726916be690b"
     },
     {
       "path": "server/aiModels.ts",
@@ -180,7 +184,8 @@
           "skipped": 0,
           "pct": 87.36
         }
-      }
+      },
+      "sha256": "214079130236ebb108e3fae9e4eb0b9567221c614bcbfac55928cbb3a23eb33e"
     },
     {
       "path": "server/aiSuggestion.ts",
@@ -209,7 +214,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "d29e66dfca782245b6e34559db82b1b9f07d8e41362fd39624ee60eb7083e7ec"
     },
     {
       "path": "server/app.ts",
@@ -238,7 +244,8 @@
           "skipped": 0,
           "pct": 94.3
         }
-      }
+      },
+      "sha256": "1d40b8337317e65ecb34d729f1f5dd872096409abbacb9d25ffbf00963af1304"
     },
     {
       "path": "server/articleImages.ts",
@@ -267,7 +274,8 @@
           "skipped": 0,
           "pct": 90.32
         }
-      }
+      },
+      "sha256": "514a7ec98904c316d2241c42b09a16057ec75b7bad8966164f48da3b8c8c4101"
     },
     {
       "path": "server/assets.ts",
@@ -296,7 +304,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "eedf2ebbe8fabc5b26da9e989349082ec6c91ad272631d4bc4dee6da63a1b33e"
     },
     {
       "path": "server/components.ts",
@@ -325,7 +334,8 @@
           "skipped": 0,
           "pct": 80
         }
-      }
+      },
+      "sha256": "b47d871827e7789fc9226f8f1bd6683d8b6e307951740fc3ea5eba9f71569507"
     },
     {
       "path": "server/importer.ts",
@@ -354,7 +364,8 @@
           "skipped": 0,
           "pct": 96
         }
-      }
+      },
+      "sha256": "52ed4130cdc4b555d53a0248c194d570aaacce6deda9843c632612e869b84f76"
     },
     {
       "path": "server/index.ts",
@@ -383,7 +394,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "2310c3fd869f2eab97828be56c7875eec859d9382c918ed0d71cd912b36792e3"
     },
     {
       "path": "server/net.ts",
@@ -412,7 +424,8 @@
           "skipped": 0,
           "pct": 93.9
         }
-      }
+      },
+      "sha256": "d989f59ea4307c73939a1ade159e886d5891624b98292e04716332f1234587b3"
     },
     {
       "path": "server/projectStore.ts",
@@ -441,7 +454,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "477d2c5a9a5a2c4d06cb10e2eef14ef24147b996d68cc91d8ecab9581f02729b"
     },
     {
       "path": "server/settings.ts",
@@ -470,7 +484,8 @@
           "skipped": 0,
           "pct": 83.19
         }
-      }
+      },
+      "sha256": "c9c6af80077d8c30e8b3b02794a94c61fbad1142c8fd5e06cc6db509a16fbc52"
     },
     {
       "path": "server/store.ts",
@@ -499,7 +514,8 @@
           "skipped": 0,
           "pct": 92.85
         }
-      }
+      },
+      "sha256": "6f11db9bd869b53ac65cfb63a171ef908a28a41d0b7a8e87198d440a8d36bfa3"
     },
     {
       "path": "server/uploadStorage.ts",
@@ -528,7 +544,38 @@
           "skipped": 0,
           "pct": 78.94
         }
-      }
+      },
+      "sha256": "5410b9ac8630db8561c56291aa59994efdd408fd31420bf790f5dc859dbd59be"
+    },
+    {
+      "path": "server/urlText.ts",
+      "metrics": {
+        "lines": {
+          "total": 3,
+          "covered": 3,
+          "skipped": 0,
+          "pct": 100
+        },
+        "functions": {
+          "total": 1,
+          "covered": 1,
+          "skipped": 0,
+          "pct": 100
+        },
+        "statements": {
+          "total": 4,
+          "covered": 4,
+          "skipped": 0,
+          "pct": 100
+        },
+        "branches": {
+          "total": 2,
+          "covered": 2,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "sha256": "d1e423188ee890cc87ea9fd1c7ab5b083e1047bb39479bc014dddd6d6b1306ba"
     },
     {
       "path": "server/wechat.ts",
@@ -557,7 +604,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "256815d53f38d6ff0be84be2f7aafe45437b9178b4e160130623fbced4748b19"
     },
     {
       "path": "src/App.tsx",
@@ -586,7 +634,8 @@
           "skipped": 0,
           "pct": 91.01
         }
-      }
+      },
+      "sha256": "010863cb9b02674631ce894d2f254d8041f56fc2370e9b2ae96d95160266f334"
     },
     {
       "path": "src/core/aiDesign.ts",
@@ -615,7 +664,8 @@
           "skipped": 0,
           "pct": 86.02
         }
-      }
+      },
+      "sha256": "3d74a4dfa64c4736594b58d0d91b10d3fdefbb8690d62e50b6d233f98b3a4a19"
     },
     {
       "path": "src/core/articleImages.ts",
@@ -644,26 +694,27 @@
           "skipped": 0,
           "pct": 78.78
         }
-      }
+      },
+      "sha256": "2be71413137ba869222d87e3f9dc78af55afccadaebfd20ca767824be7e9c767"
     },
     {
       "path": "src/core/assemble.ts",
       "metrics": {
         "lines": {
-          "total": 259,
-          "covered": 259,
+          "total": 258,
+          "covered": 258,
           "skipped": 0,
           "pct": 100
         },
         "functions": {
-          "total": 58,
-          "covered": 58,
+          "total": 57,
+          "covered": 57,
           "skipped": 0,
           "pct": 100
         },
         "statements": {
-          "total": 338,
-          "covered": 337,
+          "total": 336,
+          "covered": 335,
           "skipped": 0,
           "pct": 99.7
         },
@@ -673,7 +724,8 @@
           "skipped": 0,
           "pct": 96.84
         }
-      }
+      },
+      "sha256": "5381e580044be3fb4b1bd613aa0bd5a717a6ef064b6114a53aafd09ee65079c5"
     },
     {
       "path": "src/core/blocks.ts",
@@ -702,7 +754,8 @@
           "skipped": 0,
           "pct": 87.41
         }
-      }
+      },
+      "sha256": "ddf544d6a051b3942a71ee572b5a6becbb0ac6fe3de636568caa2301a9d25762"
     },
     {
       "path": "src/core/blockTextEditing.ts",
@@ -731,7 +784,8 @@
           "skipped": 0,
           "pct": 76.19
         }
-      }
+      },
+      "sha256": "9b26f5bcbed14e541d37d13c08e8e605c8a5f61e77c64a0c17fd1fb8affcd02b"
     },
     {
       "path": "src/core/color.ts",
@@ -760,14 +814,15 @@
           "skipped": 0,
           "pct": 66.66
         }
-      }
+      },
+      "sha256": "5cef09f24faaa10169b0efb19e527bdcdb84756ee96688233cd5ff16602d1231"
     },
     {
       "path": "src/core/compiler.ts",
       "metrics": {
         "lines": {
-          "total": 226,
-          "covered": 225,
+          "total": 227,
+          "covered": 226,
           "skipped": 0,
           "pct": 99.55
         },
@@ -784,12 +839,13 @@
           "pct": 99.25
         },
         "branches": {
-          "total": 297,
-          "covered": 294,
+          "total": 302,
+          "covered": 299,
           "skipped": 0,
-          "pct": 98.98
+          "pct": 99
         }
-      }
+      },
+      "sha256": "318280d18c5f014c05f1cafecc9029fd919557d2e4500b1dd70f70cdac5b18ba"
     },
     {
       "path": "src/core/components.ts",
@@ -814,11 +870,12 @@
         },
         "branches": {
           "total": 134,
-          "covered": 120,
+          "covered": 121,
           "skipped": 0,
-          "pct": 89.55
+          "pct": 90.29
         }
-      }
+      },
+      "sha256": "c51840fcff2c41d980c11f6cf7aad038d7f24a33916a5e7f2e1c325ed205510f"
     },
     {
       "path": "src/core/copy.ts",
@@ -847,7 +904,38 @@
           "skipped": 0,
           "pct": 84.78
         }
-      }
+      },
+      "sha256": "73096ac4b2a031ab8aecfa6ba580a946a61c697322da0ea9952d266f63009f1a"
+    },
+    {
+      "path": "src/core/editorialText.ts",
+      "metrics": {
+        "lines": {
+          "total": 74,
+          "covered": 74,
+          "skipped": 0,
+          "pct": 100
+        },
+        "functions": {
+          "total": 17,
+          "covered": 17,
+          "skipped": 0,
+          "pct": 100
+        },
+        "statements": {
+          "total": 109,
+          "covered": 108,
+          "skipped": 0,
+          "pct": 99.08
+        },
+        "branches": {
+          "total": 78,
+          "covered": 77,
+          "skipped": 0,
+          "pct": 98.71
+        }
+      },
+      "sha256": "44f100edc851b9501772bf8cc013f8cbbbc4e2732fe8ea60de501a16fa23c13c"
     },
     {
       "path": "src/core/enrich.ts",
@@ -876,7 +964,8 @@
           "skipped": 0,
           "pct": 88.46
         }
-      }
+      },
+      "sha256": "0dd663cb737dcd8c76371adf75b6bacec8e9cf021d8aa5f7d64639efb8cdca15"
     },
     {
       "path": "src/core/exporters.ts",
@@ -905,7 +994,8 @@
           "skipped": 0,
           "pct": 74.46
         }
-      }
+      },
+      "sha256": "78cc43e44bcda8b3b3230d5b0a22b2ea8b262389f3dc0dade331fb94a667c4df"
     },
     {
       "path": "src/core/fragments.ts",
@@ -934,7 +1024,8 @@
           "skipped": 0,
           "pct": 90
         }
-      }
+      },
+      "sha256": "b2d78b29dbfbf4a729a5a67f3c7f542ed9e2a035eb2e60c15c09d67c787138e1"
     },
     {
       "path": "src/core/htmlLayout.ts",
@@ -963,7 +1054,8 @@
           "skipped": 0,
           "pct": 87.17
         }
-      }
+      },
+      "sha256": "440c8c7bbd3767d3d442ca78fc5e4c16b0eb4eb7743947af943a983144fff6c1"
     },
     {
       "path": "src/core/htmlTheme.ts",
@@ -992,7 +1084,8 @@
           "skipped": 0,
           "pct": 91.66
         }
-      }
+      },
+      "sha256": "0ca6a0b04f729e9de248803b2b0e8c581ca48f43f62ec0f3750d1c90b8b2c703"
     },
     {
       "path": "src/core/htmlUpdateValidation.ts",
@@ -1021,7 +1114,8 @@
           "skipped": 0,
           "pct": 90.56
         }
-      }
+      },
+      "sha256": "79ab6781b963c1db218acdeeeb4fb660bc0e11885df568bd1b055bda74d5bac1"
     },
     {
       "path": "src/core/imageResize.ts",
@@ -1050,7 +1144,8 @@
           "skipped": 0,
           "pct": 96.55
         }
-      }
+      },
+      "sha256": "904b2fa2e51f45639db5af1974fc95acb152c89eecf64847f1a21b60aafce10b"
     },
     {
       "path": "src/core/images.ts",
@@ -1079,7 +1174,8 @@
           "skipped": 0,
           "pct": 52
         }
-      }
+      },
+      "sha256": "d79b2b8b4c5446eff5382bf743cca3d7f3d7a967ce3ee61c10892c82f4f0c311"
     },
     {
       "path": "src/core/kit.ts",
@@ -1108,7 +1204,8 @@
           "skipped": 0,
           "pct": 98.69
         }
-      }
+      },
+      "sha256": "5730dce6ab1e276b951d01775dd30ef564bd8be342c29fc30f829457d852b8dc"
     },
     {
       "path": "src/core/layouts.ts",
@@ -1137,7 +1234,8 @@
           "skipped": 0,
           "pct": 80
         }
-      }
+      },
+      "sha256": "353c970299b4d552ebc6e230190d0f04d1fa15c356ad398683af3dbb9ed1e350"
     },
     {
       "path": "src/core/operationDescriptions.ts",
@@ -1166,7 +1264,8 @@
           "skipped": 0,
           "pct": 0
         }
-      }
+      },
+      "sha256": "ca35710b1efef90f1964d60fb6a7ebe709510dbfb0dd8e187d5a2f9ae904be55"
     },
     {
       "path": "src/core/ops.ts",
@@ -1195,7 +1294,8 @@
           "skipped": 0,
           "pct": 75
         }
-      }
+      },
+      "sha256": "e2762f818b9a4b2a98ed9893548b6a77b6e2e9a0df31e74f9f141fbec5c87921"
     },
     {
       "path": "src/core/opValidation.ts",
@@ -1224,7 +1324,8 @@
           "skipped": 0,
           "pct": 91.8
         }
-      }
+      },
+      "sha256": "d380fbc7c273e5fd86fdd34ec7211dafcb4b47ed505c3eebaf1c1bdc870519c1"
     },
     {
       "path": "src/core/outline.ts",
@@ -1236,14 +1337,14 @@
           "pct": 100
         },
         "functions": {
-          "total": 36,
-          "covered": 36,
+          "total": 35,
+          "covered": 35,
           "skipped": 0,
           "pct": 100
         },
         "statements": {
-          "total": 146,
-          "covered": 146,
+          "total": 145,
+          "covered": 145,
           "skipped": 0,
           "pct": 100
         },
@@ -1253,7 +1354,8 @@
           "skipped": 0,
           "pct": 98.14
         }
-      }
+      },
+      "sha256": "5e32eee71bf7639d6e8d25980c7eb7afbb9a00b6e69eabdb172b376a676ad0fe"
     },
     {
       "path": "src/core/photoPlan.ts",
@@ -1282,7 +1384,8 @@
           "skipped": 0,
           "pct": 95.14
         }
-      }
+      },
+      "sha256": "8834625532723910509a2ee691f44f02a8dd4e8d7aba17ecd2ce968ae21db293"
     },
     {
       "path": "src/core/photos.ts",
@@ -1311,7 +1414,8 @@
           "skipped": 0,
           "pct": 89.15
         }
-      }
+      },
+      "sha256": "33604359bdcaf8196297555f95063dcaa6806c392f8db5bfea481db361614325"
     },
     {
       "path": "src/core/quickActions.ts",
@@ -1340,7 +1444,8 @@
           "skipped": 0,
           "pct": 94.11
         }
-      }
+      },
+      "sha256": "d81079a76c4d785c3f059b0f15bcb13e203509b13987a31b53f49a89c1644b8e"
     },
     {
       "path": "src/core/recolor.ts",
@@ -1369,7 +1474,8 @@
           "skipped": 0,
           "pct": 86.9
         }
-      }
+      },
+      "sha256": "b69db49cd6b43285301466d72e173279385bc733097bf5b3419420dcbf41a23d"
     },
     {
       "path": "src/core/richtext.ts",
@@ -1398,7 +1504,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "4da7fe72eca8aca6db72a8a017b3bb2a68d437ce3f51c25ba4bafae53659cd71"
     },
     {
       "path": "src/core/roles.ts",
@@ -1427,7 +1534,8 @@
           "skipped": 0,
           "pct": 95.95
         }
-      }
+      },
+      "sha256": "6b2e5096d63d45766c404500f404fee3a93511e1d629ea10644fd8915e9fa802"
     },
     {
       "path": "src/core/sanitize.ts",
@@ -1456,7 +1564,8 @@
           "skipped": 0,
           "pct": 91.21
         }
-      }
+      },
+      "sha256": "5c6d296d9e77cb826642eb3760b82da81fc8a12cfaab0e4cfdc632cf4f042572"
     },
     {
       "path": "src/core/selectionBoundary.ts",
@@ -1485,7 +1594,8 @@
           "skipped": 0,
           "pct": 94.11
         }
-      }
+      },
+      "sha256": "1c61c1522f3706749abdc14804f38dfebd6b99f735ff7cda81f4b9ae5b026728"
     },
     {
       "path": "src/core/slots.ts",
@@ -1514,7 +1624,8 @@
           "skipped": 0,
           "pct": 93.85
         }
-      }
+      },
+      "sha256": "c9a32f10064f20068f446683930c3708bbdc6cc5e25a330e6935fe7f5fcfe2cf"
     },
     {
       "path": "src/core/style.ts",
@@ -1543,7 +1654,8 @@
           "skipped": 0,
           "pct": 96
         }
-      }
+      },
+      "sha256": "b254f2bd502c35b167f1f8e69d72ab043bcd1ab5c452151d7b10ce6216ebf80a"
     },
     {
       "path": "src/core/styleExtract.ts",
@@ -1572,7 +1684,8 @@
           "skipped": 0,
           "pct": 81.48
         }
-      }
+      },
+      "sha256": "9fdc6ed6c38f394f8b1e9c71d9861f6d183422dc3f488ac66149ac2d116f050a"
     },
     {
       "path": "src/core/templateFill.ts",
@@ -1601,7 +1714,38 @@
           "skipped": 0,
           "pct": 86.17
         }
-      }
+      },
+      "sha256": "67cc3a79d6529a2a9d45ff00e8ff0c7a3c4fe36e2280ec470c2fbdf06035e9e4"
+    },
+    {
+      "path": "src/core/textLinear.ts",
+      "metrics": {
+        "lines": {
+          "total": 27,
+          "covered": 27,
+          "skipped": 0,
+          "pct": 100
+        },
+        "functions": {
+          "total": 5,
+          "covered": 5,
+          "skipped": 0,
+          "pct": 100
+        },
+        "statements": {
+          "total": 35,
+          "covered": 35,
+          "skipped": 0,
+          "pct": 100
+        },
+        "branches": {
+          "total": 30,
+          "covered": 30,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "sha256": "610f35fbe0d53857669fa4ccf899e6533df9919d884fa4c4fd385ef0161910db"
     },
     {
       "path": "src/core/textTypography.ts",
@@ -1630,7 +1774,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "2e2cc55791a0265b5bc8501d3afd7fa0cd6444d98ee6228df541a9bf3cb5c97b"
     },
     {
       "path": "src/core/themes.ts",
@@ -1659,7 +1804,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "6f7e374052bfc61199b5f199bf4615a8458adf5c0c304d8c8daefeed64c8c966"
     },
     {
       "path": "src/core/tree.ts",
@@ -1688,7 +1834,8 @@
           "skipped": 0,
           "pct": 96.15
         }
-      }
+      },
+      "sha256": "65c4c9e9817bffcf34884982da011817beef7df07d5823f78056b0ed134bd71d"
     },
     {
       "path": "src/core/types.ts",
@@ -1717,7 +1864,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "4dd81e671f11686a5db612e918ec42e2da3920e7e7c96d76551b9ae5c1aeb681"
     },
     {
       "path": "src/core/wxImport.ts",
@@ -1746,7 +1894,8 @@
           "skipped": 0,
           "pct": 90.03
         }
-      }
+      },
+      "sha256": "ce9e9e4a830062cdb4f848799cfadc7f1a7ef961128be8b6188faa2e3c495f5e"
     },
     {
       "path": "src/core/xiumiExport.ts",
@@ -1775,7 +1924,8 @@
           "skipped": 0,
           "pct": 94.64
         }
-      }
+      },
+      "sha256": "3ddb5b1030ec5a86c59b4643814a598f352eeffeb6352a6035cbd46c045f8885"
     },
     {
       "path": "src/editor/aiPresets.ts",
@@ -1804,7 +1954,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "a5c38aa9df861dd0bd87b2f0795c72497206cb231f7d24471d7263a7730d914f"
     },
     {
       "path": "src/editor/AiSettingsModal.tsx",
@@ -1816,24 +1967,25 @@
           "pct": 100
         },
         "functions": {
-          "total": 60,
-          "covered": 60,
+          "total": 59,
+          "covered": 59,
           "skipped": 0,
           "pct": 100
         },
         "statements": {
-          "total": 214,
-          "covered": 212,
+          "total": 213,
+          "covered": 211,
           "skipped": 0,
           "pct": 99.06
         },
         "branches": {
-          "total": 170,
-          "covered": 159,
+          "total": 174,
+          "covered": 163,
           "skipped": 0,
-          "pct": 93.52
+          "pct": 93.67
         }
-      }
+      },
+      "sha256": "b1c3b3326ffcc889f6827d7471e30b048152fc733183324c1e7e7862013dd1a1"
     },
     {
       "path": "src/editor/api.ts",
@@ -1862,7 +2014,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "a358c57b507074f49f77959b8a011f0901c68b171a8f7993a9582fb9341de1d4"
     },
     {
       "path": "src/editor/ArticleImageImport.tsx",
@@ -1891,7 +2044,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "9af2bc66d40c740ab5dfaba33b0bc659fbd3296653d88c46e41f1ac1dce62c8e"
     },
     {
       "path": "src/editor/ArticleImport.tsx",
@@ -1920,65 +2074,68 @@
           "skipped": 0,
           "pct": 91.27
         }
-      }
+      },
+      "sha256": "d2b4f908b0b487c6bdcdf52d8e931fab456089900b9ac0b3b4d49d60bc28b9de"
     },
     {
       "path": "src/editor/BlockTextEditor.tsx",
       "metrics": {
         "lines": {
+          "total": 8,
+          "covered": 6,
+          "skipped": 0,
+          "pct": 75
+        },
+        "functions": {
+          "total": 8,
+          "covered": 5,
+          "skipped": 0,
+          "pct": 62.5
+        },
+        "statements": {
+          "total": 13,
+          "covered": 10,
+          "skipped": 0,
+          "pct": 76.92
+        },
+        "branches": {
           "total": 6,
           "covered": 4,
           "skipped": 0,
           "pct": 66.66
-        },
-        "functions": {
-          "total": 7,
-          "covered": 4,
-          "skipped": 0,
-          "pct": 57.14
-        },
-        "statements": {
-          "total": 10,
-          "covered": 7,
-          "skipped": 0,
-          "pct": 70
-        },
-        "branches": {
-          "total": 4,
-          "covered": 2,
-          "skipped": 0,
-          "pct": 50
         }
-      }
+      },
+      "sha256": "fa310c87573a6ddf95173ab88936cb1daead21035e7967e0419060768c7f9518"
     },
     {
       "path": "src/editor/Canvas.tsx",
       "metrics": {
         "lines": {
-          "total": 266,
-          "covered": 262,
+          "total": 301,
+          "covered": 294,
           "skipped": 0,
-          "pct": 98.49
+          "pct": 97.67
         },
         "functions": {
-          "total": 106,
-          "covered": 104,
-          "skipped": 0,
-          "pct": 98.11
-        },
-        "statements": {
-          "total": 333,
-          "covered": 319,
+          "total": 119,
+          "covered": 114,
           "skipped": 0,
           "pct": 95.79
         },
-        "branches": {
-          "total": 227,
-          "covered": 205,
+        "statements": {
+          "total": 385,
+          "covered": 362,
           "skipped": 0,
-          "pct": 90.3
+          "pct": 94.02
+        },
+        "branches": {
+          "total": 276,
+          "covered": 242,
+          "skipped": 0,
+          "pct": 87.68
         }
-      }
+      },
+      "sha256": "14b22206eee581c9c2545c669f82754bfa5e77a622b7e16077e6f507d8c8d03b"
     },
     {
       "path": "src/editor/CollectModal.tsx",
@@ -2007,7 +2164,8 @@
           "skipped": 0,
           "pct": 97.26
         }
-      }
+      },
+      "sha256": "e8c0eeba981a643af272e3ee1821e8164a2a0fc87a935a7372bcd87a77f96aed"
     },
     {
       "path": "src/editor/colorMode.ts",
@@ -2036,7 +2194,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "4b3de12f77d69d0ba8315682284dcd87d52b5f76e827de8516507cefcfb31e6b"
     },
     {
       "path": "src/editor/ColorModeControl.tsx",
@@ -2065,7 +2224,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "ca9e1677b1f3ba3553c571f8cd4d57740a10ccce824e71c6e8e36d6b3ca65bc1"
     },
     {
       "path": "src/editor/componentActions.ts",
@@ -2094,28 +2254,29 @@
           "skipped": 0,
           "pct": 77.27
         }
-      }
+      },
+      "sha256": "10ec59c743cd7dc9a7a75c7ad33465d189475f0caabdf96e75b24b676f60159b"
     },
     {
       "path": "src/editor/ComponentLibrary.tsx",
       "metrics": {
         "lines": {
-          "total": 82,
-          "covered": 82,
+          "total": 84,
+          "covered": 83,
           "skipped": 0,
-          "pct": 100
+          "pct": 98.8
         },
         "functions": {
-          "total": 52,
-          "covered": 52,
+          "total": 54,
+          "covered": 53,
           "skipped": 0,
-          "pct": 100
+          "pct": 98.14
         },
         "statements": {
-          "total": 105,
-          "covered": 105,
+          "total": 107,
+          "covered": 106,
           "skipped": 0,
-          "pct": 100
+          "pct": 99.06
         },
         "branches": {
           "total": 69,
@@ -2123,7 +2284,8 @@
           "skipped": 0,
           "pct": 95.65
         }
-      }
+      },
+      "sha256": "1975f362bb4351533e5fed2b19338859d1ef591394538c9f0d42d31b9862e231"
     },
     {
       "path": "src/editor/Copywriter.tsx",
@@ -2152,7 +2314,8 @@
           "skipped": 0,
           "pct": 97.87
         }
-      }
+      },
+      "sha256": "5ccb7ae2a0443d19472671babaac8ee03e84d79fe11192217934690dd2c71de0"
     },
     {
       "path": "src/editor/CoverDesigner.tsx",
@@ -2181,7 +2344,8 @@
           "skipped": 0,
           "pct": 93.9
         }
-      }
+      },
+      "sha256": "0bdc83969a87a0c44383660bc83acc4416b149c3eed71fafca24c338257c521c"
     },
     {
       "path": "src/editor/CoverTitleAlignment.tsx",
@@ -2210,7 +2374,8 @@
           "skipped": 0,
           "pct": 50
         }
-      }
+      },
+      "sha256": "80d2a074e3900f9a50da1ce77cbc42bb95c13f0e9ba4b960b5a4049548c2a7ed"
     },
     {
       "path": "src/editor/CropModal.tsx",
@@ -2239,7 +2404,8 @@
           "skipped": 0,
           "pct": 90.9
         }
-      }
+      },
+      "sha256": "a234f571e782b8d7700c6b2e9fa6a2ebe210c9fd0ec544430e8c1e8d432f995b"
     },
     {
       "path": "src/editor/documentNavigation.ts",
@@ -2268,7 +2434,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "0f61b0811d50dbbb931ad7ca84f6ef85a74b3ef4ecefebf985cc1810daa0eb39"
     },
     {
       "path": "src/editor/ErrorBoundary.tsx",
@@ -2297,7 +2464,8 @@
           "skipped": 0,
           "pct": 83.33
         }
-      }
+      },
+      "sha256": "031470b4ad7e4c767389c193da4c00b62c353a853e808ab0e687329e18956874"
     },
     {
       "path": "src/editor/Help.tsx",
@@ -2326,7 +2494,8 @@
           "skipped": 0,
           "pct": 75.67
         }
-      }
+      },
+      "sha256": "46909eec1d480ec12687ce3ab1611c246cf969939b1a847a33c14c9fba90fbaf"
     },
     {
       "path": "src/editor/HtmlTypographyControls.tsx",
@@ -2355,7 +2524,8 @@
           "skipped": 0,
           "pct": 96.36
         }
-      }
+      },
+      "sha256": "873ef11b0748aaade6239b8660d9486041247265adf72770d1d21c715a0065b5"
     },
     {
       "path": "src/editor/ImageResize.tsx",
@@ -2384,7 +2554,8 @@
           "skipped": 0,
           "pct": 95.94
         }
-      }
+      },
+      "sha256": "83adb15ce7432df05e4c398ee182213669ab203fa6852e5d093c44e25522b61d"
     },
     {
       "path": "src/editor/ImportWizard.tsx",
@@ -2413,7 +2584,8 @@
           "skipped": 0,
           "pct": 90.56
         }
-      }
+      },
+      "sha256": "802f5ec22f3fdc146cf2789d7231e76493aba543ca1e69562564cdd8bb503b94"
     },
     {
       "path": "src/editor/InlineReview.tsx",
@@ -2442,7 +2614,8 @@
           "skipped": 0,
           "pct": 95.23
         }
-      }
+      },
+      "sha256": "38fddeb699dfdaaed23692f605fbcbeb1106819a04e1f15805e86e36f6789437"
     },
     {
       "path": "src/editor/inlineReviewGeometry.ts",
@@ -2471,7 +2644,8 @@
           "skipped": 0,
           "pct": 76.47
         }
-      }
+      },
+      "sha256": "4a5ee79dbaba249f88c0ca0edeae4bc5cebb73281b0ef2a76f932fe5bd9c8939"
     },
     {
       "path": "src/editor/kitItems.ts",
@@ -2500,7 +2674,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "c225a27a24a15229edb6a12be35c918f43e891e85deff11bae6e8fe1855ef60c"
     },
     {
       "path": "src/editor/KitPicker.tsx",
@@ -2529,7 +2704,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "d48e27bc636cbca291dcdce40cc14eff7f0afe27f6ba451ef0b7320ae5afb3d9"
     },
     {
       "path": "src/editor/LeftPanel.tsx",
@@ -2558,16 +2734,17 @@
           "skipped": 0,
           "pct": 97.36
         }
-      }
+      },
+      "sha256": "d58e98f1cb3ac4d4724497179f538bc8da50490a2d5cb5507d5637268593af35"
     },
     {
       "path": "src/editor/Modal.tsx",
       "metrics": {
         "lines": {
-          "total": 30,
-          "covered": 23,
+          "total": 35,
+          "covered": 34,
           "skipped": 0,
-          "pct": 76.66
+          "pct": 97.14
         },
         "functions": {
           "total": 8,
@@ -2576,18 +2753,19 @@
           "pct": 87.5
         },
         "statements": {
-          "total": 37,
-          "covered": 29,
+          "total": 44,
+          "covered": 42,
           "skipped": 0,
-          "pct": 78.37
+          "pct": 95.45
         },
         "branches": {
-          "total": 34,
-          "covered": 17,
+          "total": 43,
+          "covered": 37,
           "skipped": 0,
-          "pct": 50
+          "pct": 86.04
         }
-      }
+      },
+      "sha256": "b4342a2b7460f33fb5c83cac98b3ae7cf11b8ee8eaff1e168e3a4c8b3d2d545b"
     },
     {
       "path": "src/editor/ModelPicker.tsx",
@@ -2616,7 +2794,8 @@
           "skipped": 0,
           "pct": 81.48
         }
-      }
+      },
+      "sha256": "f5cb82c67ca57b0435e6d3974f55f6e89b88d690dabc78add46a3d6a95eb2754"
     },
     {
       "path": "src/editor/PhotoPlanner.tsx",
@@ -2645,7 +2824,8 @@
           "skipped": 0,
           "pct": 97.29
         }
-      }
+      },
+      "sha256": "c39c54771ff0585cb62abdd8234b478f72dc3fc944cea891f1eb5409f4d36574"
     },
     {
       "path": "src/editor/PlanIssues.tsx",
@@ -2674,7 +2854,8 @@
           "skipped": 0,
           "pct": 97.43
         }
-      }
+      },
+      "sha256": "75d96e717dcc028d7764c0c36a6163890c9fff7ca12ef1fc6cb8ea7f02175b28"
     },
     {
       "path": "src/editor/proposalSafety.ts",
@@ -2703,16 +2884,17 @@
           "skipped": 0,
           "pct": 98.43
         }
-      }
+      },
+      "sha256": "ae3e7578611e23c1067453aaf94fe778d2d86a53ecf061f843c0867089797f6a"
     },
     {
       "path": "src/editor/PropsForm.tsx",
       "metrics": {
         "lines": {
-          "total": 161,
-          "covered": 160,
+          "total": 162,
+          "covered": 161,
           "skipped": 0,
-          "pct": 99.37
+          "pct": 99.38
         },
         "functions": {
           "total": 108,
@@ -2728,11 +2910,12 @@
         },
         "branches": {
           "total": 119,
-          "covered": 113,
+          "covered": 114,
           "skipped": 0,
-          "pct": 94.95
+          "pct": 95.79
         }
-      }
+      },
+      "sha256": "4a336614007ea4a62cca6af3937ca2c11a4bd4d39c1d478086cb1514e0304557"
     },
     {
       "path": "src/editor/reviewDisplay.ts",
@@ -2761,7 +2944,8 @@
           "skipped": 0,
           "pct": 96
         }
-      }
+      },
+      "sha256": "e8d4accd332de8fd73c5dfbc0404b4fc4a80dca0ed10c3c0e686b6e557fb12d1"
     },
     {
       "path": "src/editor/RichEditor.tsx",
@@ -2790,7 +2974,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "75bad91fad1f789ae866d735241d15052af32e93605a6ae1db73a9fe6b126f9c"
     },
     {
       "path": "src/editor/RightPanel.tsx",
@@ -2819,7 +3004,8 @@
           "skipped": 0,
           "pct": 94.2
         }
-      }
+      },
+      "sha256": "edffcc75b7efc84006602ff17d448c87a63945f77d6a0e3216c3ad9b3674d49b"
     },
     {
       "path": "src/editor/RoleSelect.tsx",
@@ -2848,7 +3034,8 @@
           "skipped": 0,
           "pct": 66.66
         }
-      }
+      },
+      "sha256": "f416bff491af025e753a69c09b30079b7922ee443ae4a29a28437a7bcdf8deed"
     },
     {
       "path": "src/editor/selectedTextStyle.ts",
@@ -2877,7 +3064,8 @@
           "skipped": 0,
           "pct": 94.73
         }
-      }
+      },
+      "sha256": "b213cfd060cffd09cd8925b3102ba7a19c15b05fdc256e6c1f816b440f300c43"
     },
     {
       "path": "src/editor/store.ts",
@@ -2906,7 +3094,8 @@
           "skipped": 0,
           "pct": 97.34
         }
-      }
+      },
+      "sha256": "4b1d4ec71532834ba2870286da584b1101cf5ebd35b16cef8cd98415ab85c6e4"
     },
     {
       "path": "src/editor/SuggestionInput.tsx",
@@ -2935,7 +3124,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "a58edae96d657e2c7dda52a8bf4e6fb8c68795a163350d3f57f63560e65bff2c"
     },
     {
       "path": "src/editor/suggestionPreference.ts",
@@ -2964,7 +3154,8 @@
           "skipped": 0,
           "pct": 75
         }
-      }
+      },
+      "sha256": "91477b1d1a1b9c91e3f929dc3ff9fda1ec063e61f16bff9f569fae8d764ce4b6"
     },
     {
       "path": "src/editor/suggestionQueue.ts",
@@ -2993,7 +3184,8 @@
           "skipped": 0,
           "pct": 73.33
         }
-      }
+      },
+      "sha256": "feff1f4d6738bb4772efbc3731a36ece340496bc607315477b0d697ee8723b6d"
     },
     {
       "path": "src/editor/TemplateModules.tsx",
@@ -3022,7 +3214,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "c9ce9b370c3bc5f96307c8d26d634fba8771e2f9dab5105bfe6f4dda504998d3"
     },
     {
       "path": "src/editor/Toolbar.tsx",
@@ -3051,7 +3244,8 @@
           "skipped": 0,
           "pct": 90.14
         }
-      }
+      },
+      "sha256": "b03e19d75742766cfb8960936085271a41e31921cf511034acd10bea2883c24d"
     },
     {
       "path": "src/editor/UiIcon.tsx",
@@ -3080,7 +3274,8 @@
           "skipped": 0,
           "pct": 50
         }
-      }
+      },
+      "sha256": "f5701955500e9f25de62df41a2fbe62fab3e58192fc8cbd2169819399c3d0f6b"
     },
     {
       "path": "src/editor/useSelectionScope.ts",
@@ -3109,7 +3304,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "c780aa0ed74eb732421492aa607d80475e4ffd722424e5db4fa74aa1a6757e97"
     },
     {
       "path": "src/editor/variantPersistence.ts",
@@ -3138,7 +3334,8 @@
           "skipped": 0,
           "pct": 88.88
         }
-      }
+      },
+      "sha256": "b719587b44f79a008f001fe529c4deaa0a428080edd5cc87424c43f835485974"
     },
     {
       "path": "src/editor/wechatOutput.ts",
@@ -3167,14 +3364,15 @@
           "skipped": 0,
           "pct": 97.36
         }
-      }
+      },
+      "sha256": "1008ccd2f2b3b51ebc55193b10cd6fbb537bba5714717d839786b056494da0b0"
     },
     {
       "path": "src/editor/Workspace.tsx",
       "metrics": {
         "lines": {
-          "total": 97,
-          "covered": 97,
+          "total": 98,
+          "covered": 98,
           "skipped": 0,
           "pct": 100
         },
@@ -3185,18 +3383,19 @@
           "pct": 100
         },
         "statements": {
-          "total": 119,
-          "covered": 117,
+          "total": 123,
+          "covered": 122,
           "skipped": 0,
-          "pct": 98.31
+          "pct": 99.18
         },
         "branches": {
-          "total": 78,
-          "covered": 73,
+          "total": 90,
+          "covered": 86,
           "skipped": 0,
-          "pct": 93.58
+          "pct": 95.55
         }
-      }
+      },
+      "sha256": "13aaaafda22734afbdadc7f9c7971bfe25943fb4ae4cd061f186f8e173481cb0"
     },
     {
       "path": "src/editor/zoom.ts",
@@ -3225,7 +3424,8 @@
           "skipped": 0,
           "pct": 100
         }
-      }
+      },
+      "sha256": "aa54ada94c26756f156155584a47592dcb661aa9ccb577ad984d3bdadeff59e9"
     },
     {
       "path": "src/main.tsx",
@@ -3254,7 +3454,8 @@
           "skipped": 0,
           "pct": 0
         }
-      }
+      },
+      "sha256": "a6bfc3befe3529a0cf32a9f2a9ec3716ec6caac2a72fc71964eaf4e676bdf5e2"
     },
     {
       "path": "templates/eea-germany/build.mjs",
@@ -3283,7 +3484,8 @@
           "skipped": 0,
           "pct": 94.16
         }
-      }
+      },
+      "sha256": "880ea9cd13747b7a41c5965af7b70e22a04c841874c4c284fca40136868eefc0"
     },
     {
       "path": "templates/eea-germany/template-runtime.mjs",
@@ -3312,7 +3514,8 @@
           "skipped": 0,
           "pct": 90.9
         }
-      }
+      },
+      "sha256": "aa149995bc6ca728a03d9a5d3ed3f0ad4931e8e971fef7c1140ce7e5fda69ab0"
     }
   ],
   "powershell": {
@@ -3344,5 +3547,6 @@
         "sha256": "84b9c394edf44941105afefd1cec9c17c524f7c98fc8c09844f1d1aaaaa73ad8"
       }
     ]
-  }
+  },
+  "sourceHashMethod": "SHA256 of sorted relative-path + NUL + file SHA256 + LF records (localeCompare ordering)"
 }

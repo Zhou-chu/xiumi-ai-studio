@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from './urlText'
 // 从上游读取可用模型（id、上下文、输出上限、思考强度），并检测一个模型接受哪些思考强度。
 // 只访问用户在「AI 模型设置」里填写的地址，带用户自己的密钥；不跟随重定向，避免把密钥带到别处。
 import { chatText } from './ai'
@@ -75,7 +76,7 @@ export async function fetchModels(p: AiProfile, fetcher: typeof fetch = fetch): 
   const all: ModelInfo[] = []
   let after = ''
   for (let page = 0; page < 5; page++) {
-    const base = p.baseUrl.replace(/\/+$/, '')
+    const base = trimTrailingSlashes(p.baseUrl)
     const url = anthropic ? `${base.replace(/\/v1$/, '')}/v1/models?limit=1000${after ? `&after_id=${encodeURIComponent(after)}` : ''}` : `${base}/models`
     const res = await fetcher(url, { headers: headersOf(p), redirect: 'error', signal: AbortSignal.timeout(15_000) }).catch((e: any) => {
       throw httpError(`连不上 ${new URL(url).host}：${e?.cause?.code ?? e?.message ?? '网络错误'}`)

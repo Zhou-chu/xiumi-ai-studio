@@ -1,3 +1,4 @@
+import { collapseNewlineWhitespace } from './textLinear'
 import { restructureImportedHtml } from './htmlLayout'
 import { restyleImportedHtml } from './htmlTheme'
 import { THEMES } from './themes'
@@ -16,7 +17,7 @@ export function validateHtmlUpdate(b: Block<'html'>, op: Record<string, any>): {
   for (const [k, v] of Object.entries(raw)) {
     const s = known.get(k)
     if (!s || (typeof v !== 'string' && typeof v !== 'number')) continue
-    slots[k] = s.tight ? [...String(v).replace(/\s*\n+\s*/g, ' ')].slice(0, s.max).join('') : String(v)
+    slots[k] = s.tight ? [...collapseNewlineWhitespace(String(v))].slice(0, s.max).join('') : String(v)
   }
   if (!Object.keys(slots).length && !theme) return { error: `修改 ${op.id} 没有有效的文字槽位` }
   let html = fillSlots(b.props.html, slots, { split: false })

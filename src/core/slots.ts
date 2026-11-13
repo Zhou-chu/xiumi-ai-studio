@@ -1,3 +1,4 @@
+import { collapseNewlineWhitespace } from './textLinear'
 // 模板槽位：把原文片段（导入推文的 HTML）里的文字与图片识别为可替换的“槽位”。
 // 槽位按文档顺序编号（文字 t0、t1…，图片 i0、i1…），同一段 HTML 每次识别结果相同，因此不需要另存标记。
 // 表单改字换图、AI 修改导入内容、套用模板生成新推文，都只替换槽位里的文字和图片地址，结构与样式保持原样。
@@ -61,7 +62,7 @@ export function cleanText(s: string): string {
   return s
     .replace(/[\u200b\u200c\ufeff]|\u200d/g, '')
     .replace(/[ \t\r\f\v\u00a0]+/g, ' ')
-    .replace(/ *\n */g, '\n')
+    .replace(/ ?\n ?/g, '\n')
     .trim()
 }
 
@@ -143,7 +144,7 @@ function fontSize(el: Element | null): number {
     const m = (cur.getAttribute('style') ?? '').match(/font-size:\s*([\d.]+)px/i)
     if (m) return Number(m[1])
     const attr = cur.getAttribute('font-size')
-    if (attr && /^[\d.]+(px)?$/.test(attr)) return parseFloat(attr)
+    if (attr && /^[\d.]+(px)?$/.test(attr)) return Number.parseFloat(attr)
   }
   return 0
 }
@@ -305,7 +306,7 @@ function writeText(node: Node, value: string, role: SlotRole, doc: Document, spl
       const span = doc.createElement('span')
       node.parentNode!.replaceChild(span, node)
       span.append(...inlineNodes(v.split('\n').map(tidy).join('\n'), doc, false, bold))
-    } else node.textContent = tidy(v.replace(/\*\*/g, '').replace(/\s*\n+\s*/g, ' '))
+    } else node.textContent = tidy(collapseNewlineWhitespace(v.replace(/\*\*/g, '')))
     return
   }
   const el = node as Element

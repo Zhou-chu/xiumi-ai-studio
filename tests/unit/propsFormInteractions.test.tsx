@@ -51,13 +51,13 @@ it('HTML slot edits, alignment, source sanitization and undo use real document u
 })
 it('HTML image and background pickers replace and remove real image slots',async()=>{
  await mount(createBlock('html',{html:'<p>Text</p><img src="/media/old.png"><section style="background-image:url(https://example.test/bg.jpg);height:100px"></section>',label:'HTML'}))
- await click(host.querySelector('.gallery-edit .g-item'));await click(host.querySelector('.picker .asset'));expect((state().doc.blocks[0].props as any).html).toContain('/media/new.png')
+ await click(host.querySelector('.gallery-edit .image-choice'));await click(host.querySelector('.picker .asset'));expect((state().doc.blocks[0].props as any).html).toContain('/media/new.png')
  await click(host.querySelector('[data-testid="remove-image-0"]'));expect((state().doc.blocks[0].props as any).html).not.toContain('<img')
  await click(host.querySelector('[data-testid="bg-photo-0"]'));await click(host.querySelector('[data-testid="bg-asset"]'));expect((state().doc.blocks[0].props as any).html).toContain('/media/new.png')
  await click(host.querySelector('[data-testid="remove-bg-photos"]'));expect((state().doc.blocks[0].props as any).html).not.toContain('background-image')
 })
 it('empty or failing asset lists keep a usable picker instead of claiming a replacement',async()=>{
- vi.mocked(api.assets).mockRejectedValue(new Error('offline'));await mount(createBlock('html',{html:'<img src="/media/a.png">',label:'HTML'}));await click(host.querySelector('.g-item'));expect(host.textContent).toContain('素材库为空');expect((state().doc.blocks[0].props as any).html).toContain('/media/a.png');await click(host.querySelector('.g-item'));expect(host.querySelector('.picker')).toBeNull()
+ vi.mocked(api.assets).mockRejectedValue(new Error('offline'));await mount(createBlock('html',{html:'<img src="/media/a.png">',label:'HTML'}));await click(host.querySelector('.image-choice'));expect(host.textContent).toContain('素材库为空');expect((state().doc.blocks[0].props as any).html).toContain('/media/a.png');await click(host.querySelector('.image-choice'));expect(host.querySelector('.picker')).toBeNull()
 })
 
 it('remote images and repeated background photos remain explicit when the library is empty',async()=>{

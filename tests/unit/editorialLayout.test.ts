@@ -13,7 +13,7 @@ beforeEach(() => {
   document.body.append(host)
   root = createRoot(host)
 })
-afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals() })
+afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 it('switches the visible dark workspace without remounting edits or losing scroll', () => {
   act(() => root.render(createElement(Workspace, null,
@@ -57,9 +57,8 @@ it('reveals the focused mounted panel when entering a collapsed viewport', () =>
     createElement('aside', { className: 'panel right' }, 'properties'))))
   const input = host.querySelector('input')!
   input.focus()
-  const computed = vi.spyOn(window, 'getComputedStyle').mockImplementation(() => ({ display: 'flex' }) as CSSStyleDeclaration)
+  host.querySelector<HTMLElement>('.workspace-switcher')!.style.display = 'flex'
   act(() => window.dispatchEvent(new Event('resize')))
   expect(host.querySelector('main')!.dataset.workspaceView).toBe('left')
   expect(document.activeElement).toBe(input)
-  computed.mockRestore()
 })

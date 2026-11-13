@@ -269,7 +269,8 @@ test.describe.serial('组件库', () => {
     const htmlBlocks = page.locator('[data-block-type=html]')
     const carouselBlock = htmlBlocks.filter({ has: page.locator('svg[viewBox="0 0 1080 720"]') })
     await expect(carouselBlock).toHaveCount(1)
-    expect((await carouselBlock.innerText()).replace(/[⠿\s]/g, '')).toBe('') // 只剩拖动手柄
+    await expect(carouselBlock.locator('.block-html')).toHaveText('') // Article content stays empty; editor controls are outside it.
+    await expect(carouselBlock.locator('.block-select')).toHaveCount(1)
     await expect(htmlBlocks.filter({ hasText: '绿色标题' })).not.toContainText('绿色图注')
 
     // 以前导入的项目里仍是一整个大版块：在它里面按建议拆分或点选
@@ -334,7 +335,7 @@ test.describe.serial('组件库', () => {
     await expect(page.locator('.toast')).toContainText('已拆成')
     expect(await htmlBlocks.count()).toBeGreaterThan(3)
     await expect(carouselBlock).toHaveCount(1)
-    expect((await carouselBlock.innerText()).replace(/[⠿\s]/g, '')).toBe('')
+    await expect(carouselBlock.locator('.block-html')).toHaveText('')
     await expect(htmlBlocks.filter({ hasText: '绿色标题' })).not.toContainText('绿色图注')
     await page.locator('body').click({ position: { x: 2, y: 2 } })
     await page.keyboard.press('Control+z')

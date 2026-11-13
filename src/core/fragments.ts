@@ -53,14 +53,14 @@ export function expandPick(el: Element, root: Element): Element | null {
  */
 export function horizontalInset(ancestors: Element[]): [number, number] {
   const px = (v = '') => {
-    const m = v.trim().match(/^(-?\d*\.?\d+)px$/i)
-    return m ? parseFloat(m[1]) : 0
+    const m = v.trim().match(/^(-?(?:\d+(?:\.\d+)?|\.\d+))px$/i)
+    return m ? Number.parseFloat(m[1]) : 0
   }
   const sides = (v: string) => {
     const [t, r = t, , l = r] = v.trim().split(/\s+/)
     return [px(l), px(r)]
   }
-  const borderWidth = (v: string) => (/\b(none|hidden)\b/i.test(v) ? 0 : px(v.split(/\s+/).find((t) => /^\d*\.?\d+px$/i.test(t))))
+  const borderWidth = (v: string) => (/\b(none|hidden)\b/i.test(v) ? 0 : px(v.split(/\s+/).find((t) => /^(?:\d+(?:\.\d+)?|\.\d+)px$/i.test(t))))
   let left = 0
   let right = 0
   for (const a of ancestors) {
@@ -156,7 +156,7 @@ export function placeFragment(anchor: Element, root: Element, html: string): Ele
     const decls = splitDecls(wrap.getAttribute('style') ?? '').map((d) => [d.slice(0, d.indexOf(':')).trim().toLowerCase(), d.slice(d.indexOf(':') + 1).trim()])
     const pad = Object.fromEntries(decls)
     if (decls.length && decls.every(([k]) => ['padding-left', 'padding-right', 'box-sizing'].includes(k)) && wrap.children.length) {
-      const num = (v?: string) => parseFloat(v ?? '') || 0
+      const num = (v?: string) => Number.parseFloat(v ?? '') || 0
       const want = [num(pad['padding-left']), num(pad['padding-right'])]
       // 段落外面还有比原来更多的留白（如正文外包了一层内边距），而段落是这一层的最后一段：放到这一层外面，位置不变、宽度和原来一致
       const lastHere = (a: Element) => {

@@ -85,7 +85,8 @@ class Ctx implements KitCtx {
 function renderInline(n: RichNode, ctx: Ctx): string {
   if (n.type === 'hardBreak') return '<br>'
   if (n.type !== 'text') return (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
-  let html = esc(n.text ?? '').replace(/(^ +| {2,}| +$)/g, (spaces) => '&nbsp;'.repeat(spaces.length))
+  let html = esc(n.text ?? '').replace(/ +/g, (spaces, offset: number, input: string) =>
+    spaces.length > 1 || offset === 0 || offset + spaces.length === input.length ? '&nbsp;'.repeat(spaces.length) : spaces)
   let linkHref: string | undefined
   for (const m of n.marks ?? []) {
     switch (m.type) {

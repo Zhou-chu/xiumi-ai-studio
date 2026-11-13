@@ -20,7 +20,7 @@ beforeEach(async () => {
   document.body.append(host)
   root = createRoot(host)
   await act(async () => root.render(createElement(AiSettingsModal, { onClose() {} })))
-  act(() => host.querySelector<HTMLElement>('.ai-item')!.click())
+  act(() => host.querySelector<HTMLElement>('.ai-profile-edit')!.click())
 })
 afterEach(() => { act(() => root.unmount()); host.remove() })
 const fetchButton = () => host.querySelector<HTMLButtonElement>('[data-testid=ai-load-models]')!
@@ -64,7 +64,7 @@ it('ignores late results after switching profiles', async () => {
   vi.mocked(api.aiModels).mockReturnValue(new Promise((r) => { resolve = r }))
   await act(async () => fetchButton().click())
   expect(host.textContent).toContain('正在获取模型')
-  act(() => host.querySelectorAll<HTMLElement>('.ai-item')[1].click())
+  act(() => host.querySelectorAll<HTMLElement>('.ai-profile-edit')[1].click())
   await act(async () => resolve([{ id: 'stale-model' }]))
   expect(list()).toBeNull()
   expect(host.textContent).not.toContain('stale-model')
@@ -99,7 +99,7 @@ it('does not show an old connection result after switching profiles', async () =
   let finish!: (r: any) => void
   vi.mocked(api.testAi).mockReturnValue(new Promise((resolve) => { finish = resolve }))
   await act(async () => button('测试连接').click())
-  act(() => host.querySelectorAll<HTMLElement>('.ai-item')[1].click())
+  act(() => host.querySelectorAll<HTMLElement>('.ai-profile-edit')[1].click())
   await act(async () => finish({ ok: true, ms: 1, reply: {} }))
   expect(host.textContent).not.toContain('连接成功')
 })
@@ -116,7 +116,7 @@ it('clicking the current profile does not leave discovery stuck in a busy state'
   let finish!: (r: any) => void
   vi.mocked(api.aiModels).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
   await act(async () => fetchButton().click())
-  act(() => host.querySelector<HTMLElement>('.ai-item')!.click())
+  act(() => host.querySelector<HTMLElement>('.ai-profile-edit')!.click())
   await act(async () => finish([{ id: 'old' }]))
   expect(fetchButton().disabled).toBe(false)
   vi.mocked(api.aiModels).mockResolvedValueOnce([{ id: 'retry' }])
@@ -256,7 +256,7 @@ it('edits all request settings, clears provider metadata, and deletes a profile'
   changeInput(host.querySelector<HTMLInputElement>('input[placeholder^="https"]')!, 'https://new.invalid/v1')
   expect(input('ai-context').value).toBe('')
   act(() => host.querySelector<HTMLButtonElement>('button.danger')!.click())
-  expect(host.querySelectorAll('.ai-item')).toHaveLength(1)
+  expect(host.querySelectorAll('.ai-profile-edit')).toHaveLength(1)
   expect(host.querySelector('[data-testid=ai-model]')).toBeNull()
 })
 
@@ -264,7 +264,7 @@ it('adds a preset, fetches matching metadata, and supports switching back', asyn
   const select = host.querySelector<HTMLSelectElement>('[data-testid=ai-add-preset]')!
   const option = [...select.options].find(o => o.value)!
   act(() => { select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })) })
-  expect(host.querySelectorAll('.ai-item')).toHaveLength(3)
+  expect(host.querySelectorAll('.ai-profile-edit')).toHaveLength(3)
   const current = input('ai-model').value
   vi.mocked(api.aiModels).mockResolvedValue([{ id: current, contextWindow: 99000 }])
   await act(async () => fetchButton().click())
@@ -292,7 +292,7 @@ it('respects readonly environment profiles and excludes them when saving', async
   vi.mocked(api.aiSettings).mockResolvedValue({ activeId: 'env', profiles: [{ ...profiles[0], id: 'env', name: '', model: '', readonly: true, hasKey: true }] as any })
   root = createRoot(host)
   await act(async () => root.render(createElement(AiSettingsModal, { onClose() {} })))
-  act(() => host.querySelector<HTMLElement>('.ai-item')!.click())
+  act(() => host.querySelector<HTMLElement>('.ai-profile-edit')!.click())
   expect(input('ai-model').disabled).toBe(true)
   expect(host.querySelector('button.danger')).toBeNull()
   const save = vi.fn().mockResolvedValue({ activeId: 'env', profiles: [] })

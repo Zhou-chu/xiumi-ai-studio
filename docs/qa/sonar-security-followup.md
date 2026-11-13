@@ -73,3 +73,23 @@ candidate Sonar/security/reliability closure is pending. Further regex and
 keyboard/accessibility review is in progress in isolated worktrees. This is
 an engineering checkpoint, not authorization to merge main or a claim of
 completed Sonar quality gates.
+
+The same frozen application subsequently passed the real-provider headed
+Chromium live gate against the restarted candidate at 5176: DeepSeek
+returned actual chapters layout, accepted/persisted/reloaded, followed by
+an edit confined to the selected heading. Settings-file hashes before and
+after matched. Updated structured evidence: live/model-gate.json.
+The initial readiness probe mistakenly requested a nonexistent /api/health
+(404); the actual /api/ai/status and full browser flow then passed. This is
+not a hidden service failure. Original production 5174 remains untouched.
+
+## Frozen accessibility and linear-parser follow-up
+
+- Complete production JS/TS denominator now includes 116 files across src, server, scripts and templates. All 1,195 tests / 131 test files pass. V8 statements 96.92% (10221/10545), branches 92.05% (7791/8463), functions 97.30% (2707/2782), lines 98.41% (7810/7936). Per-file source hashes and complete counters are in expanded-source-coverage.json.
+- Whole deployment-script command coverage rerun: 20 tests pass, 211/215 commands (98.14%); other PowerShell coverage metrics remain N/A, not merged with V8.
+- Lint and typecheck pass. Production build passes in an isolated temporary output, preserving the running preview; the existing large-chunk warning remains. Generated output was removed before final lint (linting that temporary minified bundle is not a source-code finding).
+- First full run exposed an incomplete CSSStyleDeclaration test double after adding real separator width semantics. Replaced the mock with the real switcher's display style, preserving view/focus assertions; focused 3/3 and full 1195/1195 reruns pass.
+- Original 26 regex findings are mapped individually in linear-regex-hardening.md: 23 linear replacements, one existing length bound evaluated first, two already-bounded contexts simplified equivalently. These are not asserted to be 26 exploitable vulnerabilities.
+- This local verification is not a new Sonar analysis or Quality Gate pass. The last verified Cloud analysis still targets historical 5018a4e; main/upstream publication remains gated on current-candidate quality verification.
+
+- Browser run: 131 passed, one legacy assertion counted the new selection-control glyph as article text, and two serial successors did not run. The two corresponding empty-article assertions now target `.block-html`, with a separate assertion for the real selection button; no product source was changed. The complete seven-case components file then passed, including both blocked successors. Thus all 134 scenarios have passing evidence for the same frozen product source, but this is explicitly a full run plus targeted rerun, not a claim that the first full invocation passed. Remote CI will rerun the full suite on the exact commit.

@@ -1,3 +1,4 @@
+import './canvas-accessibility.css'
 import { HtmlTypographyControls } from './HtmlTypographyControls'
 import { ImageResize } from './ImageResize'
 import { InlineReview, ReviewBlock, ReviewHeading, ReviewDocumentEnd } from './InlineReview'
@@ -114,7 +115,7 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
         <HtmlTypographyControls rootRef={ref} onCommit={commit} />
         <Help title="原文编辑">直接修改文字（保留原样式）；点击图片可选中，按 Delete 删除；点组件库里的组件会插到光标所在段落后面</Help>
         {picked && (
-          <button type="button" className="danger" onMouseDown={(e) => (e.preventDefault(), removePicked())} data-testid="delete-picked">
+          <button type="button" className="danger" onMouseDown={(e) => e.preventDefault()} onClick={removePicked} data-testid="delete-picked">
             删除所选图片
           </button>
         )}
@@ -124,6 +125,7 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
       <div
         ref={ref}
         className="html-editor"
+        role="textbox" aria-multiline="true" aria-label="原文内容编辑"
         contentEditable
         suppressContentEditableWarning
         onBlur={commit}
@@ -136,6 +138,8 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
           }
           if (picked) pick(null)
           if (e.key === 'Escape') {
+            e.preventDefault()
+            e.stopPropagation()
             commit()
             onDone()
           }
@@ -147,6 +151,8 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
 
 /** 在原文片段里点选一个版块收藏为组件：点击选中，可向外扩大；图片和动效不响应编辑 */
 function FragmentPicker({ block, theme, onDone }: { block: Block<'html'>; theme: Theme; onDone: () => void }) {
+  const navigation = useRef<HTMLButtonElement>(null)
+  useEffect(() => { navigation.current?.focus() }, [])
   const ref = useRef<HTMLDivElement>(null)
   const [picked, setPicked] = useState<Element | null>(null)
   const inner = useRef<Element[]>([])
@@ -173,6 +179,21 @@ function FragmentPicker({ block, theme, onDone }: { block: Block<'html'>; theme:
     const el = inner.current.pop()
     if (el) mark(el)
   }
+  const candidates = () => {
+    const root = ref.current
+    if (!root) return []
+    const all = [...new Set([...root.querySelectorAll('*')].map(el => pickElement(el, root)).filter((el): el is Element => !!el))]
+    return all.filter(el => !all.some(other => other !== el && el.contains(other)))
+  }
+  const navigate = (direction: number | 'first' | 'last') => {
+    const all = candidates()
+    if (!all.length) return
+    const index = all.indexOf(picked!)
+    const next = direction === 'first' ? 0 : direction === 'last' ? all.length - 1 : index < 0 ? (direction > 0 ? 0 : all.length - 1) : Math.max(0, Math.min(all.length - 1, index + direction))
+    inner.current = []
+    mark(all[next])
+    all[next].scrollIntoView({ block: 'nearest' })
+  }
   const collect = () => {
     if (!picked || !ref.current) return
     picked.classList.remove('fragment-picked', 'fragment-hover')
@@ -182,7 +203,14 @@ function FragmentPicker({ block, theme, onDone }: { block: Block<'html'>; theme:
   }
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="rich-toolbar pick-toolbar">
+      <div className="rich-toolbar pick-toolbar" onKeyDown={e => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+        e.preventDefault(); e.stopPropagation()
+        navigate(e.key === 'Home' ? 'first' : e.key === 'End' ? 'last' : e.key === 'ArrowDown' ? 1 : -1)
+      }}>
+        <button type="button" data-testid="pick-prev" onClick={() => navigate(-1)}>上一片段</button>
+        <button ref={navigation} type="button" data-testid="pick-next" onClick={() => navigate(1)}>下一片段</button>
+        <span className="hint" role="status" data-testid="pick-status">{picked ? (picked.textContent?.trim().slice(0, 48) || '图片或装饰片段') : '可用上下键选择片段'}</span>
         <span className="hint" style={{ margin: '0 6px' }}>{picked ? '已选中，可向外扩大范围' : '点击要收藏的版块'}</span>
         <span className="sep" />
         <button type="button" disabled={!picked} onClick={expand} data-testid="pick-expand">向外一层</button>
@@ -288,9 +316,17 @@ function BoxBody({ block, theme }: { block: Block<'box'>; theme: Theme }) {
 }
 
 function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme; gap: number; parentId?: string }) {
+  const selectionButton = useRef<HTMLButtonElement>(null)
   const selected = useStore((s) => s.selectedIds.includes(block.id))
   const editing = useStore((s) => s.editingId === block.id)
   const picking = useStore((s) => s.pickingId === block.id)
+  const returnFocus = useRef(false)
+  useEffect(() => {
+    if (returnFocus.current && !editing && !picking) {
+      returnFocus.current = false
+      if (!document.querySelector('[role="dialog"]')) selectionButton.current?.focus({ preventScroll: true })
+    }
+  }, [editing, picking])
   const { select, setEditing, setPicking, updateProps, removeBlock, replaceBlock, duplicateBlock, moveBlock, moveBlockTo, notify } = useStore.getState()
   // 在所在层（顶层或文本框内）的位置
   const index = useStore((s) => findBlock(s.doc.blocks, block.id)?.index ?? -1)
@@ -306,6 +342,8 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
   const canText = blockTextFields(block).length > 0
   const canEdit = canRich || block.type === 'html' || canText
   const startEdit = () => canEdit && setEditing(block.id)
+  const finishEdit = () => { returnFocus.current = true; setEditing(null) }
+  const finishPicking = () => { returnFocus.current = true; setPicking(null) }
   // 以前导入的版块常把整节内容（标题、正文、轮播）放在一个模块里，拆开后才能单独选中和收藏
   const splitBlock = () => {
     if (block.type !== 'html') return
@@ -316,10 +354,10 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
   }
 
   let body = block.type === 'box' ? <BoxBody block={block} theme={theme} /> : <BlockHtml block={block} theme={theme} inBox={inBox} />
-  if (picking && block.type === 'html') body = <FragmentPicker block={block} theme={theme} onDone={() => setPicking(null)} />
-  else if (editing && block.type === 'html') body = <HtmlEditor block={block} onDone={() => setEditing(null)} />
+  if (picking && block.type === 'html') body = <FragmentPicker block={block} theme={theme} onDone={finishPicking} />
+  else if (editing && block.type === 'html') body = <HtmlEditor block={block} onDone={finishEdit} />
   else if (editing && canText) {
-    body = <>{body}<BlockTextEditor block={block} onChange={(props, field) => updateProps(block.id, props, `${block.id}:${field}`)} onDone={() => setEditing(null)} /></>
+    body = <>{body}<BlockTextEditor block={block} onChange={(props, field) => updateProps(block.id, props, `${block.id}:${field}`)} onDone={finishEdit} /></>
   }
   else if (editing && canRich) {
     const p: any = block.props
@@ -330,7 +368,7 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
         theme={inBox ? boxTheme(theme) : theme}
         fontSize={block.type === 'imageText' ? theme.fontSize - 1 : undefined}
         onChange={(content) => updateProps(block.id, { content }, `${block.id}:content`)}
-        onDone={() => setEditing(null)}
+        onDone={finishEdit}
       />
       </Suspense>
     )
@@ -363,15 +401,24 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
       role="group"
       tabIndex={-1}
     >
+      <button ref={selectionButton} type="button" className="block-select" aria-label={`选择模块：${blockLabel(block)}（${block.id}）`} aria-pressed={selected}
+        onClick={e => { e.stopPropagation(); select(block.id, { toggle: e.ctrlKey || e.metaKey }) }}
+        onKeyDown={e => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault(); e.stopPropagation()
+          if (!e.repeat) select(block.id, { toggle: e.ctrlKey || e.metaKey })
+        }}
+        onKeyUp={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation() } }}
+        onDoubleClick={e => e.stopPropagation()}>{selected ? '✓' : '□'}</button>
       {selected && !editing && !picking && (
         <div className="block-toolbar" onClick={(e) => e.stopPropagation()}>
           <span className="block-label">{blockLabel(block)}</span>
-          <button ref={setActivatorNodeRef} {...listeners} className="drag" title="拖动排序">⠿</button>
-          <button title="上移" disabled={index === 0} onClick={() => moveBlock(block.id, index - 1)}>↑</button>
-          <button title="下移" onClick={() => moveBlock(block.id, index + 1)}>↓</button>
+          <button ref={setActivatorNodeRef} {...listeners} className="drag" title="拖动排序" aria-label="拖动排序">⠿</button>
+          <button title="上移" aria-label="上移" disabled={index === 0} onClick={() => moveBlock(block.id, index - 1)}>↑</button>
+          <button title="下移" aria-label="下移" onClick={() => moveBlock(block.id, index + 1)}>↓</button>
           {parentId && (
             <button
-              title="移出文本框（放到文本框下方）"
+              title="移出文本框（放到文本框下方）" aria-label="移出文本框（放到文本框下方）"
               onClick={() => {
                 const { doc } = useStore.getState()
                 moveBlockTo(block.id, null, doc.blocks.findIndex((b) => b.id === parentId) + 1)
@@ -381,13 +428,13 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
               ⇱
             </button>
           )}
-          {canEdit && <button title="编辑文字（双击）" onClick={startEdit}>✎</button>}
-          <button title="复制模块" onClick={() => duplicateBlock(block.id)}>⧉</button>
-          <button title="收藏为组件" onClick={() => openCollect({ block, via: 'block' })} data-testid="collect-block">◈</button>
-          {block.type === 'html' && <button title="在模块里点选一部分收藏为组件" onClick={() => setPicking(block.id)} data-testid="pick-fragment">⌖</button>}
-          {block.type === 'html' && <button title="拆开此模块：把卡片里的标题、正文、轮播拆成独立模块" onClick={splitBlock} data-testid="split-block">✂</button>}
+          {canEdit && <button title="编辑文字（双击）" aria-label="编辑文字（双击）" onClick={startEdit}>✎</button>}
+          <button title="复制模块" aria-label="复制模块" onClick={() => duplicateBlock(block.id)}>⧉</button>
+          <button title="收藏为组件" aria-label="收藏为组件" onClick={() => openCollect({ block, via: 'block' })} data-testid="collect-block">◈</button>
+          {block.type === 'html' && <button title="在模块里点选一部分收藏为组件" aria-label="在模块里点选一部分收藏为组件" onClick={() => setPicking(block.id)} data-testid="pick-fragment">⌖</button>}
+          {block.type === 'html' && <button title="拆开此模块：把卡片里的标题、正文、轮播拆成独立模块" aria-label="拆开此模块：把卡片里的标题、正文、轮播拆成独立模块" onClick={splitBlock} data-testid="split-block">✂</button>}
           <button
-            title="收藏为模板"
+            title="收藏为模板" aria-label="收藏为模板"
             onClick={async () => {
               const name = prompt('模板名称', blockLabel(block))
               if (!name) return
@@ -398,10 +445,10 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
           >
             ☆
           </button>
-          <button title="删除（Delete）" className="danger" onClick={() => removeBlock(block.id)}>✕</button>
+          <button title="删除（Delete）" aria-label="删除（Delete）" className="danger" onClick={() => removeBlock(block.id)}>✕</button>
         </div>
       )}
-      {!selected && <button ref={setActivatorNodeRef} {...listeners} className="drag-ghost" title="拖动排序" onClick={(e) => e.stopPropagation()}>⠿</button>}
+      {!selected && <button ref={setActivatorNodeRef} {...listeners} className="drag-ghost" title="拖动排序" aria-label="拖动排序" onClick={(e) => e.stopPropagation()}>⠿</button>}
       <ErrorBoundary resetKey={block} fallback={(error) => <BrokenBlock block={block} error={error} />}>
         {body}
       </ErrorBoundary>

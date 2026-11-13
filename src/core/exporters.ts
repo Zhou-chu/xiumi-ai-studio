@@ -1,3 +1,4 @@
+import { stripTagSpans } from './textLinear'
 import { richToMarkdown } from './richtext'
 import type { Block, Doc } from './types'
 
@@ -48,10 +49,9 @@ export function docToMarkdown(doc: Doc): string {
         break
       case 'html': {
         const imgs = [...String(p.html).matchAll(/<img\b[^>]*\ssrc="([^"]+)"/gi)].map((m) => img(m[1].replace(/&amp;/g, '&')))
-        const txt = String(p.html)
+        const txt = stripTagSpans(String(p.html)
           .replace(/<\/(p|section|h\d|li|blockquote)>/gi, '\n')
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
+          .replace(/<br\s*\/?>/gi, '\n'))
           .replace(/&nbsp;/g, ' ')
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')

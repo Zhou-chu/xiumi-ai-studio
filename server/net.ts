@@ -13,8 +13,8 @@ function normalizeAddress(ip: string): string {
   addr = new URL(`http://[${addr.split('%')[0]}]/`).hostname.slice(1, -1)
   const mapped = addr.match(/^::ffff:([\da-f]+):([\da-f]+)$/)
   if (!mapped) return addr
-  const high = parseInt(mapped[1], 16)
-  const low = parseInt(mapped[2], 16)
+  const high = Number.parseInt(mapped[1], 16)
+  const low = Number.parseInt(mapped[2], 16)
   return [high >>> 8, high & 255, low >>> 8, low & 255].join('.')
 }
 

@@ -1,3 +1,4 @@
+import { stripTagSpans } from './textLinear'
 import { richToPlain } from './richtext'
 import { findBlock, flatBlocks } from './tree'
 import type { Block, Doc, DocOp } from './types'
@@ -55,7 +56,7 @@ export function summarize(b: Block): string {
     case 'frame':
       return `图片框 ${[p.caption, p.label].filter(Boolean).join(' · ')}`
     case 'html':
-      return `${p.label}：${String(p.html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)}`
+      return `${p.label}：${stripTagSpans(String(p.html), ' ').replace(/\s+/g, ' ').trim().slice(0, 120)}`
     default:
       return ['kicker', 'index', 'title', 'subtitle', 'text', 'source', 'name', 'role', 'bio', 'author', 'note', 'meta']
         .map((k) => p[k])

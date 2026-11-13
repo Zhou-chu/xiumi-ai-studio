@@ -9,7 +9,7 @@ for (const width of [1440,390]) test(`model picker folds and scrolls 40 models w
   await page.goto('/')
   await page.getByTestId('toolbar-more').click()
   await page.getByTestId('open-ai-settings').click()
-  await page.locator('.ai-item').filter({hasText:'Picker fixture'}).click()
+  await page.getByRole('button',{name:'编辑模型：Picker fixture',exact:true}).click()
   await page.getByTestId('ai-load-models').click()
   const trigger=page.getByTestId('ai-model-picker')
   await expect(trigger).toHaveAttribute('aria-expanded','false')

@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from './urlText'
 // AI 提供方抽象：OpenAI 兼容接口（DeepSeek / 通义 / Kimi / 智谱 / MiniMax / MiMo / 豆包 / OpenAI / Gemini / Ollama…）或 Anthropic。
 // 密钥只在服务端读取；所有输出都要求是 JSON，再由调用方校验。
 import { THEMES } from '../src/core/themes'
@@ -20,8 +21,10 @@ export async function aiStatus(profileId?: string): Promise<AiStatus> {
 }
 
 function extractJson(text: string): any {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const raw = fenced ? fenced[1] : text
+  const opening = text.indexOf('```')
+  const startOfBody = opening + (text.startsWith('json', opening + 3) ? 7 : 3)
+  const closing = opening < 0 ? -1 : text.indexOf('```', startOfBody)
+  const raw = closing < 0 ? text : text.slice(startOfBody, closing).trimStart()
   const start = raw.search(/[[{]/)
   const end = Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']'))
   if (start < 0 || end < start) throw new Error('AI 没有返回 JSON')
@@ -135,7 +138,7 @@ function protocolRequest(p: AiProfile) {
     headers: { 'content-type': 'application/json', 'x-api-key': p.apiKey, 'anthropic-version': '2023-06-01' } as Record<string, string>,
   }
   return {
-    url: `${p.baseUrl.replace(/\/+$/, '')}/chat/completions`,
+    url: `${trimTrailingSlashes(p.baseUrl)}/chat/completions`,
     headers: { 'content-type': 'application/json', ...(p.apiKey ? { authorization: `Bearer ${p.apiKey}` } : {}) },
   }
 }
@@ -211,7 +214,7 @@ export interface DiscoveredModel extends ModelInfo {
 }
 
 function anthropicBase(base: string) {
-  return base.replace(/\/+$/, '').replace(/\/v1$/, '') + '/v1'
+  return trimTrailingSlashes(base).replace(/\/v1$/, '') + '/v1'
 }
 
 export async function discoverModels(p: AiProfile): Promise<DiscoveredModel[]> {

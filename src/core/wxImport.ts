@@ -222,7 +222,7 @@ function splitSection(el: Element, maxPlainRun: number, depth: number, force = f
 
 /** 竖直外边距，只认 px 和 0（其他单位返回 NaN），后写的声明覆盖先写的 */
 function verticalMargins(el: Element): [number, number] {
-  const px = (s: string) => (/^(0|-?\d*\.?\d+px)$/i.test(s) ? parseFloat(s) || 0 : NaN)
+  const px = (s: string) => (/^(0|-?(?:\d+(?:\.\d+)?|\.\d+)px)$/i.test(s) ? Number.parseFloat(s) || 0 : NaN)
   let top = 0
   let bottom = 0
   for (const d of splitDecls(el.getAttribute('style') ?? '')) {

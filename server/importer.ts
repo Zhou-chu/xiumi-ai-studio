@@ -1,12 +1,12 @@
+import { stripTagSpans } from '../src/core/textLinear'
 // 文稿导入：.docx（mammoth，内嵌图片自动入库）/ .md / .txt → Markdown 文本 + 图片列表
 import mammoth from 'mammoth'
 import { saveAsset, type Asset } from './assets'
 
 const strip = (s: string) =>
-  s
+  stripTagSpans(s
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?(strong|b)>/gi, '**')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<\/?(strong|b)>/gi, '**'))
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')

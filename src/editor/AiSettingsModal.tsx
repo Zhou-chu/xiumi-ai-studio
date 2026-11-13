@@ -1,3 +1,4 @@
+import { removeParentheticalName } from '../core/textLinear'
 import { ModelPicker } from './ModelPicker'
 import { Help } from './Help'
 import { useEffect, useRef, useState } from 'react'
@@ -147,7 +148,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
 
   const addFromPreset = (key: string) => {
     const pre = AI_PRESETS.find((p) => p.key === key)!
-    const p: AiProfile = { ...blank(), id: `p${Date.now().toString(36)}`, name: pre.name.replace(/（.*）/, ''), provider: pre.provider, baseUrl: pre.baseUrl, model: pre.model }
+    const p: AiProfile = { ...blank(), id: `p${Date.now().toString(36)}`, name: removeParentheticalName(pre.name), provider: pre.provider, baseUrl: pre.baseUrl, model: pre.model }
     invalidate()
     setProfiles((list) => [...list, p])
     setEditing(profiles.length)
@@ -201,14 +202,14 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       <div className="ai-settings">
         <div className="ai-list">
           {profiles.map((p, i) => (
-            <div key={p.id || i} className={`ai-item ${i === editing ? 'on' : ''}`} onClick={() => { invalidate(); setEditing(i); setTesting('') }}>
-              <label onClick={(e) => e.stopPropagation()} title="设为当前使用">
-                <input type="radio" name="active" checked={activeId === p.id} onChange={() => setActiveId(p.id)} />
-              </label>
-              <div className="grow">
+            <div key={p.id || i} className={`ai-item ${i === editing ? 'on' : ''}`}>
+              <span title="设为当前使用">
+                <input aria-label={`设为当前模型：${p.name || '未命名'}`} type="radio" name="active" checked={activeId === p.id} onChange={() => setActiveId(p.id)} />
+              </span>
+              <button type="button" className="grow ai-profile-edit" aria-label={`编辑模型：${p.name || '未命名'}`} aria-pressed={i === editing} onClick={() => { invalidate(); setEditing(i); setTesting('') }} style={{ border: 0, padding: 0, background: 'transparent', color: 'inherit', textAlign: 'left', minWidth: 0 }} >
                 <b>{p.name || '未命名'}</b>
                 <small>{p.model || '未填写模型'}{p.readonly ? ' · 只读' : ''}</small>
-              </div>
+              </button>
             </div>
           ))}
           <select value="" disabled={!loaded} onChange={(e) => e.target.value && addFromPreset(e.target.value)} data-testid="ai-add-preset">
@@ -223,13 +224,13 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
             <>
               {cur.readonly && <p className="warn">此项来自 .env 文件，只能在 .env 中修改。</p>}
               <label className="field"><span>名称</span><input value={cur.name} disabled={cur.readonly} onChange={(e) => patch({ name: e.target.value })} /></label>
-              <label className="field">
+              <div className="field" role="group" aria-label="接口类型">
                 <span>接口类型</span>
                 <div className="seg">
-                  <button className={cur.provider === 'openai' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'openai' })}>OpenAI 兼容</button>
-                  <button className={cur.provider === 'anthropic' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'anthropic' })}>Anthropic Claude</button>
+                  <button aria-pressed={cur.provider === 'openai'} className={cur.provider === 'openai' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'openai' })}>OpenAI 兼容</button>
+                  <button aria-pressed={cur.provider === 'anthropic'} className={cur.provider === 'anthropic' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'anthropic' })}>Anthropic Claude</button>
                 </div>
-              </label>
+              </div>
               <label className="field"><span>接口地址 Base URL</span><input value={cur.baseUrl} disabled={cur.readonly} placeholder="https://…/v1" onChange={(e) => patch({ baseUrl: e.target.value })} /></label>
               <label className="field">
                 <span>API Key{preset?.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noreferrer">获取密钥 ↗</a>}</span>

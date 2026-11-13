@@ -102,7 +102,7 @@ it('saves a template only after a name is supplied and emits refresh event',asyn
 })
 it('HTML completion button commits and selected media can be deleted with its dedicated button',async()=>{
  const h=createBlock('html',{html:'<section><img src="https://example.com/a.png"></section><p>text</p>'});await render([h]);await event(host.querySelector('[data-block-id]')!,new MouseEvent('dblclick',{bubbles:true}))
- const editor=host.querySelector('.html-editor')!;await click(editor.querySelector('img')!);await event(host.querySelector('[data-testid="delete-picked"]')!,new MouseEvent('mousedown',{bubbles:true,cancelable:true}))
+ const editor=host.querySelector('.html-editor')!;await click(editor.querySelector('img')!);await event(host.querySelector('[data-testid="delete-picked"]')!,new MouseEvent('mousedown',{bubbles:true,cancelable:true}));expect(editor.querySelector('img')).not.toBeNull();await click(host.querySelector('[data-testid="delete-picked"]')!)
  expect(editor.querySelector('img')).toBeNull();await event(host.querySelector('.rich-toolbar .done')!,new MouseEvent('mousedown',{bubbles:true,cancelable:true}));await click(host.querySelector('.rich-toolbar .done')!);expect(useStore.getState().editingId).toBeNull()
 })
 

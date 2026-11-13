@@ -1,0 +1,5 @@
+/* Application controls only; never inherited by article rendering. */
+.props-form button[data-editor-image-choice] { display:block; width:100%; padding:0; border:0; background:transparent; border-radius:2px; }
+.props-form button[data-editor-asset-choice], .props-form button[data-editor-background-choice] { padding:0; touch-action:pan-y; }
+.comp-card > .component-insert-action { margin:4px 8px; padding:2px 8px; font-size:14px; min-height:28px; }
+.props-form button[data-editor-image-choice]:focus-visible, .props-form button[data-editor-asset-choice]:focus-visible, .props-form button[data-editor-background-choice]:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
