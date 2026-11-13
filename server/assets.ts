@@ -1,3 +1,4 @@
+import { MAX_INPUT_PIXELS, withImageBudget } from './imageBudget'
 // 素材库：上传、按需裁切缩放（微信相册统一比例）、裁剪另存。
 import { existsSync } from 'node:fs'
 import { readFile, readdir, rm, stat } from 'node:fs/promises'
@@ -41,18 +42,29 @@ export async function listAssets(): Promise<Asset[]> {
 
 /** 保存上传图片：纠正 EXIF 方向、限制最长边、统一为 jpg/png */
 export async function saveAsset(buf: Buffer, name: string, sourceUrl?: string): Promise<Asset> {
-  const id = nanoid(12).replace(/[^\w-]/g, '_')
-  const img = sharp(buf, { animated: false }).rotate()
-  const meta = await img.metadata()
-  // 透明的 PNG、GIF、WebP 存成 PNG（GIF 只保留第一帧），其余统一为 JPG
-  const keepPng = ['png', 'gif', 'webp'].includes(meta.format ?? '') && !!meta.hasAlpha
-  const ext = keepPng ? '.png' : '.jpg'
-  const file = `${id}${ext}`
-  const pipeline = img.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
-  const info = await (keepPng ? pipeline.png({ compressionLevel: 9 }) : pipeline.jpeg({ quality: 86, mozjpeg: true })).toFile(join(DIRS.assets, file))
-  const asset: Asset = { id, file, name, width: info.width, height: info.height, size: info.size, ...(sourceUrl ? { sourceUrl } : {}), createdAt: Date.now() }
-  await updateIndex(idx => { idx[id] = asset })
-  return asset
+  return withImageBudget(async () => {
+    const id = nanoid(12).replace(/[^\w-]/g, '_')
+    const img = sharp(buf, { animated: false, limitInputPixels: MAX_INPUT_PIXELS }).rotate()
+    const meta = await img.metadata()
+    // 透明的 PNG、GIF、WebP 存成 PNG（GIF 只保留第一帧），其余统一为 JPG
+    const keepPng = ['png', 'gif', 'webp'].includes(meta.format ?? '') && !!meta.hasAlpha
+    const ext = keepPng ? '.png' : '.jpg'
+    const file = `${id}${ext}`
+    const pipeline = img.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+    try {
+    const info = await (keepPng ? pipeline.png({ compressionLevel: 9 }) : pipeline.jpeg({ quality: 86, mozjpeg: true })).toFile(join(DIRS.assets, file))
+    const asset: Asset = { id, file, name, width: info.width, height: info.height, size: info.size, ...(sourceUrl ? { sourceUrl } : {}), createdAt: Date.now() }
+    await updateIndex(idx => { idx[id] = asset })
+    return asset
+    } catch (error) {
+      try { await rm(join(DIRS.assets, file), { force: true }) }
+      catch {
+        if (error instanceof Error) Object.assign(error, { cleanupFailures: 1 })
+        console.warn('Image output cleanup failed for a newly created asset')
+      }
+      throw error
+    }
+  })
 }
 
 export async function deleteAsset(id: string) {
@@ -70,9 +82,9 @@ export async function cropAsset(id: string, box: { x: number; y: number; width: 
   const a = (await index())[safeId(id)]
   if (!a) throw Object.assign(new Error('素材不存在'), { status: 404 })
   const r = (n: number) => Math.max(0, Math.round(n))
-  const buf = await sharp(join(DIRS.assets, a.file))
+  const buf = await withImageBudget(() => sharp(join(DIRS.assets, a.file), { limitInputPixels: MAX_INPUT_PIXELS })
     .extract({ left: r(box.x), top: r(box.y), width: Math.min(r(box.width), a.width - r(box.x)), height: Math.min(r(box.height), a.height - r(box.y)) })
-    .toBuffer()
+    .toBuffer())
   return saveAsset(buf, a.name.replace(/(\.\w+)?$/, '-crop$1'))
 }
 
@@ -92,11 +104,13 @@ export async function variantPath(file: string, fit?: string, w?: number): Promi
   const key = `${file.replace(/\.\w+$/, '')}_${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
   const out = join(DIRS.cache, key)
   if (existsSync(out)) return out
-  let img = sharp(src)
-  img = m
-    ? img.resize({ width, height: Math.round((width * Number(m[2])) / Number(m[1])), fit: 'cover', position: sharp.strategy.attention })
-    : img.resize({ width, withoutEnlargement: true })
-  await (file.endsWith('.png') ? img.png() : img.jpeg({ quality: 84, mozjpeg: true })).toFile(out)
+  await withImageBudget(async () => {
+    let img = sharp(src, { limitInputPixels: MAX_INPUT_PIXELS })
+    img = m
+      ? img.resize({ width, height: Math.round((width * Number(m[2])) / Number(m[1])), fit: 'cover', position: sharp.strategy.attention })
+      : img.resize({ width, withoutEnlargement: true })
+    await (file.endsWith('.png') ? img.png() : img.jpeg({ quality: 84, mozjpeg: true })).toFile(out)
+  })
   return out
 }
 
@@ -105,7 +119,7 @@ export async function wechatReady(path: string): Promise<{ buf: Buffer; mime: st
   const s = await stat(path)
   if (s.size <= 1_000_000) return { buf: await readFile(path), mime: path.endsWith('.png') ? 'image/png' : 'image/jpeg', name: path.split(/[\\/]/).pop()! }
   for (const [q, w] of [[80, 1600], [72, 1280], [65, 1080], [60, 900]] as const) {
-    const buf = await sharp(path).flatten({ background: '#ffffff' }).resize({ width: w, withoutEnlargement: true }).jpeg({ quality: q, mozjpeg: true }).toBuffer()
+    const buf = await withImageBudget(() => sharp(path, { limitInputPixels: MAX_INPUT_PIXELS }).flatten({ background: '#ffffff' }).resize({ width: w, withoutEnlargement: true }).jpeg({ quality: q, mozjpeg: true }).toBuffer())
     if (buf.length <= 1_000_000) return { buf, mime: 'image/jpeg', name: 'image.jpg' }
   }
   throw new Error('图片压缩后仍超过 1MB')

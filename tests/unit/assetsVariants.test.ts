@@ -1,18 +1,20 @@
+import * as fileSystem from 'node:fs/promises'
+vi.mock('node:fs/promises', async importOriginal => { const actual = await importOriginal<typeof import('node:fs/promises')>(); return {...actual, rm: vi.fn(actual.rm)} })
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-const mock=vi.hoisted(()=>({root:'',dirs:{} as Record<string,string>,sharp:vi.fn(),metadata:vi.fn(),toFile:vi.fn(),toBuffer:vi.fn(),rotate:vi.fn(),resize:vi.fn(),png:vi.fn(),jpeg:vi.fn(),extract:vi.fn(),flatten:vi.fn()}))
+const mock=vi.hoisted(()=>({failIndex:false,root:'',dirs:{} as Record<string,string>,sharp:vi.fn(),metadata:vi.fn(),toFile:vi.fn(),toBuffer:vi.fn(),rotate:vi.fn(),resize:vi.fn(),png:vi.fn(),jpeg:vi.fn(),extract:vi.fn(),flatten:vi.fn()}))
 vi.mock('sharp',()=>({default:Object.assign(mock.sharp,{strategy:{attention:'attention'}})}))
 vi.mock('../../server/store',async importOriginal=>{
   const actual=await importOriginal<typeof import('../../server/store')>()
   const {mkdtempSync,mkdirSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path')
   mock.root=mkdtempSync(join(tmpdir(),'xiumi-assets-unit-'));mock.dirs={assets:join(mock.root,'assets'),cache:join(mock.root,'cache')}
   Object.values(mock.dirs).forEach(p=>mkdirSync(p))
-  return {...actual,DIRS:{...actual.DIRS,...mock.dirs}}
+  return {...actual,writeJson:async(path:string,value:unknown)=>{if(mock.failIndex)throw Error('index unavailable');return actual.writeJson(path,value)},DIRS:{...actual.DIRS,...mock.dirs}}
 })
 import { saveAsset, listAssets, deleteAsset, cropAsset, variantPath, wechatReady, cleanCache } from '../../server/assets'
 beforeEach(async()=>{
-  vi.clearAllMocks();mock.toBuffer.mockReset()
+  vi.clearAllMocks();mock.failIndex=false;mock.toBuffer.mockReset()
   const chain={metadata:mock.metadata,toFile:mock.toFile,toBuffer:mock.toBuffer,rotate:mock.rotate,resize:mock.resize,png:mock.png,jpeg:mock.jpeg,extract:mock.extract,flatten:mock.flatten}
   mock.sharp.mockReturnValue(chain)
   for(const fn of [mock.rotate,mock.resize,mock.png,mock.jpeg,mock.extract,mock.flatten]) fn.mockReturnValue(chain)
@@ -71,4 +73,30 @@ describe('asset variants and export size boundaries',()=>{
     await expect(wechatReady(path)).rejects.toThrow()
     expect(mock.resize).toHaveBeenLastCalledWith({width:900,withoutEnlargement:true})
   })
+})
+it('sets an explicit 64MP input ceiling while retaining animation and orientation behavior',async()=>{
+ await saveAsset(Buffer.from('source'),'normal.jpg')
+ expect(mock.sharp).toHaveBeenCalledWith(Buffer.from('source'),{animated:false,limitInputPixels:64_000_000})
+ expect(mock.rotate).toHaveBeenCalled()
+})
+it('serializes actual Sharp work until its output promise settles',async()=>{
+ let finish!:()=>void;const hold=new Promise<void>(resolve=>finish=resolve)
+ mock.toFile.mockImplementationOnce(async(path:string)=>{await hold;await writeFile(path,'encoded');return {width:128,height:96,size:7}})
+ const first=saveAsset(Buffer.from('a'),'a.jpg');await vi.waitFor(()=>expect(mock.toFile).toHaveBeenCalledTimes(1))
+ const second=saveAsset(Buffer.from('b'),'b.jpg');await new Promise(resolve=>setImmediate(resolve));expect(mock.toFile).toHaveBeenCalledTimes(1)
+ finish();await Promise.all([first,second]);expect(mock.toFile).toHaveBeenCalledTimes(2)
+})
+it('cleans its own partial output if image encoding fails after creating a file',async()=>{
+ const error=Error('encoder failed');mock.toFile.mockImplementationOnce(async(path:string)=>{await writeFile(path,'partial');throw error})
+ const before=await readdir(mock.dirs.assets);await expect(saveAsset(Buffer.from('source'),'partial.png')).rejects.toBe(error)
+ expect(await readdir(mock.dirs.assets)).toEqual(before)
+})
+
+it('records failed cleanup without hiding the original encoder error',async()=>{
+ const warning=vi.spyOn(console,'warn').mockImplementation(()=>{});const remove=vi.spyOn(fileSystem,'rm').mockRejectedValueOnce(Error('cleanup failed'));const error=Object.assign(Error('encoder budget'),{status:413});mock.toFile.mockRejectedValueOnce(error)
+ await expect(saveAsset(Buffer.from('source'),'x.png')).rejects.toMatchObject({status:413,cleanupFailures:1});expect(warning).toHaveBeenCalledWith('Image output cleanup failed for a newly created asset');remove.mockRestore();warning.mockRestore()
+})
+
+it('removes newly encoded output when its index write fails and keeps later writes usable',async()=>{
+ mock.failIndex=true;const before=await readdir(mock.dirs.assets);await expect(saveAsset(Buffer.from('source'),'index.jpg')).rejects.toThrow('index unavailable');expect(await readdir(mock.dirs.assets)).toEqual(before);mock.failIndex=false;await expect(saveAsset(Buffer.from('source'),'next.jpg')).resolves.toMatchObject({name:'next.jpg'})
 })

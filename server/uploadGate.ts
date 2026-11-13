@@ -47,8 +47,11 @@ export function createUploadGate({ concurrency = 2, timeoutMs = 120000 }: { conc
       if (context.controller.signal.aborted) { deliver(context.controller.signal.reason); release(); return }
       if (error) { deliver(error); release(); return }
       processing = true
-      try { void handle(req, res).catch(deliver).finally(() => { processing = false; release() }) }
-      catch (cause) { processing = false; deliver(cause); release() }
+      void (async () => {
+        try { await handle(req, res) }
+        catch (cause) { deliver(cause) }
+        finally { processing = false; release() }
+      })()
     }
     try { parser(req, res, parsed) } catch (cause) { parsed(cause) }
   }

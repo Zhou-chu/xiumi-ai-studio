@@ -6,8 +6,8 @@ import { pathToFileURL } from 'node:url'
 import mammoth from 'mammoth'
 import { afterEach, expect, it, vi } from 'vitest'
 
-const assets = vi.hoisted(() => ({ save: vi.fn() }))
-vi.mock('../../server/assets', () => ({ saveAsset: assets.save }))
+const assets = vi.hoisted(() => ({ save: vi.fn(), remove: vi.fn() }))
+vi.mock('../../server/assets', () => ({ saveAsset: assets.save, deleteAsset: assets.remove }))
 import { importFile } from '../../server/importer'
 
 // Use the installed converter's ZIP implementation solely to create fixtures.
@@ -81,4 +81,20 @@ it('the real application importer never stores external bytes and keeps embedded
   expect(result.text).toContain('Safe document text')
   expect(result.text).toContain('/media/word-image-1.png')
   expect(result.text).not.toContain(sentinel.toString())
+})
+
+it('does not report a successful import when an embedded image exceeds the resource budget',async()=>{
+ assets.save.mockRejectedValue(Object.assign(Error('pixel budget'),{status:413}));
+ await expect(importFile(await fixture(),'oversized-image.docx')).rejects.toMatchObject({status:413})
+})
+it('removes only this failed import\'s successful embedded assets after a later resource error',async()=>{
+ const zip=await JSZip.loadAsync(await fixture());const xml=await zip.file('word/document.xml').async('string');zip.file('word/document.xml',xml.replace('</w:body>',xml.slice(xml.indexOf('<w:p><w:r><w:drawing>'),xml.lastIndexOf('</w:body>'))+'</w:body>'))
+ assets.save.mockResolvedValueOnce({id:'owned-by-this-import',file:'one.png'}).mockRejectedValueOnce(Object.assign(Error('queue budget'),{status:429}));assets.remove.mockResolvedValue(undefined)
+ await expect(importFile(await zip.generateAsync({type:'nodebuffer'}),'images.docx')).rejects.toMatchObject({status:429})
+ expect(assets.remove).toHaveBeenCalledExactlyOnceWith('owned-by-this-import')
+})
+it('keeps the original safety error even when rollback fails',async()=>{
+ const zip=await JSZip.loadAsync(await fixture());const xml=await zip.file('word/document.xml').async('string');zip.file('word/document.xml',xml.replace('</w:body>',xml.slice(xml.indexOf('<w:p><w:r><w:drawing>'),xml.lastIndexOf('</w:body>'))+'</w:body>'))
+ assets.save.mockResolvedValueOnce({id:'owned',file:'one.png'}).mockRejectedValueOnce(Object.assign(Error('pixel budget'),{status:413}));assets.remove.mockRejectedValue(Error('disk cleanup failed'))
+ await expect(importFile(await zip.generateAsync({type:'nodebuffer'}),'cleanup.docx')).rejects.toMatchObject({status:413,cleanupFailures:1})
 })
