@@ -27,6 +27,7 @@ export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error'
 interface State {
   doc: Doc
   selectedId: string | null
+  selectedIds: string[]
   editingId: string | null
   past: Doc[]
   future: Doc[]
@@ -46,7 +47,7 @@ interface State {
   /** 所有文档修改的唯一入口：记录历史 */
   commit: (next: Doc, coalesceKey?: string) => void
   load: (doc: Doc) => void
-  select: (id: string | null) => void
+  select: (id: string | null, options?: { toggle?: boolean }) => void
   setEditing: (id: string | null) => void
   setPicking: (id: string | null) => void
   setMatchColors: (on: boolean) => void
@@ -55,6 +56,7 @@ interface State {
   insertBlock: (typeOrBlock: BlockType | Block, index?: number, parentId?: string | null) => string
   insertBlocks: (blocks: Block[], index?: number) => void
   removeBlock: (id: string) => void
+  removeSelected: () => void
   /** 用几个模块替换一个模块（拆开模块），可撤销 */
   replaceBlock: (id: string, blocks: Block[]) => void
   duplicateBlock: (id: string) => void
@@ -66,7 +68,7 @@ interface State {
   undo: () => void
   redo: () => void
   /** selectedId：用户选中了模块时，只接受落在这个模块上的操作 */
-  propose: (summary: string, rawOps: any[], selectedId?: string | null) => void
+  propose: (summary: string, rawOps: any[], selectedId?: string | string[] | null) => void
   resolveProposal: (index: number | 'all', status: 'accepted' | 'rejected', expectedProposal?: Proposal) => void
   clearProposal: () => void
   refreshThemes: () => void
@@ -105,11 +107,20 @@ export function emptyDoc(): Doc {
   }
 }
 
+/** Keep every UI selection reference valid after structural edits/history restoration. */
+function selectionFor(doc:Doc,state:Pick<State,'selectedId'|'selectedIds'|'editingId'|'pickingId'>) {
+  const valid=(id:string|null)=>id && findBlock(doc.blocks,id)?id:null
+  const selectedIds=[...new Set(state.selectedIds)].filter(id=>valid(id))
+  const selectedId=selectedIds.includes(state.selectedId ?? '')?state.selectedId:selectedIds.at(-1) ?? null
+  return { selectedIds,selectedId, editingId:valid(state.editingId), pickingId:valid(state.pickingId) }
+}
+
 let loadGeneration = 0
 
 export const useStore = create<State>((set, get) => ({
   doc: emptyDoc(),
   selectedId: null,
+  selectedIds: [],
   editingId: null,
   past: [],
   future: [],
@@ -130,6 +141,7 @@ export const useStore = create<State>((set, get) => ({
     const merge = coalesceKey && lastCoalesce?.key === coalesceKey && now - lastCoalesce.at < 1500
     set({
       doc: { ...next, updatedAt: now },
+      ...selectionFor(next,get()),
       past: merge ? past : [...past, doc].slice(-HISTORY_LIMIT),
       future: [],
       lastCoalesce: coalesceKey ? { key: coalesceKey, at: now } : null,
@@ -142,15 +154,27 @@ export const useStore = create<State>((set, get) => ({
     // 加载时修复历史数据（例如旧版本保存的、字段类型不对的 AI 修改）
     const doc = normalizeDoc(raw)
     const repaired = JSON.stringify(doc.blocks) !== JSON.stringify(raw.blocks)
-    set({ doc, savedRevision: raw.revision, saveConflict: false, saveError: '', past: [], future: [], selectedId: null, editingId: null, pickingId: null, proposal: null, saveStatus: repaired ? 'dirty' : 'saved', lastCoalesce: null })
+    set({ doc, savedRevision: raw.revision, saveConflict: false, saveError: '', past: [], future: [], selectedId: null, selectedIds: [], editingId: null, pickingId: null, proposal: null, saveStatus: repaired ? 'dirty' : 'saved', lastCoalesce: null })
     if (repaired) {
       saveNow()
       get().notify('已自动修复文档中格式异常的模块')
     }
   },
-  select: (id) => set((s) => ({ selectedId: id, editingId: s.editingId === id ? s.editingId : null, pickingId: s.pickingId === id ? s.pickingId : null })),
-  setEditing: (id) => set({ editingId: id, selectedId: id ?? get().selectedId, pickingId: null }),
-  setPicking: (id) => set({ pickingId: id, editingId: null, selectedId: id ?? get().selectedId }),
+  select(id,options) {
+    const state=get()
+    const valid=id && findBlock(state.doc.blocks,id)?id:null
+    const selectedIds=!valid?[]:options?.toggle?(state.selectedIds.includes(valid)?state.selectedIds.filter(value=>value!==valid):[...state.selectedIds,valid]):[valid]
+    const selectedId=selectedIds.at(-1) ?? null
+    set({ selectedIds,selectedId,editingId:selectedIds.length===1 && state.editingId===selectedId?state.editingId:null,pickingId:selectedIds.length===1 && state.pickingId===selectedId?state.pickingId:null })
+  },
+  setEditing(id) {
+    if(id)get().select(id)
+    set({editingId:id && findBlock(get().doc.blocks,id)?id:null,pickingId:null})
+  },
+  setPicking(id) {
+    if(id)get().select(id)
+    set({pickingId:id && findBlock(get().doc.blocks,id)?id:null,editingId:null})
+  },
   setMatchColors: (on) => set({ matchColors: on }),
   updateProps(id, props, coalesceKey) {
     const { doc, commit } = get()
@@ -161,7 +185,7 @@ export const useStore = create<State>((set, get) => ({
     const block = typeof typeOrBlock === 'string' ? createBlock(typeOrBlock) : typeOrBlock
     const at = index === undefined ? insertionPoint(doc.blocks, selectedId, block.type === 'box') : { parentId: block.type === 'box' ? null : parentId, index }
     commit({ ...doc, blocks: insertBlocksAt(doc.blocks, at.parentId, at.index, [block]) })
-    set({ selectedId: block.id })
+    get().select(block.id)
     return block.id
   },
   insertBlocks(list, index) {
@@ -171,18 +195,26 @@ export const useStore = create<State>((set, get) => ({
     commit({ ...doc, blocks: insertBlocksAt(doc.blocks, at.parentId, at.index, blocks) })
   },
   removeBlock(id) {
-    const { doc, commit, selectedId } = get()
+    const { doc, commit, selectedId, selectedIds } = get()
     const at = findBlock(doc.blocks, id)
     if (!at) return
     const siblings = at.parent ? at.parent.props.children : doc.blocks
     commit({ ...doc, blocks: removeBlockById(doc.blocks, id) })
-    if (selectedId === id) set({ selectedId: siblings[at.index + 1]?.id ?? siblings[at.index - 1]?.id ?? at.parent?.id ?? null, editingId: null })
+    if (selectedIds.length===1 && selectedId === id) get().select(siblings[at.index + 1]?.id ?? siblings[at.index - 1]?.id ?? at.parent?.id ?? null)
+  },
+  removeSelected() {
+    const {doc,selectedIds,commit}=get()
+    if(!selectedIds.length)return
+    let blocks=doc.blocks
+    for(const id of selectedIds) blocks=removeBlockById(blocks,id)
+    if(blocks!==doc.blocks)commit({...doc,blocks})
+    get().select(null)
   },
   replaceBlock(id, list) {
     const { doc, commit } = get()
     if (!findBlock(doc.blocks, id) || !list.length) return
     commit({ ...doc, blocks: replaceBlockWith(doc.blocks, id, list) })
-    set({ selectedId: list[0].id, editingId: null, pickingId: null })
+    get().select(list[0].id)
   },
   duplicateBlock(id) {
     const { doc, commit } = get()
@@ -190,7 +222,7 @@ export const useStore = create<State>((set, get) => ({
     if (!at) return
     const copy = cloneBlock(at.block)
     commit({ ...doc, blocks: insertBlocksAt(doc.blocks, at.parent?.id ?? null, at.index + 1, [copy]) })
-    set({ selectedId: copy.id })
+    get().select(copy.id)
   },
   moveBlock(id, to) {
     const { doc, commit } = get()
@@ -211,13 +243,13 @@ export const useStore = create<State>((set, get) => ({
     const { past, doc, future, proposal } = get()
     if (!past.length) return
     if (proposal) { set({ proposal: null }); get().notify('已撤销，AI 审阅已关闭，请重新生成建议') }
-    set({ doc: past[past.length - 1], past: past.slice(0, -1), future: [doc, ...future], lastCoalesce: null, saveStatus: 'dirty', editingId: null })
+    set({ ...selectionFor(past[past.length - 1],get()), pickingId:null, doc: past[past.length - 1], past: past.slice(0, -1), future: [doc, ...future], lastCoalesce: null, saveStatus: 'dirty', editingId: null })
   },
   redo() {
     const { past, doc, future, proposal } = get()
     if (!future.length) return
     if (proposal) { set({ proposal: null }); get().notify('已重做，AI 审阅已关闭，请重新生成建议') }
-    set({ doc: future[0], future: future.slice(1), past: [...past, doc], lastCoalesce: null, saveStatus: 'dirty', editingId: null })
+    set({ ...selectionFor(future[0],get()), pickingId:null, doc: future[0], future: future.slice(1), past: [...past, doc], lastCoalesce: null, saveStatus: 'dirty', editingId: null })
   },
 
   propose(summary, rawOps, selectedId) {

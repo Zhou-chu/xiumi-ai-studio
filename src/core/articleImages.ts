@@ -11,7 +11,7 @@ export function isImageLibraryRequest(text: string): boolean {
   })
 }
 
-export function collectArticleImages(doc: Doc, selectedId?: string, parse: Parse = (s) => new DOMParser().parseFromString(s, 'text/html')): string[] {
+export function collectArticleImages(doc: Doc, selectedId?: string | string[], parse: Parse = (s) => new DOMParser().parseFromString(s, 'text/html')): string[] {
   const urls = new Set<string>()
   const add = (value: unknown) => {
     if (typeof value !== 'string' || !value.trim()) return
@@ -35,7 +35,7 @@ export function collectArticleImages(doc: Doc, selectedId?: string, parse: Parse
     }
     Object.values(record).forEach(visit)
   }
-  if (selectedId) visit(findBlock(doc.blocks, selectedId)?.block)
+  if (selectedId !== undefined) (Array.isArray(selectedId) ? selectedId : [selectedId]).forEach(id => visit(findBlock(doc.blocks, id)?.block))
   else { visit(doc.cover); visit(doc.blocks) }
   return [...urls]
 }

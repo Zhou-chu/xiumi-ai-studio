@@ -1,4 +1,7 @@
+import { restructureImportedHtml } from './htmlLayout'
 import { coerceProps, createBlock, isBlockType, newId } from './blocks'
+import { restyleImportedHtml } from './htmlTheme'
+import { THEMES } from './themes'
 import { richToPlain } from './richtext'
 import { extractSlots, fillSlots } from './slots'
 import { findBlock, flatBlocks, removeBlockById, updateBlock } from './tree'
@@ -22,7 +25,10 @@ export function validateOp(doc: Doc, op: any): { op?: DocOp; error?: string } {
       if (!b) return { error: `找不到模块 ${op.id}` }
       // 原文片段：只接受文字槽位，HTML 由槽位在当前内容上重新计算（不信任传入的 props.html）
       if (b.type === 'html') {
-        const raw = op.slots ?? op.props?.slots
+        const theme = typeof op.themeId === 'string' ? THEMES.find(t => t.id === op.themeId) : undefined
+        if (op.themeId !== undefined && !theme) return { error: '未知原文主题' }
+        if (op.layout !== undefined && (!theme || !['editorial', 'chapters'].includes(op.layout))) return { error: '结构重排需要有效主题和 editorial 或 chapters 布局' }
+        const raw = op.slots ?? op.props?.slots ?? (theme ? {} : undefined)
         if (!raw || typeof raw !== 'object') return { error: '原文片段只能修改文字槽位（slots）' }
         const known = new Map(extractSlots(b.props.html).flatMap((s) => (s.kind === 'text' ? [[s.id, s] as const] : [])))
         const slots: Record<string, string> = {}
@@ -31,8 +37,17 @@ export function validateOp(doc: Doc, op: any): { op?: DocOp; error?: string } {
           if (!s || (typeof v !== 'string' && typeof v !== 'number')) continue
           slots[k] = s.tight ? [...String(v).replace(/\s*\n+\s*/g, ' ')].slice(0, s.max).join('') : String(v)
         }
-        if (!Object.keys(slots).length) return { error: `修改 ${op.id} 没有有效的文字槽位` }
-        return { op: { op: 'update', id: op.id, props: { html: fillSlots(b.props.html, slots, { split: false }) }, slots, reason: op.reason } }
+        if (!Object.keys(slots).length && !theme) return { error: `修改 ${op.id} 没有有效的文字槽位` }
+        let html = fillSlots(b.props.html, slots, { split: false })
+        if (theme) html = restyleImportedHtml(html, theme)
+        let reason = op.reason
+        if (op.layout && theme) {
+          const result = restructureImportedHtml(html, op.layout, theme)
+          if (result.error || !result.html) return { error: result.error ?? '结构重排失败' }
+          html = result.html
+          reason = `${reason ?? '重新组织文章结构'}；${result.preserved ? `${result.preserved} 个复杂区块保留原结构，仅重排其余内容` : '已按原阅读顺序重组段落，保留全部文字、图片与链接'}`
+        }
+        return { op: { op: 'update', id: op.id, props: { html }, slots, ...(theme && { themeId: theme.id }), ...(op.layout && { layout: op.layout }), reason } }
       }
       const props: Record<string, any> = coerceProps(b.type, op.props, true)
       // 文本框的子模块只能逐个修改，不能整体替换（避免丢内容）
@@ -103,9 +118,10 @@ export function selectionScope(doc: Doc, selectedId: string | null | undefined):
 }
 
 /** Match the server's exact-module update boundary; fail closed on stale or mixed scope. */
-export function limitToSelection(doc: Doc, selectedId: string | null | undefined, rawOps: any[]): { ops: any[]; dropped: any[] } {
+export function limitToSelection(doc: Doc, selectedId: string | string[] | null | undefined, rawOps: any[]): { ops: any[]; dropped: any[] } {
   if (selectedId == null) return { ops: rawOps, dropped: [] }
-  const valid = findBlock(doc.blocks, selectedId) && rawOps.every(op => op?.op === 'update' && op.id === selectedId)
+  const ids = Array.isArray(selectedId) ? selectedId : [selectedId]
+  const valid = ids.length > 0 && ids.every(id => !!findBlock(doc.blocks, id)) && rawOps.every(op => op?.op === 'update' && ids.includes(op.id))
   return valid ? { ops: rawOps, dropped: [] } : { ops: [], dropped: rawOps }
 }
 

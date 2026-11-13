@@ -1,5 +1,6 @@
 // AI 提供方抽象：OpenAI 兼容接口（DeepSeek / 通义 / Kimi / 智谱 / MiniMax / MiMo / 豆包 / OpenAI / Gemini / Ollama…）或 Anthropic。
 // 密钥只在服务端读取；所有输出都要求是 JSON，再由调用方校验。
+import { THEMES } from '../src/core/themes'
 import { getProfile, type AiProfile } from './settings'
 import { fetchModels, type ModelInfo } from './aiModels'
 
@@ -28,7 +29,10 @@ function extractJson(text: string): any {
 }
 
 interface ChatOpts {
+  /** Explicit hard budget, reserved for capability probes. */
   maxTokens?: number
+  /** Task fallback used only when no model output budget is configured. */
+  defaultMaxTokens?: number
   temperature?: number
   profileId?: string
   /** 直接指定配置（用于“测试连接”） */
@@ -92,17 +96,25 @@ export function adjustWire(w: Wire, message: string, keepEffort = true): Wire | 
   return null
 }
 
-async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, keepEffort: boolean): Promise<Response> {
+async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, keepEffort: boolean): Promise<{ response: Response; wire: Wire }> {
   let w = start
   for (let i = 0; i < 6; i++) {
     const res = await send(w)
-    if (res.ok) return res
+    if (res.ok) return { response: res, wire: w }
     const message = await readError(res)
     const next = res.status === 400 || res.status === 422 ? adjustWire(w, message, keepEffort) : null
     if (!next) throw Object.assign(new Error(`AI 请求失败 ${res.status}: ${message}`), { status: 502 })
     w = next
   }
   throw Object.assign(new Error('AI 请求失败：参数被服务反复拒绝'), { status: 502 })
+}
+
+/** Only numeric usage is surfaced; response text and private reasoning are never logged. */
+function outputLimitError(actual: number, configured: number | undefined, usage: any): Error {
+  const count = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined
+  const completed = count(usage?.completion_tokens ?? usage?.output_tokens)
+  const reasoning = count(usage?.completion_tokens_details?.reasoning_tokens)
+  return new Error(`AI 已响应，但输出达到 token 上限：本次请求 ${actual} tokens${configured ? `，模型设置 ${configured}` : '（模型未配置，使用任务默认值）'}${completed !== undefined ? `，服务返回输出用量 ${completed}` : ''}${reasoning !== undefined ? `（其中推理 ${reasoning}）` : ''}。思考与正文可能共用预算；请检查输出上限和模型限制，或拆分任务。`)
 }
 
 /** 调用模型，返回文本。OpenAI 兼容接口或 Anthropic */
@@ -113,7 +125,7 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
   const timeout = opts.timeoutMs ?? 180_000
   const timer = setTimeout(() => ctrl.abort(), timeout)
   const effort = opts.effort ?? p.reasoningEffort ?? ''
-  const wanted = opts.maxTokens ?? 8000
+  const wanted = opts.maxTokens ?? (p.maxOutputTokens || opts.defaultMaxTokens || 8000)
   const start: Wire = {
     json: p.jsonMode && p.provider !== 'anthropic',
     tokenField: effort && p.provider !== 'anthropic' ? 'max_completion_tokens' : 'max_tokens',
@@ -124,7 +136,7 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
   const extra = extraBodyOf(p)
   try {
     if (p.provider === 'anthropic') {
-      const res = await sendAdaptive(
+      const { response: res, wire } = await sendAdaptive(
         (w) =>
           fetch(`${anthropicBase(p.baseUrl)}/messages`, {
             method: 'POST',
@@ -145,10 +157,10 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
         Boolean(effort) || Boolean(opts.keepEffort),
       )
       const data: any = await res.json()
-      if (!opts.allowTruncated && data.stop_reason === 'max_tokens') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
+      if (!opts.allowTruncated && data.stop_reason === 'max_tokens') throw outputLimitError(wire.maxTokens, p.maxOutputTokens, data.usage)
       return data.content?.map((c: any) => c.text ?? '').join('') ?? ''
     }
-    const res = await sendAdaptive(
+    const { response: res, wire } = await sendAdaptive(
       (w) =>
         fetch(`${p.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
           method: 'POST',
@@ -172,7 +184,7 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
       Boolean(effort) || Boolean(opts.keepEffort),
     )
     const data: any = await res.json()
-    if (!opts.allowTruncated && data.choices?.[0]?.finish_reason === 'length') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
+    if (!opts.allowTruncated && data.choices?.[0]?.finish_reason === 'length') throw outputLimitError(wire.maxTokens, p.maxOutputTokens, data.usage)
     return data.choices?.[0]?.message?.content ?? ''
   } catch (e: any) {
     if (e.name === 'AbortError') throw Object.assign(new Error(`AI 请求超时（${Math.round(timeout / 1000)} 秒）`), { status: 504 })
@@ -338,7 +350,9 @@ frame{caption,label,variant:flag|circuit|ticket}（图片框）
 photos{pics:[{caption}],layout:even|feature}（双图 / 三图 / 四图；pics 只能改图注）
 规则：不得编造事实；修改正文时保留原意；操作尽量少而精准。
 字段类型：除 columns 为数字 1-3 外，所有字段值都必须是字符串（例如 index 写 "01" 而不是 1）；items、headers、rows、pics 为数组；不要输出 image、images、html、children 字段。
-原文片段（type=html，导入推文的原版式）：只能修改文字，不能插入新的原文片段、不能改结构和样式。上下文里的 slots 列出了它的文字槽位，修改方式：{"op":"update","id":模块id,"slots":{"t0":"新文字","t2":"新文字"},"reason":"原因"}。同一个片段的所有改动合并在一条 update 里；带 max 的槽位在图形里，字数不能超过 max；写 "" 会删掉这一行。
+原文片段（type=html，导入推文的原版式）：支持文字槽位修改和显式主题适配，不允许输出任意 HTML 或删除内容来假装重做。用户明确要求全文或所选模块统一视觉主题时，必须对范围内每个原文片段输出 {"op":"update","id":模块id,"themeId":目标主题id,"reason":"统一主题配色与文字层级，保留全部文字、图片及结构"}；全文范围可另输出 setTheme，不能只 setTheme 就声称原文片段已改好。主题适配由应用安全计算配色、标题字体和正文排版，可与 slots 合并在同一条 update。它保留布局结构，不会重绘照片、位图内文字或SVG几何，不能承诺这些内容已改变。可用主题：${THEMES.map(t => `${t.id}（${t.name}）`).join("、")}。上下文里的 slots 列出了它的文字槽位，修改方式：{"op":"update","id":模块id,"slots":{"t0":"新文字","t2":"新文字"},"reason":"原因"}。同一个片段的所有改动合并在一条 update 里；带 max 的槽位在图形里，字数不能超过 max；写 "" 会删掉这一行。
+用户明确要求重做模块、重排或改变布局时，HTML 的 update 必须同时给 themeId 和 layout:"editorial"（连续编辑式分段）或 layout:"chapters"（按标题分章）。不要仅 setTheme 或仅换颜色字体冒充结构重做。例：{"op":"update","id":"原模块id","themeId":"tsinghua-purple","layout":"chapters","reason":"按章节重新组织全文"}。布局由本地确定性转换生成，保留全部文字、图片、链接及阅读顺序。表格、SVG、背景图片和复杂定位结构以完整原子区块保留；仅其余安全段落重排，必须明确不能承诺所有复杂控件都重新绘制。完全无法安全拆分的片段会拒绝重排，不能宣称已完成。结构重排不改变图片像素内容。
+insert.index 始终指当前请求中原始文稿的零基模块位置：插在该原模块之前，等于原模块总数时追加。多个插入不得累加前面插入造成的偏移；接受建议的先后顺序由应用按原模块锚点处理。
 输出 JSON：{"summary":"一句话说明做了什么","ops":[...]}`
 
 export const COPY_SYSTEM = `你是高校公众号的资深主笔，写的活动推文读起来像一个在现场的人写的，而不是机器生成的。根据用户给的活动描述，写一篇完整的推文文案。

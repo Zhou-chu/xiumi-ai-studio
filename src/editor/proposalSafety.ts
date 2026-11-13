@@ -61,6 +61,7 @@ export function getProposalItemIssue(proposal:Proposal,doc:Doc,index:number):str
     if(op.op!=='update') {
       if(!same(old,now)) return changed
     } else if(old.type==='html' && now.type==='html') {
+      if((op.themeId || op.layout) && old.props.html !== now.props.html) return changed
       if(skeleton(old.props.html)!==skeleton(now.props.html)) return changed
       const a=slotRawTexts(old.props.html),b=slotRawTexts(now.props.html)
       if(!same(Object.keys(a),Object.keys(b))) return changed

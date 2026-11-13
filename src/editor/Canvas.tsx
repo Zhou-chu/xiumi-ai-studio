@@ -1,4 +1,6 @@
-import { InlineReview } from './InlineReview'
+import { HtmlTypographyControls } from './HtmlTypographyControls'
+import { ImageResize } from './ImageResize'
+import { InlineReview, ReviewBlock, ReviewHeading, ReviewDocumentEnd } from './InlineReview'
 import { Help } from './Help'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -109,6 +111,7 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <div className="rich-toolbar">
+        <HtmlTypographyControls rootRef={ref} onCommit={commit} />
         <Help title="原文编辑">直接修改文字（保留原样式）；点击图片可选中，按 Delete 删除；点组件库里的组件会插到光标所在段落后面</Help>
         {picked && (
           <button type="button" className="danger" onMouseDown={(e) => (e.preventDefault(), removePicked())} data-testid="delete-picked">
@@ -116,7 +119,7 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
           </button>
         )}
         <span className="sep" />
-        <button type="button" className="done" onMouseDown={(e) => (e.preventDefault(), commit(), onDone())}>完成</button>
+        <button type="button" className="done" onMouseDown={(e) => e.preventDefault()} onClick={() => { commit(); onDone() }}>完成</button>
       </div>
       <div
         ref={ref}
@@ -272,7 +275,7 @@ function BoxBody({ block, theme }: { block: Block<'box'>; theme: Theme }) {
       <div style={styleObj(parts.body)} className="box-body">
         <SortableContext items={children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {children.map((c, i) => (
-            <BlockView key={c.id} block={c} theme={theme} gap={i === children.length - 1 ? 0 : BOX_GAP} parentId={block.id} />
+            <ReviewBlock key={c.id} blockId={c.id} inBox><BlockView block={c} theme={theme} gap={i === children.length - 1 ? 0 : BOX_GAP} parentId={block.id} /></ReviewBlock>
           ))}
         </SortableContext>
         <div ref={setNodeRef} className={`box-drop ${isOver ? 'over' : ''} ${children.length ? '' : 'empty'}`} data-testid="box-drop">
@@ -285,7 +288,7 @@ function BoxBody({ block, theme }: { block: Block<'box'>; theme: Theme }) {
 }
 
 function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme; gap: number; parentId?: string }) {
-  const selected = useStore((s) => s.selectedId === block.id)
+  const selected = useStore((s) => s.selectedIds.includes(block.id))
   const editing = useStore((s) => s.editingId === block.id)
   const picking = useStore((s) => s.pickingId === block.id)
   const { select, setEditing, setPicking, updateProps, removeBlock, replaceBlock, duplicateBlock, moveBlock, moveBlockTo, notify } = useStore.getState()
@@ -352,7 +355,8 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
       data-block-type={block.type}
       onClick={(e) => {
         e.stopPropagation()
-        select(block.id)
+        if (editing || (e.target as HTMLElement).closest('button,input,textarea,select,[contenteditable="true"],[data-image-handle]')) return
+        select(block.id, { toggle: e.ctrlKey || e.metaKey })
       }}
       onDoubleClick={(e) => { e.stopPropagation(); startEdit() }}
       {...attributes}
@@ -519,22 +523,25 @@ export function Canvas() {
     <div className="canvas-wrap">
       <div className="canvas-scroll" ref={scroller} onClick={() => select(null)} {...photoDrag}>
         <div className="phone" style={zoom === 1 ? undefined : { zoom }} data-zoom={zoom}>
-          <div className="phone-head">
+          <ReviewHeading><div className="phone-head">
             <div className="wx-title">{doc.title || '未命名推文'}</div>
             <div className="wx-meta">{doc.author || '公众号名称'} · 刚刚</div>
           </div>
+          </ReviewHeading>
           <div className="article" style={styleObj(rootStyle(theme))} data-testid="canvas">
             <SortableContext items={doc.blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
               {doc.blocks.map((b, i) => (
-                <BlockView key={b.id} block={b} theme={theme} gap={blockGap(b, doc.blocks[i + 1], theme)} />
+                <ReviewBlock key={b.id} blockId={b.id}><BlockView block={b} theme={theme} gap={blockGap(b, doc.blocks[i + 1], theme)} /></ReviewBlock>
               ))}
             </SortableContext>
+            <ReviewDocumentEnd />
             <div ref={setNodeRef} className={`drop-end ${isOver ? 'over' : ''}`}>
               {doc.blocks.length ? '拖入模块到此处，或在左侧点击添加' : '从左侧拖入模块，或使用「AI 一键排版」导入文稿'}
             </div>
           </div>
         </div>
       </div>
+      <ImageResize />
       <InlineReview />
       <div className={`zoom-bar ${zoom === 1 ? '' : 'on'}`} role="group" aria-label="文章缩放">
         <button title="缩小（Ctrl + 滚轮向下 / Ctrl + -）" onClick={() => setZoom((z) => z - 0.1)} disabled={zoom <= ZOOM_MIN} data-testid="zoom-out">−</button>

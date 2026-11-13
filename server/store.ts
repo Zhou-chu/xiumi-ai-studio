@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
 import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 import { join, resolve } from 'node:path'
 
 export const ROOT = resolve(import.meta.dirname, '..')
@@ -43,7 +44,18 @@ export async function writeJson(file: string, data: unknown) {
     const tmp = `${target}.${process.pid}.${randomUUID()}.tmp`
     try {
       await writeFile(tmp, json, 'utf8')
-      await rename(tmp, target)
+      // Windows scanners/read handles may temporarily deny an atomic replacement.
+      // Keep the old destination and this temporary file intact between attempts.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await rename(tmp, target)
+          break
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code
+          if (attempt >= 5 || !['EPERM', 'EACCES', 'EBUSY'].includes(code ?? '')) throw error
+          await delay(20 * 2 ** attempt)
+        }
+      }
     } finally {
       await rm(tmp, { force: true })
     }

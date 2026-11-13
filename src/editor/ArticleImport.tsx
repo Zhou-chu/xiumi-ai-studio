@@ -1,6 +1,6 @@
 import { Help } from './Help'
 // 导入公众号推文：链接抓取或粘贴富文本 → 保留原样式（原文片段）或重新排版 → 可保存为模板/主题
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createBlock, newId } from '../core/blocks'
 import { compileDoc } from '../core/compiler'
 import { makeDraft, SOURCE_LABEL } from '../core/components'
@@ -33,6 +33,19 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState('')
   const [wizard, setWizard] = useState<{ text: string; images: Asset[] } | null>(null)
   const pasteRef = useRef<HTMLDivElement>(null)
+  const mounted = useRef(true)
+  const generation = useRef(0)
+  const running = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    const lifecycleGeneration = generation
+    return () => { mounted.current = false; lifecycleGeneration.current++ }
+  }, [])
+  const close = () => {
+    generation.current++
+    if (running.current) notify('已停止后续导入；已经开始的素材、模板或主题保存可能仍会完成，原稿不会被迟到结果替换。')
+    onClose()
+  }
 
   const blocks = useMemo(() => (article ? articleToHtmlBlocks(article.root) : []), [article])
   const imageCount = article ? article.root.querySelectorAll('img').length : 0
@@ -49,20 +62,31 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
     setTemplateName(a.title.slice(0, 20) || '导入的推文模板')
   }
 
-  const run = async (fn: () => Promise<void>, msg: string) => {
-    setBusy(msg)
-    try {
-      await fn()
-    } catch (e: any) {
-      notify(e.message, 'error')
-    } finally {
-      setBusy('')
+  const run = async (fn: (current: (checkDoc?: boolean) => boolean) => Promise<void>, msg: string) => {
+    if (running.current) return
+    running.current = true
+    const token = ++generation.current
+    const expected = useStore.getState().doc
+    let warned = false
+    const current = (checkDoc = true) => {
+      if (!mounted.current || token !== generation.current) return false
+      if (checkDoc && useStore.getState().doc !== expected) {
+        if (!warned) notify('当前文稿已变化，已停止导入并保留编辑；已开始的素材或模板保存可能已完成。', 'error')
+        warned = true
+        return false
+      }
+      return true
     }
+    setBusy(msg)
+    try { await fn(current) }
+    catch (e: any) { if (current(false)) notify(e.message, 'error') }
+    finally { running.current = false; if (current(false)) setBusy('') }
   }
 
   const fetchUrl = () =>
-    run(async () => {
+    run(async (current) => {
       const { html } = await api.fetchArticle(url.trim())
+      if (!current()) return
       const doc = parse(html)
       if (!doc.querySelector('#js_content') && /环境异常|请在微信客户端打开|verify/i.test(html)) {
         throw new Error('公众号返回了验证页面，无法直接抓取。请在浏览器打开文章，全选复制正文后用「粘贴富文本」导入。')
@@ -82,12 +106,13 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
   }
 
   const doImport = () =>
-    run(async () => {
+    run(async (current) => {
       if (!article) return
       if (mode === 'relayout') {
         setBusy('下载图片到素材库…')
         const { markdown, images } = articleToMarkdown({ ...article, title })
         const map = images.length ? await api.fetchAssets(images) : {}
+        if (!current()) return
         // 图片地址替换为本地素材，便于排版引擎按章节分配与裁切
         const md = markdown.replace(/!\[\]\(([^)]+)\)/g, (m, u) => (map[u] ? `![](/media/${map[u].file})` : m))
         window.dispatchEvent(new Event('assets-changed'))
@@ -104,6 +129,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
         setBusy(`转存 ${urls.length} 张图片…`)
         for (let i = 0; i < urls.length; i += 60) {
           const got = await api.fetchAssets(urls.slice(i, i + 60)).catch(() => ({}) as Record<string, Asset>)
+          if (!current()) return
           for (const [u, a] of Object.entries(got)) map[u] = `/media/${a.file}`
         }
         rehostFailed = urls.length - Object.keys(map).length
@@ -115,6 +141,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
       if (article.cover) {
         setBusy('保存封面…')
         const r = await api.fetchAssets([article.cover]).catch(() => ({}) as Record<string, Asset>)
+        if (!current()) return
         if (r[article.cover]) cover = assetRef(r[article.cover])
       }
       const now = Date.now()
@@ -122,11 +149,13 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
       if (asTheme) {
         const t = themeFromReport(analyzeStyle(article.root), `${(title || '导入').slice(0, 10)} · 风格`)
         await api.saveTheme(t)
+        if (!current()) return
         registerTheme(t)
         refreshThemes()
         doc.themeId = t.id
       }
       if (asTemplate) await api.saveTemplate(templateName || title || '导入的推文模板', kept, doc)
+      if (!current()) return
       let added = 0
       let repeated = 0
       if (asComponents) {
@@ -139,25 +168,27 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
           for (const piece of componentPieces(html, b.props.label, parse)) {
             const block = createBlock('html', { html: piece.html, label: piece.label, source })
             const r = await api.saveComponent(makeDraft({ name: piece.label, block, source, via: 'import', attested: authorized }, parse))
+            if (!current()) return
             if (r.duplicate) repeated++
             else added++
           }
         }
         window.dispatchEvent(new Event('components-changed'))
       }
-      if (!(await saveBeforeLeave())) return
+      if (!current() || !(await saveBeforeLeave()) || !current()) return
       load(doc)
-      if (!(await saveBeforeLeave())) return
+      const loaded = useStore.getState().doc
+      if (!(await saveBeforeLeave()) || !current(false) || useStore.getState().doc !== loaded) return
       window.dispatchEvent(new Event('templates-changed'))
       const parts = [`已导入 ${kept.length} 个原文片段`, asTemplate && '并保存为模板', asComponents && `新增 ${added} 个组件${repeated ? `（${repeated} 个结构重复未收录）` : ''}`, rehostFailed && `${rehostFailed} 张图片转存失败，请在右侧替换`]
       notify(parts.filter(Boolean).join('，'), rehostFailed ? 'error' : 'ok')
       onClose()
     }, '导入中…')
 
-  if (wizard) return <ImportWizard onClose={onClose} initialText={wizard.text} initialImages={wizard.images} />
+  if (wizard) return <ImportWizard onClose={close} initialText={wizard.text} initialImages={wizard.images} />
 
   return (
-    <Modal title="导入公众号推文" onClose={onClose} width={article ? 980 : 640}>
+    <Modal title="导入公众号推文" onClose={close} width={article ? 980 : 640}>
       {!article ? (
         <>
           <nav className="seg" style={{ marginBottom: 12 }}>
@@ -227,7 +258,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
               我确认对该文章拥有使用权或已获授权，并自行承担版权责任
             </label>
             <div className="modal-actions">
-              <button onClick={onClose}>取消</button>
+              <button onClick={close}>取消</button>
               <button className="primary" disabled={!authorized || !!busy} onClick={doImport} data-testid="article-import">{busy || (mode === 'keep' ? '导入为新项目' : '下一步：重新排版')}</button>
             </div>
           </div>

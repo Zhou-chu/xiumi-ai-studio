@@ -7,7 +7,7 @@ import { Modal } from './Modal'
 import { useStore } from './store'
 
 /** Snapshot-only library operation: never patches the document, even if the user navigates away. */
-export function ArticleImageImport({ doc, selectedId, onClose }: { doc: Doc; selectedId?: string; onClose: () => void }) {
+export function ArticleImageImport({ doc, selectedId, onClose }: { doc: Doc; selectedId?: string | string[]; onClose: () => void }) {
   const [snapshot] = useState(doc)
   const [scopeId] = useState(selectedId)
   const [urls] = useState(() => collectArticleImages(doc, selectedId))

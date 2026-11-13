@@ -27,7 +27,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         await setImmediate()
         if (contention.failNext) {
           contention.failNext = false
-          throw Object.assign(new Error('Replacement failed'), { code: 'EPERM' })
+          throw Object.assign(new Error('Replacement failed'), { code: 'EIO' })
         }
         await fs.rename(from, to)
       } finally {
@@ -93,7 +93,7 @@ describe('atomic save queue', () => {
     await writeFile(file, JSON.stringify({ id: 0 }))
     contention.failNext = true
     const results = await Promise.allSettled([writeJson(file, { id: 1 }), writeJson(file, { id: 2 })])
-    expect(results[0]).toMatchObject({ status: 'rejected', reason: { code: 'EPERM' } })
+    expect(results[0]).toMatchObject({ status: 'rejected', reason: { code: 'EIO' } })
     expect(results[1]).toEqual({ status: 'fulfilled', value: undefined })
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ id: 2 })
     await writeJson(file, { id: 3 })
@@ -106,7 +106,7 @@ describe('atomic save queue', () => {
     const file = join(dir, 'project.json')
     await writeJson(file, { id: 0 })
     contention.failNext = true
-    await expect(writeJson(file, { id: 1 })).rejects.toMatchObject({ code: 'EPERM' })
+    await expect(writeJson(file, { id: 1 })).rejects.toMatchObject({ code: 'EIO' })
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ id: 0 })
     expect(await readdir(dir)).toEqual(['project.json'])
   })

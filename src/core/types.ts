@@ -12,6 +12,8 @@ export type RichText = RichNode // { type: 'doc', content: [...] }
 
 export interface ImageRef {
   src: string
+  /** Display width as a percentage of the existing image cell. */
+  displayWidth?: number
   assetId?: string
   alt?: string
   width?: number
@@ -144,8 +146,8 @@ export interface Theme extends ThemeTokens {
 /** AI 与程序化修改统一使用的操作；AI 永远不直接产出 HTML */
 export type DocOp =
   | { op: 'insert'; index: number; block: Block; reason?: string }
-  /** 原文片段只能按文字槽位修改：slots 为槽位 id → 新文字，props.html 由 slots 计算 */
-  | { op: 'update'; id: string; props: Record<string, any>; slots?: Record<string, string>; reason?: string }
+  /** Imported HTML updates use safe text slots and/or an explicit themeId; props.html is generated locally. */
+  | { op: 'update'; id: string; props: Record<string, any>; slots?: Record<string, string>; themeId?: string; layout?: 'editorial' | 'chapters'; reason?: string }
   | { op: 'remove'; id: string; reason?: string }
   | { op: 'move'; id: string; to: number; reason?: string }
   | { op: 'setTheme'; themeId: string; reason?: string }

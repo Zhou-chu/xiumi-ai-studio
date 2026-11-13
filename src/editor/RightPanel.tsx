@@ -1,3 +1,6 @@
+import { blockLabel } from '../core/blocks'
+import { findBlock } from '../core/tree'
+import { useSelectionScope } from './useSelectionScope'
 import { ArticleImageImport } from './ArticleImageImport'
 import { isImageLibraryRequest } from '../core/articleImages'
 import { UiIcon } from './UiIcon'
@@ -112,9 +115,11 @@ function ThemePanel() {
 
 function AiPanel() {
   const selected = useStore(selectedBlock)
-  const [scope, setScope] = useState<'selection' | 'document'>('selection')
+  const selectedIds = useStore(s => s.selectedIds)
+  const selectionKey = JSON.stringify([...selectedIds].sort())
   const doc = useStore((s) => s.doc)
   const proposal = useStore((s) => s.proposal)
+  const { scope, setScope } = useSelectionScope(doc.id, selectedIds)
   const { propose, notify } = useStore.getState()
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [instruction, setInstruction] = useState('')
@@ -123,9 +128,9 @@ function AiPanel() {
   const [busy, setBusy] = useState(false)
   const [autoSuggest, setAutoSuggest] = useState(readSuggestionPreference)
   const [suggestion, setSuggestion] = useState({ key: '', text: '', error: '' })
-  const selectedId = scope === 'selection' ? selected?.id : undefined
+  const selectedId = scope === 'selection' && selectedIds.length ? selectedIds.length === 1 ? selectedIds[0] : selectedIds : undefined
   // Strip image URLs and rich-text metadata, and send only selected content in selection mode.
-  const context = useMemo(() => aiContext(selectedId && selected ? { ...doc, blocks: [selected] } : doc), [doc, selected, selectedId])
+  const context = useMemo(() => aiContext(doc, selectedId), [doc, selectedId])
   const contextKey = JSON.stringify([doc.id, context, selectedId, ai?.profileId, ai?.model, ai?.provider, instructionSuggestions.revision])
   useEffect(() => {
     if (!autoSuggest || !ai?.enabled || instruction || busy || !context.blocks.length) return
@@ -146,6 +151,15 @@ function AiPanel() {
   const request = useRef(0)
   const requesting = useRef(false)
   useEffect(() => () => { request.current++; requesting.current = false }, [])
+  // A pending response belongs to the selection/scope at submission, not the next one.
+  useEffect(() => {
+    request.current++
+    if (requesting.current) {
+      requesting.current = false
+      setBusy(false)
+      notify('选择范围已变化，旧请求结果将被忽略，请重新生成建议。', 'error')
+    }
+  }, [doc.id, selectionKey, scope, notify])
   const run = async () => {
     if (!instruction.trim() || requesting.current) return
     if (imageCommand) { setCollectImages(true); return }
@@ -155,6 +169,7 @@ function AiPanel() {
     try {
       const r = await api.aiEdit(aiContext(doc, selectedId), instruction, undefined, selectedId)
       if (generation !== request.current) return
+      if (JSON.stringify([...useStore.getState().selectedIds].sort()) !== selectionKey) throw new Error('选择范围已变化，请重新生成建议')
       if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
       propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [], selectedId)
     } catch (e: any) {
@@ -171,12 +186,12 @@ function AiPanel() {
         <button className="link" onClick={() => window.dispatchEvent(new Event('open-ai-settings'))}>{ai?.enabled ? '切换' : '去配置'}</button>
       </p>
       <label className="field"><span>修改范围</span>
-        <select value={selected ? scope : 'document'} onChange={(e) => setScope(e.target.value as 'selection' | 'document')} disabled={busy}>
-          {selected && <option value="selection">仅选中模块：{selected.type}（{selected.id}）</option>}
+        <select data-testid="ai-edit-scope" value={scope} onChange={(e) => setScope(e.target.value as 'selection' | 'document')} disabled={busy}>
+          {selectedIds.length > 0 && <option value="selection">{selectedIds.length > 1 ? `已选 ${selectedIds.length} 个模块` : `仅选中模块：${selected?.type}（${selected?.id}）`}</option>}
           <option value="document">全文</option>
         </select>
       </label>
-      <p className="hint">{selected && scope === 'selection' ? '仅生成选中模块的修改建议，其他模块不会被修改。' : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
+      <p className="hint">{selected && scope === 'selection' ? `仅生成已选 ${selectedIds.length} 个模块的修改建议，其他模块不会被修改。` : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
       <label className="hint"><input type="checkbox" checked={autoSuggest} onChange={(e) => { saveSuggestionPreference(e.target.checked); setAutoSuggest(e.target.checked) }} /> 自动生成输入建议</label>
       <p className="hint">开启后会将当前范围的文稿发送到当前模型，可能产生 API 费用；当前页面的建议请求间隔至少 30 秒。不发送图片文件。</p>
       <SuggestionInput value={instruction} onChange={setInstruction} disabled={busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
@@ -267,6 +282,8 @@ function ReferencePanel() {
 export function RightPanel() {
   const [tab, setTab] = useState<Tab>('style')
   const block = useStore(selectedBlock)
+  const selectedIds = useStore(s=>s.selectedIds)
+  const doc = useStore(s=>s.doc)
   const hasProposal = useStore((s) => !!s.proposal)
   useEffect(() => {
     if (hasProposal) setTab('ai')
@@ -281,7 +298,13 @@ export function RightPanel() {
         ))}
       </nav>
       <div className="panel-body">
-        {tab === 'style' && (block ? <PropsForm key={block.id} block={block} /> : <DocSettings />)}
+        {tab === 'style' && (selectedIds.length > 1 ? <div className="props-form" data-testid="multi-selection-properties">
+          <h4>已选 {selectedIds.length} 个模块</h4>
+          <p>当前为多选。不同模块的属性不混用；点击单个模块可编辑其属性。</p>
+          <ul>{selectedIds.map(id=><li key={id}>{blockLabel(findBlock(doc.blocks,id)!.block)}</li>)}</ul>
+          <button data-testid="delete-selected-blocks" onClick={()=>useStore.getState().removeSelected()}>删除所选模块</button>
+          <button onClick={()=>useStore.getState().select(null)}>取消选择</button>
+        </div> : block ? <PropsForm key={block.id} block={block} /> : <DocSettings />)}
         {tab === 'theme' && <ThemePanel />}
         {tab === 'ai' && <AiPanel />}
         {tab === 'reference' && <ReferencePanel />}

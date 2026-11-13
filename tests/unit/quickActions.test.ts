@@ -1,22 +1,32 @@
+// @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildVariants } from '../../src/core/layouts'
-import { applyOps, limitToSelection, selectionScope, validateOp } from '../../src/core/ops'
+import { limitToSelection, selectionScope, validateOp } from '../../src/core/ops'
 import { createBlock } from '../../src/core/blocks'
 import { parseArticle } from '../../src/core/outline'
 import { QUICK_ACTIONS, aiContext } from '../../src/core/quickActions'
+import { useStore } from '../../src/editor/store'
 
 const text = readFileSync(join(import.meta.dirname, '..', '..', 'samples', 'activity.txt'), 'utf8')
 const images = Array.from({ length: 10 }, (_, i) => ({ src: `/media/p${i}.jpg` }))
 
 describe('quick actions', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
   for (const { recipe, doc } of buildVariants(parseArticle(text), images)) {
     it(`all ops are valid and idempotent on ${recipe.id}`, () => {
       for (const a of QUICK_ACTIONS) {
         const { ops } = a.run(doc)
         for (const op of ops) expect(validateOp(doc, op).error, `${a.id}`).toBeUndefined()
-        const next = applyOps(doc, ops)
+        // Same base-anchor interpretation as the real RightPanel proposal workflow.
+        useStore.getState().load(doc)
+        useStore.getState().propose(a.id, ops)
+        expect(useStore.getState().proposal!.errors, a.id).toEqual([])
+        useStore.getState().resolveProposal('all', 'accepted')
+        expect(useStore.getState().proposal!.items.every(item => item.status === 'accepted'), a.id).toBe(true)
+        const next = useStore.getState().doc
         // 再执行一次不应再产生改动（分割、序号、引语去重）
         if (a.id !== 'split-long') expect(a.run(next).ops, `${a.id} second run`).toEqual([])
       }
@@ -67,17 +77,17 @@ describe('ai edits limited to the selected module', () => {
     expect(limitToSelection(doc, null, raw)).toEqual({ ops: raw, dropped: [] })
     expect(limitToSelection(doc, 'missing', raw)).toEqual({ ops: [], dropped: raw })
   })
-  it('sends the whole selected module and only one-line summaries of the rest', () => {
+  it('sends only the selected module, including nested selection without parent context', () => {
     const ctx: any = aiContext(doc, 'b')
     expect(ctx.focus).toEqual({ id: 'b', type: 'paragraph' })
-    expect(ctx.blocks[1].props.content).toBe('第二段')
-    expect(ctx.blocks[0]).toEqual({ index: 0, id: 'a', type: 'paragraph', summary: '第一段' })
-    expect(ctx.blocks[3].summary).toBe('第四段')
-    // 选中文本框里的子模块：把整个文本框交给模型，方便看到上下文
+    expect(ctx.blocks).toHaveLength(1)
+    expect(ctx.blocks[0].id).toBe('b')
+    expect(ctx.blocks[0].props.content).toBe('第二段')
     const c2: any = aiContext(doc, 'c1')
     expect(c2.focus.id).toBe('c1')
-    expect(c2.blocks[2].props.children[0].id).toBe('c1')
-    // 没选中时和原来一样
+    expect(c2.blocks).toHaveLength(1)
+    expect(c2.blocks[0].id).toBe('c1')
+    // Full document context is reserved for no selection.
     expect((aiContext(doc) as any).focus).toBeUndefined()
   })
 })

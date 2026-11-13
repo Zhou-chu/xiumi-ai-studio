@@ -246,7 +246,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
               <datalist id="ai-reasoning-efforts">{(cur.efforts?.length ? cur.efforts : COMMON_EFFORTS).map((effort) => <option key={effort} value={effort} />)}</datalist>
               <Help title="思考强度参数">仅填写服务商支持的强度；OpenAI 兼容接口发送 reasoning_effort / max_completion_tokens，Claude 发送 output_config.effort。设置强度时不发送 temperature；不支持的参数会显示错误。</Help>
               <label className="field"><span>单次最大输出（tokens）</span><input data-testid="ai-max-output" type="number" min="0" step="1" value={cur.maxOutputTokens || ''} disabled={cur.readonly} placeholder="未知" onChange={(e) => patch({ maxOutputTokens: Number(e.target.value) || 0 })} /></label>
-              <Help title="输出上限">请求的输出上限不会超过此值；留空使用任务默认值。</Help>
+              <Help title="输出上限">实际生成请求使用此输出预算；留空才使用任务默认值。思考与正文可能共用预算。连接和能力测试使用独立的小预算，不代表正式生成上限。</Help>
               <button data-testid="ai-probe-effort" disabled={!cur.baseUrl || !cur.model || probing} onClick={() => probe(cur)}>{probing ? '检测中…' : '检测支持的强度'}</button>
               <p className="hint">检测会向当前服务商发送多条请求，可能产生 API 费用；只有点击检测才会发送。</p>
               <p className="hint" data-testid="ai-effort-note">{effortNote || (cur.efforts?.length ? `已知强度：${cur.efforts.join('、')}` : '可手动填写服务商支持的强度，或点击检测。')}</p>

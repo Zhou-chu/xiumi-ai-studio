@@ -1,0 +1,76 @@
+[
+  {
+    "path": "outline",
+    "body": {
+      "text": "source",
+      "imageNames": [
+        "one",
+        "two"
+      ]
+    },
+    "prompt": "文稿如下：\n\nsource\n\n可用图片（括号内是用户对照片的描述，按描述把照片归到对应章节；imageRefs 只填文件名，可留空）：one、two"
+  },
+  {
+    "path": "design",
+    "body": {
+      "brief": {
+        "section": "one"
+      },
+      "hint": "calm"
+    },
+    "prompt": "文章结构摘要：\n{\"section\":\"one\"}\n\n用户的风格要求：calm"
+  },
+  {
+    "path": "copywrite",
+    "body": {
+      "brief": "event",
+      "style": "formal",
+      "length": 500,
+      "levels": 2,
+      "extra": "details",
+      "previous": "previous",
+      "revise": "revise"
+    },
+    "prompt": "活动描述：\nevent\n\n文风：formal\n篇幅：正文约 500 字\n标题级别：使用 2 级标题：一级标题（##）、二级标题（###）\n补充要求：details\n\n上一版文案：\nprevious\n\n修改意见：revise\n请在上一版基础上按修改意见改写，格式要求不变，输出完整文案。"
+  },
+  {
+    "path": "enrich-copy",
+    "body": {
+      "text": "article",
+      "photos": [
+        {
+          "no": 1,
+          "note": "photo"
+        }
+      ],
+      "keep": [
+        "keep"
+      ]
+    },
+    "prompt": "原文案：\narticle\n\n照片描述（按照片编号）：\n照片 1：photo\n\n必须原样保留的句子：\n- keep"
+  },
+  {
+    "path": "place-photos",
+    "body": {
+      "items": [
+        {
+          "id": "p"
+        }
+      ],
+      "units": [
+        {
+          "id": "u",
+          "photos": [
+            1
+          ]
+        }
+      ],
+      "layouts": {
+        "2": [
+          "pair"
+        ]
+      }
+    },
+    "prompt": "段落：\n[{\"id\":\"p\"}]\n\n照片单元：\n[{\"id\":\"u\",\"photos\":[1]}]\n\n可用版式（按照片张数）：\n{\"2\":[\"pair\"]}"
+  }
+]

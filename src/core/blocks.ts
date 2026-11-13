@@ -161,7 +161,7 @@ const str = (v: unknown) => (v === null || v === undefined ? '' : typeof v === '
 const isRich = (v: any) => v && typeof v === 'object' && v.type === 'doc' && Array.isArray(v.content)
 function imageRef(v: any) {
   if (!v || typeof v !== 'object' || typeof v.src !== 'string' || !v.src) return undefined
-  return { src: v.src, ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(typeof v.alt === 'string' && { alt: v.alt }), ...(Number(v.width) > 0 && { width: Number(v.width) }), ...(Number(v.height) > 0 && { height: Number(v.height) }) }
+  return { src: v.src, ...(typeof v.displayWidth === 'number' && Number.isFinite(v.displayWidth) && { displayWidth: Math.max(10, Math.min(100, v.displayWidth)) }), ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(typeof v.alt === 'string' && { alt: v.alt }), ...(Number(v.width) > 0 && { width: Number(v.width) }), ...(Number(v.height) > 0 && { height: Number(v.height) }) }
 }
 
 /**

@@ -1,7 +1,9 @@
+import { applyImageWidths } from './imageResize'
 // 微信 HTML 编译器：文档 JSON → 全内联样式 HTML。
 // 画布、手机预览、复制、草稿箱都使用同一份输出，保证所见即所得。
 import { boxParts, boxTheme, KIT_RENDERERS, KIT_TYPES, kitEmptySlots, type KitCtx } from './kit'
 import { guardHtml } from './sanitize'
+import { safeTextFont, safeTextSize } from './textTypography'
 import { css, esc, safeColor } from './style'
 import { resolveTheme } from './themes'
 import { flatBlocks } from './tree'
@@ -88,7 +90,7 @@ function renderInline(n: RichNode, ctx: Ctx): string {
   for (const m of n.marks ?? []) {
     switch (m.type) {
       case 'bold':
-        html = `<strong style="${css({ 'font-weight': 700, color: ctx.c.primary })}">${html}</strong>`
+        html = `<strong style="${css({ 'font-weight': 700, color: safeColor(n.marks?.find(mark => mark.type === 'textStyle')?.attrs?.color) ?? ctx.c.primary })}">${html}</strong>`
         break
       case 'italic':
         html = `<em style="${css({ 'font-style': 'italic' })}">${html}</em>`
@@ -104,7 +106,9 @@ function renderInline(n: RichNode, ctx: Ctx): string {
         break
       case 'textStyle': {
         const color = safeColor(m.attrs?.color)
-        if (color) html = `<span style="${css({ color })}">${html}</span>`
+        const fontFamily = safeTextFont(m.attrs?.fontFamily)
+        const fontSize = safeTextSize(m.attrs?.fontSize)
+        if (color || fontFamily || fontSize) html = `<span style="${css({ color, 'font-family': fontFamily, 'font-size': fontSize })}">${html}</span>`
         break
       }
       case 'link':
@@ -484,9 +488,9 @@ export function compileBlock(block: Block, theme: Theme, opts: CompileOptions = 
     return `<section style="${parts.outer}">${parts.header}<section style="${parts.body}">${inner}</section>${parts.footer}</section>`
   }
   const kit = KIT_RENDERERS[block.type as keyof typeof KIT_RENDERERS] as ((b: Block, ctx: KitCtx) => string) | undefined
-  if (kit) return kit(block, ctx)
+  if (kit) return applyImageWidths(kit(block, ctx), block)
   const render = R[block.type as keyof Renderers] as Renderer<keyof Renderers>
-  return render(block as never, ctx)
+  return applyImageWidths(render(block as never, ctx), block)
 }
 
 export interface CompileResult {

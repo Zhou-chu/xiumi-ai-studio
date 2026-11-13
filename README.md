@@ -68,3 +68,6 @@ data/          本地数据（不入库）
 - [微信兼容性测试](docs/03-wechat-compat-test.md)
 - [多 Agent 协作流程](docs/04-multi-agent-workflow.md)
 - [第三方声明](THIRD_PARTY_NOTICES.md)
+
+
+功能变更、验收与发布门槛见 [持续功能需求与实现清单](docs/functional-requirements.md)。

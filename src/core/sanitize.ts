@@ -18,7 +18,7 @@ const WX_WIDGETS: Record<string, string> = {
   'mp-common-profile': '公众号名片', 'mpvoice': '音频', 'mp-common-mpaudio': '音频', 'qqmusic': '音乐', 'mpvideosnap': '视频号',
   'mp-common-videosnap': '视频号', 'mpprofile': '公众号名片', 'mp-miniprogram': '小程序', 'mp-common-product': '商品卡片',
 }
-const ATTRS = new Set(['style', 'src', 'href', 'alt', 'colspan', 'rowspan', 'width', 'height', 'align', 'valign', 'color', 'size', 'face'])
+const ATTRS = new Set(['style', 'src', 'href', 'alt', 'colspan', 'rowspan', 'width', 'height', 'align', 'valign', 'color', 'size', 'face', 'start'])
 const SVG_ATTR_BAD = /^on|^(href|xlink:href)$/i
 
 const isWxImage = (u: string) => /^https?:\/\/[^/]*(qpic\.cn|qlogo\.cn)\//i.test(u)
@@ -146,6 +146,7 @@ export function sanitizeTree(root: Element) {
       for (const a of Array.from(node.attributes)) {
         const name = a.name.toLowerCase()
         if (!ATTRS.has(name)) node.removeAttribute(a.name)
+        else if (name === 'start' && (node.tagName.toLowerCase() !== 'ol' || !/^-?\d+$/.test(a.value))) node.removeAttribute(a.name)
         else if (name === 'href' && !/^https?:\/\//i.test(a.value)) node.removeAttribute(a.name)
         else if (name === 'src' && node.tagName.toLowerCase() !== 'img') node.removeAttribute(a.name)
       }

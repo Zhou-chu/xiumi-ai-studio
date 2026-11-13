@@ -71,6 +71,8 @@ export function contentLayer(root: Element): { layer: Element; wrappers: Element
     const only = kids[0]
     const st = only.getAttribute('style') ?? ''
     if (!['section', 'p', 'span', 'div'].includes(only.tagName.toLowerCase()) || !only.children.length || LAYOUT.test(st)) break
+    // Keep unsafe outer shells intact, just as nested card splitting does.
+    if (['section', 'div'].includes(only.tagName.toLowerCase()) && !shellOk(only)) break
     if (BOXY.test(st)) wrappers.push(only)
     cur = only
   }
@@ -386,6 +388,24 @@ export function articleToMarkdown(a: ImportedArticle): { markdown: string; image
         images.push(src)
         lines.push(`![](${src})`)
       }
+      return
+    }
+    if (tag === 'ul' || tag === 'ol') {
+      const renderList = (list: Element, indent: string): string[] => {
+        const ordered = list.tagName.toLowerCase() === 'ol'
+        const parsedStart = Number(list.getAttribute('start') ?? 1)
+        const start = Number.isInteger(parsedStart) ? parsedStart : 1
+        return Array.from(list.children).filter((c) => c.tagName.toLowerCase() === 'li').flatMap((item, index) => {
+          const content = item.cloneNode(true) as Element
+          content.querySelectorAll('ul, ol').forEach((nested) => nested.remove())
+          const prefix = ordered ? String(start + index) + '. ' : '- '
+          const nested = Array.from(item.children).filter((c) => /^(ul|ol)$/i.test(c.tagName))
+          return [indent + prefix + text(content), ...nested.flatMap((list) => renderList(list, indent + ' '.repeat(prefix.length)))]
+        })
+      }
+      lines.push(renderList(el, '').join('\n'))
+      el.querySelectorAll('img').forEach((img) => leaf(img))
+      seen.add(el)
       return
     }
     if (tag === 'table') {

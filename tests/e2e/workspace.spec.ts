@@ -134,10 +134,12 @@ test('选中模块后，AI 只改选中的模块', async ({ page }) => {
   await expect(page.getByTestId('proposal')).toContainText('已忽略 3 条')
   await expect(page.getByTestId('proposal')).toContainText('修改其他模块不在选中的模块上')
   expect(bodies[0].context.focus).toEqual({ id: 'p2', type: 'paragraph' })
-  // 其他模块只给一行摘要，选中的才给完整内容
-  expect(bodies[0].context.blocks[0]).toMatchObject({ id: 'p1', summary: '第一段内容' })
-  expect(bodies[0].context.blocks[0]).not.toHaveProperty('props')
-  expect(bodies[0].context.blocks[1]).toHaveProperty('props')
+  // Only the exact selected module is transmitted, never unselected summaries.
+  expect(bodies[0].selectedId).toBe('p2')
+  expect(bodies[0].context.blocks).toHaveLength(1)
+  expect(bodies[0].context.blocks[0]).toMatchObject({ id: 'p2', props: { content: '第二段内容' } })
+  expect(bodies[0].context.blocks.map((block: { id: string }) => block.id)).not.toContain('p1')
+  expect(bodies[0].context.blocks.map((block: { id: string }) => block.id)).not.toContain('p3')
 
   // 切回整篇文章：所有修改都接受
   await page.getByLabel('修改范围').selectOption('document')

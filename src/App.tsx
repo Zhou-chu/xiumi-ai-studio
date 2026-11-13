@@ -77,7 +77,7 @@ function useShortcuts(enabled: boolean) {
         s.redo()
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selectedId && !s.editingId) {
         e.preventDefault()
-        s.removeBlock(s.selectedId)
+        s.removeSelected()
       } else if (e.key === 'Escape') s.select(null)
     }
     window.addEventListener('keydown', onKey)

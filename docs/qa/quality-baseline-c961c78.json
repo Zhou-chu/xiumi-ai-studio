@@ -1,0 +1,1389 @@
+{
+  "baseline": "c961c78604f4c1135438d54e1a08a7ba29bc1861",
+  "unitTests": 468,
+  "testFiles": 55,
+  "sourceFiles": 94,
+  "coverage": {
+    "lines": {
+      "total": 6841,
+      "covered": 4250,
+      "skipped": 0,
+      "pct": 62.12
+    },
+    "statements": {
+      "total": 9048,
+      "covered": 5440,
+      "skipped": 0,
+      "pct": 60.12
+    },
+    "functions": {
+      "total": 2464,
+      "covered": 1260,
+      "skipped": 0,
+      "pct": 51.13
+    },
+    "branches": {
+      "total": 7452,
+      "covered": 4148,
+      "skipped": 0,
+      "pct": 55.66
+    },
+    "branchesTrue": {
+      "total": 0,
+      "covered": 0,
+      "skipped": 0,
+      "pct": 100
+    }
+  },
+  "coverageByFile": [
+    {
+      "file": "server/ai.ts",
+      "lines": 111,
+      "covered": 102,
+      "pct": 91.89,
+      "missing": 9,
+      "branches": 80.09
+    },
+    {
+      "file": "server/aiEdit.ts",
+      "lines": 8,
+      "covered": 8,
+      "pct": 100,
+      "missing": 0,
+      "branches": 83.33
+    },
+    {
+      "file": "server/aiModels.ts",
+      "lines": 79,
+      "covered": 76,
+      "pct": 96.2,
+      "missing": 3,
+      "branches": 87.36
+    },
+    {
+      "file": "server/aiSuggestion.ts",
+      "lines": 6,
+      "covered": 6,
+      "pct": 100,
+      "missing": 0,
+      "branches": 100
+    },
+    {
+      "file": "server/articleImages.ts",
+      "lines": 34,
+      "covered": 34,
+      "pct": 100,
+      "missing": 0,
+      "branches": 90.32
+    },
+    {
+      "file": "server/assets.ts",
+      "lines": 54,
+      "covered": 23,
+      "pct": 42.59,
+      "missing": 31,
+      "branches": 15
+    },
+    {
+      "file": "server/components.ts",
+      "lines": 21,
+      "covered": 21,
+      "pct": 100,
+      "missing": 0,
+      "branches": 80
+    },
+    {
+      "file": "server/importer.ts",
+      "lines": 36,
+      "covered": 25,
+      "pct": 69.44,
+      "missing": 11,
+      "branches": 48
+    },
+    {
+      "file": "server/index.ts",
+      "lines": 224,
+      "covered": 0,
+      "pct": 0,
+      "missing": 224,
+      "branches": 0
+    },
+    {
+      "file": "server/net.ts",
+      "lines": 82,
+      "covered": 79,
+      "pct": 96.34,
+      "missing": 3,
+      "branches": 93.9
+    },
+    {
+      "file": "server/projectStore.ts",
+      "lines": 20,
+      "covered": 20,
+      "pct": 100,
+      "missing": 0,
+      "branches": 100
+    },
+    {
+      "file": "server/settings.ts",
+      "lines": 57,
+      "covered": 56,
+      "pct": 98.24,
+      "missing": 1,
+      "branches": 83.19
+    },
+    {
+      "file": "server/store.ts",
+      "lines": 32,
+      "covered": 31,
+      "pct": 96.87,
+      "missing": 1,
+      "branches": 87.5
+    },
+    {
+      "file": "server/wechat.ts",
+      "lines": 53,
+      "covered": 15,
+      "pct": 28.3,
+      "missing": 38,
+      "branches": 31.57
+    },
+    {
+      "file": "src/App.tsx",
+      "lines": 161,
+      "covered": 0,
+      "pct": 0,
+      "missing": 161,
+      "branches": 0
+    },
+    {
+      "file": "src/main.tsx",
+      "lines": 6,
+      "covered": 0,
+      "pct": 0,
+      "missing": 6,
+      "branches": 0
+    },
+    {
+      "file": "src/core/aiDesign.ts",
+      "lines": 98,
+      "covered": 96,
+      "pct": 97.95,
+      "missing": 2,
+      "branches": 85.5
+    },
+    {
+      "file": "src/core/articleImages.ts",
+      "lines": 27,
+      "covered": 26,
+      "pct": 96.29,
+      "missing": 1,
+      "branches": 74.19
+    },
+    {
+      "file": "src/core/assemble.ts",
+      "lines": 259,
+      "covered": 189,
+      "pct": 72.97,
+      "missing": 70,
+      "branches": 62.77
+    },
+    {
+      "file": "src/core/blockTextEditing.ts",
+      "lines": 34,
+      "covered": 29,
+      "pct": 85.29,
+      "missing": 5,
+      "branches": 71.42
+    },
+    {
+      "file": "src/core/blocks.ts",
+      "lines": 73,
+      "covered": 72,
+      "pct": 98.63,
+      "missing": 1,
+      "branches": 79.36
+    },
+    {
+      "file": "src/core/color.ts",
+      "lines": 34,
+      "covered": 32,
+      "pct": 94.11,
+      "missing": 2,
+      "branches": 66.66
+    },
+    {
+      "file": "src/core/compiler.ts",
+      "lines": 224,
+      "covered": 209,
+      "pct": 93.3,
+      "missing": 15,
+      "branches": 78.08
+    },
+    {
+      "file": "src/core/components.ts",
+      "lines": 62,
+      "covered": 62,
+      "pct": 100,
+      "missing": 0,
+      "branches": 82.83
+    },
+    {
+      "file": "src/core/copy.ts",
+      "lines": 87,
+      "covered": 77,
+      "pct": 88.5,
+      "missing": 10,
+      "branches": 77.17
+    },
+    {
+      "file": "src/core/enrich.ts",
+      "lines": 17,
+      "covered": 17,
+      "pct": 100,
+      "missing": 0,
+      "branches": 84.61
+    },
+    {
+      "file": "src/core/exporters.ts",
+      "lines": 46,
+      "covered": 40,
+      "pct": 86.95,
+      "missing": 6,
+      "branches": 74.46
+    },
+    {
+      "file": "src/core/fragments.ts",
+      "lines": 166,
+      "covered": 166,
+      "pct": 100,
+      "missing": 0,
+      "branches": 86.95
+    },
+    {
+      "file": "src/core/images.ts",
+      "lines": 28,
+      "covered": 25,
+      "pct": 89.28,
+      "missing": 3,
+      "branches": 44
+    },
+    {
+      "file": "src/core/kit.ts",
+      "lines": 101,
+      "covered": 100,
+      "pct": 99,
+      "missing": 1,
+      "branches": 79.73
+    },
+    {
+      "file": "src/core/layouts.ts",
+      "lines": 92,
+      "covered": 84,
+      "pct": 91.3,
+      "missing": 8,
+      "branches": 78.66
+    },
+    {
+      "file": "src/core/ops.ts",
+      "lines": 87,
+      "covered": 56,
+      "pct": 64.36,
+      "missing": 31,
+      "branches": 50
+    },
+    {
+      "file": "src/core/outline.ts",
+      "lines": 110,
+      "covered": 101,
+      "pct": 91.81,
+      "missing": 9,
+      "branches": 70.98
+    },
+    {
+      "file": "src/core/photoPlan.ts",
+      "lines": 80,
+      "covered": 72,
+      "pct": 90,
+      "missing": 8,
+      "branches": 74.75
+    },
+    {
+      "file": "src/core/photos.ts",
+      "lines": 52,
+      "covered": 49,
+      "pct": 94.23,
+      "missing": 3,
+      "branches": 75.9
+    },
+    {
+      "file": "src/core/quickActions.ts",
+      "lines": 60,
+      "covered": 55,
+      "pct": 91.66,
+      "missing": 5,
+      "branches": 83.87
+    },
+    {
+      "file": "src/core/recolor.ts",
+      "lines": 89,
+      "covered": 88,
+      "pct": 98.87,
+      "missing": 1,
+      "branches": 84.52
+    },
+    {
+      "file": "src/core/richtext.ts",
+      "lines": 41,
+      "covered": 35,
+      "pct": 85.36,
+      "missing": 6,
+      "branches": 51.47
+    },
+    {
+      "file": "src/core/roles.ts",
+      "lines": 98,
+      "covered": 90,
+      "pct": 91.83,
+      "missing": 8,
+      "branches": 67.05
+    },
+    {
+      "file": "src/core/sanitize.ts",
+      "lines": 116,
+      "covered": 107,
+      "pct": 92.24,
+      "missing": 9,
+      "branches": 89.84
+    },
+    {
+      "file": "src/core/slots.ts",
+      "lines": 319,
+      "covered": 318,
+      "pct": 99.68,
+      "missing": 1,
+      "branches": 89.87
+    },
+    {
+      "file": "src/core/style.ts",
+      "lines": 13,
+      "covered": 13,
+      "pct": 100,
+      "missing": 0,
+      "branches": 80
+    },
+    {
+      "file": "src/core/styleExtract.ts",
+      "lines": 62,
+      "covered": 61,
+      "pct": 98.38,
+      "missing": 1,
+      "branches": 77.77
+    },
+    {
+      "file": "src/core/templateFill.ts",
+      "lines": 74,
+      "covered": 64,
+      "pct": 86.48,
+      "missing": 10,
+      "branches": 76.59
+    },
+    {
+      "file": "src/core/themes.ts",
+      "lines": 11,
+      "covered": 10,
+      "pct": 90.9,
+      "missing": 1,
+      "branches": 85.71
+    },
+    {
+      "file": "src/core/tree.ts",
+      "lines": 55,
+      "covered": 55,
+      "pct": 100,
+      "missing": 0,
+      "branches": 90.38
+    },
+    {
+      "file": "src/core/types.ts",
+      "lines": 0,
+      "covered": 0,
+      "pct": 100,
+      "missing": 0,
+      "branches": 100
+    },
+    {
+      "file": "src/core/wxImport.ts",
+      "lines": 251,
+      "covered": 243,
+      "pct": 96.81,
+      "missing": 8,
+      "branches": 79.17
+    },
+    {
+      "file": "src/core/xiumiExport.ts",
+      "lines": 135,
+      "covered": 135,
+      "pct": 100,
+      "missing": 0,
+      "branches": 94.64
+    },
+    {
+      "file": "src/editor/AiSettingsModal.tsx",
+      "lines": 166,
+      "covered": 126,
+      "pct": 75.9,
+      "missing": 40,
+      "branches": 60.58
+    },
+    {
+      "file": "src/editor/ArticleImageImport.tsx",
+      "lines": 34,
+      "covered": 0,
+      "pct": 0,
+      "missing": 34,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/ArticleImport.tsx",
+      "lines": 119,
+      "covered": 0,
+      "pct": 0,
+      "missing": 119,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/BlockTextEditor.tsx",
+      "lines": 6,
+      "covered": 0,
+      "pct": 0,
+      "missing": 6,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/Canvas.tsx",
+      "lines": 265,
+      "covered": 8,
+      "pct": 3.01,
+      "missing": 257,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/CollectModal.tsx",
+      "lines": 63,
+      "covered": 0,
+      "pct": 0,
+      "missing": 63,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/ColorModeControl.tsx",
+      "lines": 39,
+      "covered": 38,
+      "pct": 97.43,
+      "missing": 1,
+      "branches": 100
+    },
+    {
+      "file": "src/editor/ComponentLibrary.tsx",
+      "lines": 82,
+      "covered": 1,
+      "pct": 1.21,
+      "missing": 81,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/Copywriter.tsx",
+      "lines": 44,
+      "covered": 0,
+      "pct": 0,
+      "missing": 44,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/CoverDesigner.tsx",
+      "lines": 119,
+      "covered": 97,
+      "pct": 81.51,
+      "missing": 22,
+      "branches": 63.15
+    },
+    {
+      "file": "src/editor/CoverTitleAlignment.tsx",
+      "lines": 2,
+      "covered": 2,
+      "pct": 100,
+      "missing": 0,
+      "branches": 50
+    },
+    {
+      "file": "src/editor/CropModal.tsx",
+      "lines": 17,
+      "covered": 1,
+      "pct": 5.88,
+      "missing": 16,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/ErrorBoundary.tsx",
+      "lines": 7,
+      "covered": 0,
+      "pct": 0,
+      "missing": 7,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/Help.tsx",
+      "lines": 38,
+      "covered": 38,
+      "pct": 100,
+      "missing": 0,
+      "branches": 75.67
+    },
+    {
+      "file": "src/editor/ImportWizard.tsx",
+      "lines": 244,
+      "covered": 0,
+      "pct": 0,
+      "missing": 244,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/InlineReview.tsx",
+      "lines": 157,
+      "covered": 0,
+      "pct": 0,
+      "missing": 157,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/KitPicker.tsx",
+      "lines": 73,
+      "covered": 0,
+      "pct": 0,
+      "missing": 73,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/LeftPanel.tsx",
+      "lines": 105,
+      "covered": 42,
+      "pct": 40,
+      "missing": 63,
+      "branches": 26.31
+    },
+    {
+      "file": "src/editor/Modal.tsx",
+      "lines": 30,
+      "covered": 22,
+      "pct": 73.33,
+      "missing": 8,
+      "branches": 44.11
+    },
+    {
+      "file": "src/editor/ModelPicker.tsx",
+      "lines": 56,
+      "covered": 56,
+      "pct": 100,
+      "missing": 0,
+      "branches": 81.48
+    },
+    {
+      "file": "src/editor/PhotoPlanner.tsx",
+      "lines": 33,
+      "covered": 0,
+      "pct": 0,
+      "missing": 33,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/PlanIssues.tsx",
+      "lines": 20,
+      "covered": 0,
+      "pct": 0,
+      "missing": 20,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/PropsForm.tsx",
+      "lines": 161,
+      "covered": 56,
+      "pct": 34.78,
+      "missing": 105,
+      "branches": 27.73
+    },
+    {
+      "file": "src/editor/RichEditor.tsx",
+      "lines": 31,
+      "covered": 0,
+      "pct": 0,
+      "missing": 31,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/RightPanel.tsx",
+      "lines": 123,
+      "covered": 0,
+      "pct": 0,
+      "missing": 123,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/RoleSelect.tsx",
+      "lines": 5,
+      "covered": 1,
+      "pct": 20,
+      "missing": 4,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/SuggestionInput.tsx",
+      "lines": 13,
+      "covered": 12,
+      "pct": 92.3,
+      "missing": 1,
+      "branches": 100
+    },
+    {
+      "file": "src/editor/TemplateModules.tsx",
+      "lines": 23,
+      "covered": 1,
+      "pct": 4.34,
+      "missing": 22,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/Toolbar.tsx",
+      "lines": 158,
+      "covered": 58,
+      "pct": 36.7,
+      "missing": 100,
+      "branches": 15.57
+    },
+    {
+      "file": "src/editor/UiIcon.tsx",
+      "lines": 2,
+      "covered": 2,
+      "pct": 100,
+      "missing": 0,
+      "branches": 50
+    },
+    {
+      "file": "src/editor/Workspace.tsx",
+      "lines": 97,
+      "covered": 65,
+      "pct": 67.01,
+      "missing": 32,
+      "branches": 35.89
+    },
+    {
+      "file": "src/editor/aiPresets.ts",
+      "lines": 1,
+      "covered": 1,
+      "pct": 100,
+      "missing": 0,
+      "branches": 100
+    },
+    {
+      "file": "src/editor/api.ts",
+      "lines": 64,
+      "covered": 20,
+      "pct": 31.25,
+      "missing": 44,
+      "branches": 84.61
+    },
+    {
+      "file": "src/editor/colorMode.ts",
+      "lines": 10,
+      "covered": 10,
+      "pct": 100,
+      "missing": 0,
+      "branches": 100
+    },
+    {
+      "file": "src/editor/componentActions.ts",
+      "lines": 17,
+      "covered": 4,
+      "pct": 23.52,
+      "missing": 13,
+      "branches": 0
+    },
+    {
+      "file": "src/editor/documentNavigation.ts",
+      "lines": 6,
+      "covered": 4,
+      "pct": 66.66,
+      "missing": 2,
+      "branches": 50
+    },
+    {
+      "file": "src/editor/inlineReviewGeometry.ts",
+      "lines": 14,
+      "covered": 14,
+      "pct": 100,
+      "missing": 0,
+      "branches": 76.47
+    },
+    {
+      "file": "src/editor/kitItems.ts",
+      "lines": 9,
+      "covered": 3,
+      "pct": 33.33,
+      "missing": 6,
+      "branches": 100
+    },
+    {
+      "file": "src/editor/proposalSafety.ts",
+      "lines": 79,
+      "covered": 78,
+      "pct": 98.73,
+      "missing": 1,
+      "branches": 82.11
+    },
+    {
+      "file": "src/editor/store.ts",
+      "lines": 162,
+      "covered": 127,
+      "pct": 78.39,
+      "missing": 35,
+      "branches": 58.1
+    },
+    {
+      "file": "src/editor/suggestionPreference.ts",
+      "lines": 8,
+      "covered": 8,
+      "pct": 100,
+      "missing": 0,
+      "branches": 75
+    },
+    {
+      "file": "src/editor/suggestionQueue.ts",
+      "lines": 33,
+      "covered": 33,
+      "pct": 100,
+      "missing": 0,
+      "branches": 73.33
+    },
+    {
+      "file": "src/editor/variantPersistence.ts",
+      "lines": 24,
+      "covered": 24,
+      "pct": 100,
+      "missing": 0,
+      "branches": 88.88
+    },
+    {
+      "file": "src/editor/wechatOutput.ts",
+      "lines": 93,
+      "covered": 22,
+      "pct": 23.65,
+      "missing": 71,
+      "branches": 13.15
+    },
+    {
+      "file": "src/editor/zoom.ts",
+      "lines": 4,
+      "covered": 4,
+      "pct": 100,
+      "missing": 0,
+      "branches": 100
+    }
+  ],
+  "smellThresholds": {
+    "maxParams": 5,
+    "maxDepth": 4,
+    "maxNestedCallbacks": 3,
+    "complexity": 15,
+    "maxFunctionLines": 100
+  },
+  "smells": [
+    {
+      "file": "server/ai.ts",
+      "line": 109,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async function 'chatText' has a complexity of 31. Maximum allowed is 15."
+    },
+    {
+      "file": "server/ai.ts",
+      "line": 203,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async function 'testConnection' has a complexity of 51. Maximum allowed is 15."
+    },
+    {
+      "file": "server/aiModels.ts",
+      "line": 34,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'parseModels' has a complexity of 34. Maximum allowed is 15."
+    },
+    {
+      "file": "server/aiModels.ts",
+      "line": 72,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async function 'fetchModels' has a complexity of 21. Maximum allowed is 15."
+    },
+    {
+      "file": "server/net.ts",
+      "line": 26,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'isPrivateAddress' has a complexity of 20. Maximum allowed is 15."
+    },
+    {
+      "file": "server/net.ts",
+      "line": 111,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async function 'safeFetch' has a complexity of 17. Maximum allowed is 15."
+    },
+    {
+      "file": "server/settings.ts",
+      "line": 153,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async function 'resolveDraftProfile' has a complexity of 19. Maximum allowed is 15."
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 54,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Arrow function has a complexity of 21. Maximum allowed is 15."
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 88,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'App' has too many lines (163). Maximum allowed is 100."
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 102,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async arrow function has a complexity of 17. Maximum allowed is 15."
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 171,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Arrow function has a complexity of 36. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/aiDesign.ts",
+      "line": 45,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'normalizeDesign' has a complexity of 36. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/aiDesign.ts",
+      "line": 131,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'sectionBlocks' has a complexity of 24. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/assemble.ts",
+      "line": 84,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'slotValues' has a complexity of 56. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/assemble.ts",
+      "line": 173,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'fillBuiltin' has a complexity of 40. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/assemble.ts",
+      "line": 320,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'assemble' has too many lines (126). Maximum allowed is 100."
+    },
+    {
+      "file": "src/core/assemble.ts",
+      "line": 320,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'assemble' has a complexity of 38. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/blocks.ts",
+      "line": 171,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'coerceProps' has a complexity of 39. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/compiler.ts",
+      "line": 83,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'renderInline' has a complexity of 23. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/compiler.ts",
+      "line": 144,
+      "rule": "max-nested-callbacks",
+      "severity": 1,
+      "message": "Too many nested callbacks (4). Maximum allowed is 3."
+    },
+    {
+      "file": "src/core/components.ts",
+      "line": 75,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'makeDraft' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/components.ts",
+      "line": 110,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'validateDraft' has a complexity of 34. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/copy.ts",
+      "line": 21,
+      "rule": "no-warning-comments",
+      "severity": 1,
+      "message": "Unexpected 'xxx' comment: '* 也接受“【一级标题】xxx”这种写法'."
+    },
+    {
+      "file": "src/core/copy.ts",
+      "line": 27,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'parseCopy' has a complexity of 22. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/exporters.ts",
+      "line": 8,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Arrow function has a complexity of 35. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/fragments.ts",
+      "line": 54,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'horizontalInset' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/fragments.ts",
+      "line": 129,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'insertionAnchor' has a complexity of 19. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/fragments.ts",
+      "line": 144,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'placeFragment' has a complexity of 17. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/kit.ts",
+      "line": 106,
+      "rule": "max-params",
+      "severity": 1,
+      "message": "Function 'pic' has too many parameters (6). Maximum allowed is 5."
+    },
+    {
+      "file": "src/core/kit.ts",
+      "line": 130,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'boxParts' has a complexity of 17. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/ops.ts",
+      "line": 8,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'validateOp' has a complexity of 33. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/ops.ts",
+      "line": 139,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'summarize' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/outline.ts",
+      "line": 95,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'finalize' has a complexity of 27. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/outline.ts",
+      "line": 170,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'parseMarkdown' has a complexity of 27. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/photoPlan.ts",
+      "line": 84,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'fixedPlacements' has a complexity of 17. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/photoPlan.ts",
+      "line": 144,
+      "rule": "max-params",
+      "severity": 1,
+      "message": "Function 'normalizeAiPlacements' has too many parameters (6). Maximum allowed is 5."
+    },
+    {
+      "file": "src/core/photoPlan.ts",
+      "line": 144,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'normalizeAiPlacements' has a complexity of 25. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/roles.ts",
+      "line": 89,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'widthShare' has a complexity of 18. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/roles.ts",
+      "line": 151,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'guessRole' has a complexity of 34. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/sanitize.ts",
+      "line": 55,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'cleanStyle' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/sanitize.ts",
+      "line": 86,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Arrow function has a complexity of 43. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/slots.ts",
+      "line": 161,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'textSlot' has a complexity of 18. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/slots.ts",
+      "line": 292,
+      "rule": "max-params",
+      "severity": 1,
+      "message": "Function 'writeText' has too many parameters (8). Maximum allowed is 5."
+    },
+    {
+      "file": "src/core/slots.ts",
+      "line": 292,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'writeText' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/slots.ts",
+      "line": 354,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'fillSlots' has a complexity of 28. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/slots.ts",
+      "line": 579,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'setSlotAlign' has a complexity of 18. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/styleExtract.ts",
+      "line": 43,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'analyzeStyle' has a complexity of 29. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/styleExtract.ts",
+      "line": 96,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'themeFromReport' has a complexity of 19. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/templateFill.ts",
+      "line": 76,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'htmlKind' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/wxImport.ts",
+      "line": 86,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'pieceStyle' has a complexity of 21. Maximum allowed is 15."
+    },
+    {
+      "file": "src/core/wxImport.ts",
+      "line": 379,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Arrow function has a complexity of 18. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/AiSettingsModal.tsx",
+      "line": 18,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'AiSettingsModal' has too many lines (262). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/AiSettingsModal.tsx",
+      "line": 18,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'AiSettingsModal' has a complexity of 49. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/AiSettingsModal.tsx",
+      "line": 173,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async arrow function has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/ArticleImport.tsx",
+      "line": 20,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'ArticleImportModal' has too many lines (207). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/ArticleImport.tsx",
+      "line": 20,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'ArticleImportModal' has a complexity of 18. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/ArticleImport.tsx",
+      "line": 85,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async arrow function has a complexity of 29. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/Canvas.tsx",
+      "line": 287,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'BlockView' has too many lines (115). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/Canvas.tsx",
+      "line": 287,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'BlockView' has a complexity of 28. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/CollectModal.tsx",
+      "line": 46,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'CollectModal' has too many lines (107). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/CollectModal.tsx",
+      "line": 46,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'CollectModal' has a complexity of 22. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/Copywriter.tsx",
+      "line": 23,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'Copywriter' has too many lines (104). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/CoverDesigner.tsx",
+      "line": 35,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'CoverDesigner' has too many lines (142). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/CoverDesigner.tsx",
+      "line": 62,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Async arrow function has a complexity of 20. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/ImportWizard.tsx",
+      "line": 78,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'ImportWizard' has too many lines (430). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/ImportWizard.tsx",
+      "line": 78,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'ImportWizard' has a complexity of 57. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/InlineReview.tsx",
+      "line": 14,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'InlineReview' has too many lines (194). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/InlineReview.tsx",
+      "line": 14,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'InlineReview' has a complexity of 36. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/InlineReview.tsx",
+      "line": 41,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Arrow function has a complexity of 31. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/InlineReview.tsx",
+      "line": 59,
+      "rule": "max-depth",
+      "severity": 1,
+      "message": "Blocks are nested too deeply (5). Maximum allowed is 4."
+    },
+    {
+      "file": "src/editor/InlineReview.tsx",
+      "line": 67,
+      "rule": "max-depth",
+      "severity": 1,
+      "message": "Blocks are nested too deeply (5). Maximum allowed is 4."
+    },
+    {
+      "file": "src/editor/LeftPanel.tsx",
+      "line": 86,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'LeftPanel' has too many lines (232). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/PropsForm.tsx",
+      "line": 133,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'HtmlFields' has too many lines (151). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/PropsForm.tsx",
+      "line": 326,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'PropsForm' has too many lines (171). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/PropsForm.tsx",
+      "line": 326,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'PropsForm' has a complexity of 21. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/RichEditor.tsx",
+      "line": 18,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'RichEditor' has a complexity of 17. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/RichEditor.tsx",
+      "line": 42,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Method 'selector' has a complexity of 16. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/RightPanel.tsx",
+      "line": 113,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'AiPanel' has a complexity of 29. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/Toolbar.tsx",
+      "line": 87,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'ExportModal' has too many lines (137). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/Toolbar.tsx",
+      "line": 87,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'ExportModal' has a complexity of 34. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/Workspace.tsx",
+      "line": 49,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Function 'Workspace' has too many lines (120). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/proposalSafety.ts",
+      "line": 52,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Function 'getProposalItemIssue' has a complexity of 34. Maximum allowed is 15."
+    },
+    {
+      "file": "src/editor/store.ts",
+      "line": 110,
+      "rule": "max-lines-per-function",
+      "severity": 1,
+      "message": "Arrow function has too many lines (158). Maximum allowed is 100."
+    },
+    {
+      "file": "src/editor/store.ts",
+      "line": 236,
+      "rule": "complexity",
+      "severity": 1,
+      "message": "Method 'resolveProposal' has a complexity of 17. Maximum allowed is 15."
+    }
+  ]
+}

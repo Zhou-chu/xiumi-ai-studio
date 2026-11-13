@@ -173,3 +173,139 @@ it('shows limited connection verification honestly and blocks duplicate probes',
   expect(host.textContent).not.toContain('✓ 连接成功')
   expect(button.disabled).toBe(false)
 })
+
+it('saves only editable profiles and emits the settings event', async () => {
+  const save = vi.fn().mockResolvedValue({ activeId: 'b', profiles })
+  Object.assign(api, { saveAiSettings: save })
+  const changed = vi.fn()
+  window.addEventListener('ai-settings-changed', changed)
+  act(() => host.querySelectorAll<HTMLInputElement>('input[type=radio]')[1].click())
+  changeInput(host.querySelector<HTMLInputElement>('.ai-form input')!, 'Renamed')
+  await act(async () => host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.click())
+  expect(save).toHaveBeenCalledWith(expect.objectContaining({ activeId: 'b', profiles: expect.arrayContaining([expect.objectContaining({ name: 'Renamed' })]) }))
+  expect(changed).toHaveBeenCalledOnce()
+  window.removeEventListener('ai-settings-changed', changed)
+})
+
+it('validates advanced JSON and preserves failures for retry', async () => {
+  const area = host.querySelector<HTMLTextAreaElement>('textarea')!
+  const change = (v: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(area, v)
+    area.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const save = vi.fn().mockRejectedValue(new Error('save failed'))
+  Object.assign(api, { saveAiSettings: save })
+  for (const value of ['[1]', 'null', '{']) {
+    change(value)
+    expect(host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.disabled).toBe(true)
+  }
+  change('{"custom":true}')
+  await act(async () => host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.click())
+  expect(save).toHaveBeenCalledOnce()
+  expect(host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.disabled).toBe(false)
+})
+
+it.each([
+  { supported: ['low'], rejected: [{ effort: 'max' }], ignored: false },
+  { supported: [], rejected: [], ignored: false },
+  { supported: [], rejected: [], ignored: true },
+  { supported: [], rejected: [], ignored: false, baseError: 'base unavailable' },
+])('handles capability result %j without inventing support', async (result) => {
+  vi.mocked(api.probeEffort).mockResolvedValue(result as any)
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-testid=ai-probe-effort]')!.click())
+  expect(host.querySelector('[data-testid=ai-effort-note]')!.textContent).toBeTruthy()
+  expect(host.querySelector<HTMLButtonElement>('[data-testid=ai-probe-effort]')!.disabled).toBe(false)
+  if (result.supported.length) expect([...host.querySelectorAll('datalist option')].map(o => o.getAttribute('value'))).toContain('low')
+  if (result.baseError) expect(host.textContent).toContain(result.baseError)
+})
+
+it('shows capability rejection and allows a subsequent attempt', async () => {
+  vi.mocked(api.probeEffort).mockRejectedValue(new Error('probe unavailable'))
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-testid=ai-probe-effort]')!.click())
+  expect(host.textContent).toContain('probe unavailable')
+  expect(host.querySelector<HTMLButtonElement>('[data-testid=ai-probe-effort]')!.disabled).toBe(false)
+})
+
+it.each([
+  { ok: true, ms: 1200, reply: { stage: 'complete', message: 'verified-json' } },
+  { ok: false, ms: 0, reply: { stage: 'failed', message: 'rejected-json' } },
+  { ok: true, ms: 200, reply: null },
+  { ok: false, ms: 200, reply: 'not-json' },
+])('renders truthful connection outcome %j', async (result) => {
+  vi.mocked(api.testAi).mockResolvedValue(result as any)
+  await act(async () => button('测试连接').click())
+  expect(host.querySelector('[data-testid=ai-test-note]')!.textContent).toBeTruthy()
+  if (result.reply && typeof result.reply === 'object') expect(host.textContent).toContain(result.reply.message)
+})
+
+it('shows rejected connection errors without leaving controls busy', async () => {
+  vi.mocked(api.testAi).mockRejectedValue(new Error('connection denied'))
+  await act(async () => button('测试连接').click())
+  expect(host.textContent).toContain('connection denied')
+  expect(button('测试连接').disabled).toBe(false)
+})
+
+it('edits all request settings, clears provider metadata, and deletes a profile', async () => {
+  act(() => button('Anthropic Claude').click())
+  changeInput(input('ai-context'), '128000')
+  changeInput(input('ai-effort'), 'high')
+  changeInput(input('ai-max-output'), '16000')
+  act(() => host.querySelector<HTMLInputElement>('input[type=checkbox]')!.click())
+  expect(input('ai-context').value).toBe('128000')
+  expect(input('ai-max-output').value).toBe('16000')
+  changeInput(host.querySelector<HTMLInputElement>('input[placeholder^="https"]')!, 'https://new.invalid/v1')
+  expect(input('ai-context').value).toBe('')
+  act(() => host.querySelector<HTMLButtonElement>('button.danger')!.click())
+  expect(host.querySelectorAll('.ai-item')).toHaveLength(1)
+  expect(host.querySelector('[data-testid=ai-model]')).toBeNull()
+})
+
+it('adds a preset, fetches matching metadata, and supports switching back', async () => {
+  const select = host.querySelector<HTMLSelectElement>('[data-testid=ai-add-preset]')!
+  const option = [...select.options].find(o => o.value)!
+  act(() => { select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  expect(host.querySelectorAll('.ai-item')).toHaveLength(3)
+  const current = input('ai-model').value
+  vi.mocked(api.aiModels).mockResolvedValue([{ id: current, contextWindow: 99000 }])
+  await act(async () => fetchButton().click())
+  expect(input('ai-context').value).toBe('99000')
+  act(() => button('OpenAI 兼容').click())
+  expect(input('ai-context').value).toBe('')
+})
+
+it('loads no profiles, adds the first preset and persists its active ID', async () => {
+  act(() => root.unmount())
+  vi.mocked(api.aiSettings).mockResolvedValue({ activeId: '', profiles: [] })
+  root = createRoot(host)
+  await act(async () => root.render(createElement(AiSettingsModal, { onClose() {} })))
+  expect(host.querySelector('[data-testid=ai-model]')).toBeNull()
+  const select = host.querySelector<HTMLSelectElement>('[data-testid=ai-add-preset]')!
+  act(() => { select.value = [...select.options].find(o => o.value)!.value; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  const save = vi.fn().mockResolvedValue({ activeId: '', profiles: [] })
+  Object.assign(api, { saveAiSettings: save })
+  await act(async () => host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.click())
+  expect(save.mock.calls[0][0].activeId).toBe(save.mock.calls[0][0].profiles[0].id)
+})
+
+it('respects readonly environment profiles and excludes them when saving', async () => {
+  act(() => root.unmount())
+  vi.mocked(api.aiSettings).mockResolvedValue({ activeId: 'env', profiles: [{ ...profiles[0], id: 'env', name: '', model: '', readonly: true, hasKey: true }] as any })
+  root = createRoot(host)
+  await act(async () => root.render(createElement(AiSettingsModal, { onClose() {} })))
+  act(() => host.querySelector<HTMLElement>('.ai-item')!.click())
+  expect(input('ai-model').disabled).toBe(true)
+  expect(host.querySelector('button.danger')).toBeNull()
+  const save = vi.fn().mockResolvedValue({ activeId: 'env', profiles: [] })
+  Object.assign(api, { saveAiSettings: save })
+  await act(async () => host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.click())
+  expect(save).toHaveBeenCalledWith({ activeId: 'env', profiles: [] })
+})
+
+it('keeps loading failures disabled instead of allowing destructive empty saves', async () => {
+  act(() => root.unmount())
+  vi.mocked(api.aiSettings).mockRejectedValue(new Error('settings unavailable'))
+  root = createRoot(host)
+  await act(async () => root.render(createElement(AiSettingsModal, { onClose() {} })))
+  expect(host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.disabled).toBe(true)
+  expect(host.querySelector<HTMLSelectElement>('[data-testid=ai-add-preset]')!.disabled).toBe(true)
+})

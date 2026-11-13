@@ -56,13 +56,18 @@ const edge = () => `<p style="${css({ 'font-size': 0, 'line-height': 0, margin: 
  */
 export async function copyRichText(htmlPromise: Promise<string>): Promise<'clipboard-api' | 'exec-command'> {
   const full = htmlPromise.then((h) => edge() + h + edge())
-  const plain = full.then((f) => new DOMParser().parseFromString(f, 'text/html').body.textContent ?? '')
   if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    const htmlBlob = full.then((f) => new Blob([f], { type: 'text/html' }))
+    const plainBlob = full.then((f) => new Blob([new DOMParser().parseFromString(f, 'text/html').body.textContent ?? ''], { type: 'text/plain' }))
+    // The browser can reject before consuming these promises. Observe both branches
+    // without replacing them: compilation failure must still reach the caller.
+    void htmlBlob.catch(() => {})
+    void plainBlob.catch(() => {})
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
-          'text/html': full.then((f) => new Blob([f], { type: 'text/html' })),
-          'text/plain': plain.then((p) => new Blob([p], { type: 'text/plain' })),
+          'text/html': htmlBlob,
+          'text/plain': plainBlob,
         }),
       ])
       return 'clipboard-api'
