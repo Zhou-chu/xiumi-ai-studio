@@ -44,3 +44,12 @@ it('Escape closes the picker before the containing modal',()=>{
  expect(document.activeElement).toBe(trigger())
  key('Escape');expect(close).toHaveBeenCalledTimes(1)
 })
+
+it('keeps DOM focus on listbox while virtual option focus moves and closes without stealing external focus',()=>{
+ act(()=>root.render(createElement(ModelPicker,{models,value:'model-2',onSelect:vi.fn()})))
+ trigger().focus();key('ArrowDown');const list=host.querySelector<HTMLElement>('[role="listbox"]')!;
+ expect(document.activeElement).toBe(list);key('End');expect(document.activeElement).toBe(list);
+ const active=host.querySelector<HTMLElement>('[data-active="true"]')!;expect(list.getAttribute('aria-activedescendant')).toBe(active.id);
+ expect([...list.querySelectorAll<HTMLElement>('[role="option"]')].every(option=>option.tabIndex<0)).toBe(true);
+ const outside=document.createElement('button');document.body.append(outside);act(()=>outside.focus());expect(host.querySelector('[role="listbox"]')).toBeNull();expect(document.activeElement).toBe(outside);outside.remove()
+})

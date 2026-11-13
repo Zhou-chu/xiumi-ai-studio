@@ -125,7 +125,7 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
       <div
         ref={ref}
         className="html-editor"
-        role="textbox" aria-multiline="true" aria-label="原文内容编辑"
+        role="textbox" aria-multiline="true" aria-label="原文内容编辑" tabIndex={0}
         contentEditable
         suppressContentEditableWarning
         onBlur={commit}
@@ -203,7 +203,7 @@ function FragmentPicker({ block, theme, onDone }: { block: Block<'html'>; theme:
   }
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="rich-toolbar pick-toolbar" onKeyDown={e => {
+      <div className="rich-toolbar pick-toolbar" role="group" aria-label="原文片段选择" onKeyDown={e => {
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
         e.preventDefault(); e.stopPropagation()
         navigate(e.key === 'Home' ? 'first' : e.key === 'End' ? 'last' : e.key === 'ArrowDown' ? 1 : -1)

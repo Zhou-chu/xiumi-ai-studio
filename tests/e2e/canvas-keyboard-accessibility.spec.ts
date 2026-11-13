@@ -26,10 +26,11 @@ test('keyboard fragment navigation, native media delete and undo preserve the ar
   await setup(page)
   const article = block(page, 'key-html'), select = article.locator(':scope > .block-select')
   await select.focus(); await page.keyboard.press('Enter'); await page.getByTestId('pick-fragment').focus(); await page.keyboard.press('Enter')
-  await page.getByTestId('pick-next').focus(); await page.keyboard.press('Enter'); await expect(page.getByTestId('pick-status')).toContainText('First fragment')
+  await expect(page.getByRole('group', { name: '原文片段选择', exact: true })).toBeVisible(); await page.getByTestId('pick-next').focus(); await page.keyboard.press('Enter'); await expect(page.getByTestId('pick-status')).toContainText('First fragment')
   await page.keyboard.press('ArrowDown'); await expect(page.getByTestId('pick-status')).toContainText('Second fragment')
   await page.getByTestId('pick-cancel').focus(); await page.keyboard.press('Enter'); await expect(select).toBeFocused()
   await article.getByRole('button', { name: '编辑文字（双击）' }).click(); const editor = page.getByRole('textbox', { name: '原文内容编辑' })
+  await article.locator('.rich-toolbar .done').focus(); await page.keyboard.press('Tab'); await expect(editor).toBeFocused();
   await editor.locator('img').click(); await page.getByTestId('delete-picked').focus(); await page.keyboard.press('Enter'); await expect(editor.locator('img')).toHaveCount(0)
   await editor.focus(); await page.keyboard.press('Escape'); await expect(select).toBeFocused(); await page.keyboard.press('Control+z')
   await expect(article.locator('.block-html img')).toHaveCount(1); await expect(article).toContainText('First fragment')

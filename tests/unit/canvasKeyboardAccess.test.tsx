@@ -48,3 +48,10 @@ it('does not steal focus when an external selection ends editing',async()=>{
 it('names the text editing action rather than exposing only its icon',async()=>{
  const a=createBlock('heading',{title:'A'});await render([a]);await click(host.querySelector('.block-select')!);expect(host.querySelector('button[title="编辑文字（双击）"]')?.getAttribute('aria-label')).toBe('编辑文字（双击）')
 })
+
+it('exposes an explicit tab stop for source editing and a named fragment navigation group',async()=>{
+ const a=createBlock('html',{html:'<p>First</p><p>Second</p>'});await render([a]);await act(async()=>useStore.getState().setEditing(a.id));
+ expect(host.querySelector('.html-editor')?.getAttribute('tabindex')).toBe('0');
+ await act(async()=>useStore.getState().setPicking(a.id));
+ const group=host.querySelector('[role="group"][aria-label="原文片段选择"]');expect(group).not.toBeNull();expect(group?.contains(host.querySelector('[data-testid="pick-next"]'))).toBe(true)
+})
