@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 async function exposeSecondary(page: Page, control = page.getByTestId('color-mode-select')) {
+  await expect(page.locator('.workspace')).toBeVisible()
   if (!await control.isVisible()) await page.getByTestId('toolbar-more').click()
 }
 

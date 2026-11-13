@@ -15,17 +15,20 @@ async function expectFitsWidth(locator: Locator, width: number) {
 }
 
 async function exposeSecondary(page: Page, control = page.getByTestId('color-mode-select')) {
+  await expect(page.locator('.workspace')).toBeVisible()
   if (!await control.isVisible()) await page.getByTestId('toolbar-more').click()
 }
 async function selectTheme(page: Page, mode: 'light' | 'dark') {
   await exposeSecondary(page)
   await page.getByTestId('color-mode-select').selectOption(mode)
+  await expect(page.locator('.workspace')).toBeVisible()
   if (await page.getByTestId('toolbar-more').isVisible() && await page.getByTestId('toolbar-more').getAttribute('aria-expanded') === 'true') {
     await page.getByTestId('toolbar-more').click()
   }
 }
 async function showWorkspace(page: Page, view: 'left' | 'canvas' | 'right') {
   const button = page.getByTestId(`workspace-${view}`)
+  await expect(page.locator('.workspace')).toBeVisible()
   if (await button.isVisible()) await button.click()
 }
 

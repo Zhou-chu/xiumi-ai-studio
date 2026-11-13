@@ -31,6 +31,7 @@ test('cancelled delayed version restoration cannot overwrite later edits; normal
   await expect(page.getByTestId('save-status')).toHaveText('已保存')
   expect((await(await page.request.get(`/api/projects/${id}`)).json()).title).toBe('new edits after cancelling restore')
   await page.unroute(`**/api/projects/${id}/versions/${version.id}`)
+  await expect(page.locator('.workspace')).toBeVisible()
   if(!(await page.getByRole('button',{name:'历史版本',exact:true}).isVisible()))await page.getByTestId('toolbar-more').click()
   await page.getByRole('button',{name:'历史版本',exact:true}).click()
   await page.getByRole('dialog').getByRole('button',{name:'恢复',exact:true}).click()

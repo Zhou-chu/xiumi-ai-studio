@@ -14,6 +14,7 @@ async function seed(page: Page, id: string, title: string) {
 
 async function projects(page: Page) {
   const resource = page.getByTestId('workspace-left')
+  await expect(page.locator('.workspace')).toBeVisible()
   if (await resource.isVisible()) await resource.click()
   await page.getByTestId('tab-projects').click()
 }

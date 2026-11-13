@@ -146,7 +146,8 @@ test('选中模块后，AI 只改选中的模块', async ({ page }) => {
   expect(bodies[1].context.focus).toBeUndefined()
 })
 
-test('AI 模型设置：从上游取模型列表和参数，检测思考强度并保存', async ({ page }) => {
+for (const mode of ['light','dark'] as const) test(`AI 模型设置：从上游取模型列表和参数，检测思考强度并保存 (${mode})`, async ({ page }) => {
+  await page.addInitScript(mode=>{if(window.top===window)localStorage.setItem('xiumi-color-mode',mode)},mode)
   // 上游由路由模拟（服务端逻辑见单元测试）；保存请求也只截获，不写进 e2e 的设置里
   await page.route('**/api/settings/ai/models', (r) => r.fulfill({ json: { models: [{ id: 'big-model', name: 'Big', contextWindow: 262144, maxOutput: 32768 }, { id: 'plain' }] } }))
   await page.route('**/api/settings/ai/probe-effort', (r) => r.fulfill({ json: { supported: ['low', 'high'], rejected: [{ effort: 'none', message: "Invalid value 'none'" }], ignored: false } }))
@@ -157,6 +158,7 @@ test('AI 模型设置：从上游取模型列表和参数，检测思考强度�
     await route.fulfill({ json: { activeId: '', profiles: [] } })
   })
   await page.goto('/')
+  await expect(page.locator('.workspace')).toBeVisible()
   if (!(await page.getByTestId('open-ai-settings').isVisible())) await page.getByTestId('toolbar-more').click()
   await page.getByTestId('open-ai-settings').click()
   await page.getByTestId('ai-add-preset').selectOption('custom')
