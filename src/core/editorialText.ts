@@ -103,3 +103,18 @@ export function markdownQuote(text: string): [string,string|undefined] {
   }
   return [text, undefined]
 }
+
+/** Quantity recognition with the same numeric punctuation and unit grammar, without backtracking. */
+export function hasQuantity(text: string): boolean {
+  const units = ['名', '人次', '人', '场', '件', '张', '个', '小时', '所', '支', '条', '项', '家', '%']
+  for (let i = 0; i < text.length; i++) {
+    if (!isDigit(text[i])) continue
+    while (i + 1 < text.length && (isDigit(text[i + 1]) || text[i + 1] === ',' || text[i + 1] === '.')) i++
+    let end = i + 1
+    while (end < text.length && isSpace(text[end])) end++
+    if (text[end] === '余' || text[end] === '多') end++
+    while (end < text.length && isSpace(text[end])) end++
+    if (units.some(unit => text.startsWith(unit, end))) return true
+  }
+  return false
+}

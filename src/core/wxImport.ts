@@ -220,9 +220,9 @@ function splitSection(el: Element, maxPlainRun: number, depth: number, force = f
   return pieces
 }
 
-/** 竖直外边距，只认 px 和 0（其他单位返回 NaN），后写的声明覆盖先写的 */
+/** 竖直外边距，只认 px 和 0（其他单位返回 Number.NaN），后写的声明覆盖先写的 */
 function verticalMargins(el: Element): [number, number] {
-  const px = (s: string) => (/^(0|-?(?:\d+(?:\.\d+)?|\.\d+)px)$/i.test(s) ? Number.parseFloat(s) || 0 : NaN)
+  const px = (s: string) => (/^(0|-?(?:\d+(?:\.\d+)?|\.\d+)px)$/i.test(s) ? Number.parseFloat(s) || 0 : Number.NaN)
   let top = 0
   let bottom = 0
   for (const d of splitDecls(el.getAttribute('style') ?? '')) {
@@ -246,11 +246,11 @@ const OWN_CONTEXT = /display:\s*(?!block)[a-z-]+|overflow(-y)?:\s*(hidden|auto|s
 
 /**
  * 元素一侧的外边距：自己的，以及穿过它合并上来的子元素外边距（自己这一侧没有内边距、边框、固定高度时）。
- * 无法确定（非 px 单位、负值）时返回 NaN。
+ * 无法确定（非 px 单位、负值）时返回 Number.NaN。
  */
 function edgeMargin(el: Element, side: 'top' | 'bottom', depth = 0): { own: number; nested: number } {
   const own = verticalMargins(el)[side === 'top' ? 0 : 1]
-  if (!(own >= 0)) return { own: NaN, nested: NaN }
+  if (!(own >= 0)) return { own: Number.NaN, nested: Number.NaN }
   const st = el.getAttribute('style') ?? ''
   const pad = new RegExp(`padding(-${side})?\\s*:\\s*([^;]+)`, 'gi')
   const padded = Array.from(st.matchAll(pad)).some((m) => {

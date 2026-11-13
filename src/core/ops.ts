@@ -34,5 +34,5 @@ export function applyOp(doc: Doc, op: DocOp): Doc {
 }
 
 export function applyOps(doc: Doc, ops: DocOp[]): Doc {
-  return ops.reduce(applyOp, doc)
+  return ops.reduce((current, op) => applyOp(current, op), doc)
 }

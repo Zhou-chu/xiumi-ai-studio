@@ -1,3 +1,4 @@
+import { cssImageUrls } from './cssImageUrls'
 import type { Doc } from './types'
 import type { Parse } from './slots'
 import { findBlock } from './tree'
@@ -30,7 +31,7 @@ export function collectArticleImages(doc: Doc, selectedId?: string | string[], p
       root.querySelectorAll('img').forEach(el => add(el.getAttribute('data-src') || el.getAttribute('src')))
       root.querySelectorAll('image').forEach(el => add(el.getAttribute('href') || el.getAttribute('xlink:href')))
       root.querySelectorAll('[style]').forEach(el => {
-        for (const m of (el.getAttribute('style') ?? '').matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) add(m[2])
+        for (const url of cssImageUrls(el.getAttribute('style') ?? '')) add(url)
       })
     }
     Object.values(record).forEach(visit)

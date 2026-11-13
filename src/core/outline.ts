@@ -1,4 +1,4 @@
-import { markdownImages, markdownQuote, hasMarkdownImageSyntax, stripMarkdownImageSyntax } from './editorialText'
+import { markdownImages, markdownQuote, hasMarkdownImageSyntax, stripMarkdownImageSyntax, hasQuantity } from './editorialText'
 // 文章结构抽取：Markdown / 纯文本 / Word 文本 → Outline。
 // 这是无 AI 时的规则版本；有 AI 时由模型输出同样结构的 JSON。
 import { marked } from 'marked'
@@ -130,8 +130,7 @@ function finalize(o: Outline): Outline {
   }
   // 亮点：带数字的短句
   // 只取带数量单位的句子（如 “3,200 余人次”），排除日期时间
-  const QTY = /\d[\d,.]*\s*(余|多)?\s*(名|人次|人|场|件|张|个|小时|所|支|条|项|家|%)/
-  const numeric = o.sections.flatMap((s) => s.paragraphs).flatMap((p) => p.split(/[。！；，]/)).filter((x) => x.length >= 6 && x.length < 40 && QTY.test(x))
+  const numeric = o.sections.flatMap((s) => s.paragraphs).flatMap((p) => p.split(/[。！；，]/)).filter((x) => x.length >= 6 && x.length < 40 && hasQuantity(x))
   o.highlights = numeric.slice(0, 4).map((x) => x.trim())
   // 标题后紧跟的短句视为副标题，不再重复出现在导语中
   if (!o.subtitle && o.intro.length > 1 && o.intro[0].length <= 50) o.subtitle = o.intro.shift()!
