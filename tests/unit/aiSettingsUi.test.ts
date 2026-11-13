@@ -24,15 +24,19 @@ beforeEach(async () => {
 })
 afterEach(() => { act(() => root.unmount()); host.remove() })
 const fetchButton = () => host.querySelector<HTMLButtonElement>('[data-testid=ai-load-models]')!
-const list = () => host.querySelector<HTMLSelectElement>('select[aria-label="可用模型"]')
+const list = () => host.querySelector<HTMLElement>('[role="listbox"]')
+const picker = () => host.querySelector<HTMLButtonElement>('[data-testid="ai-model-picker"]')!
+const chooseModel = (id: string) => {
+  act(() => picker().click())
+  act(() => { [...host.querySelectorAll<HTMLElement>('[role="option"]')].find(el => el.textContent?.startsWith(id))!.click() })
+}
 
 it('shows fetched IDs in a visible selectable list without editing the existing model name', async () => {
   vi.mocked(api.aiModels).mockResolvedValue([{ id: 'new-model', contextWindow: 128000 }, { id: 'other-model' }])
   await act(async () => fetchButton().click())
-  expect(list()).not.toBeNull()
-  expect(list()!.size).toBeGreaterThan(1)
-  expect([...list()!.options].map((o) => o.value)).toContain('new-model')
-  act(() => { list()!.value = 'new-model'; list()!.dispatchEvent(new Event('change', { bubbles: true })) })
+  expect(list()).toBeNull()
+  expect(picker().getAttribute('aria-expanded')).toBe('false')
+  chooseModel('new-model')
   expect(host.querySelector<HTMLInputElement>('input[placeholder^="例如 deepseek-chat"]')!.value).toBe('new-model')
   expect(host.querySelector<HTMLInputElement>('input[type="number"]')!.value).toBe('128000')
 })
@@ -51,7 +55,8 @@ it('renders request failures visibly and permits a retry', async () => {
   expect(fetchButton().disabled).toBe(false)
   vi.mocked(api.aiModels).mockResolvedValue([{ id: 'retry-model' }])
   await act(async () => fetchButton().click())
-  expect(list()!.options[1].value).toBe('retry-model')
+  act(() => picker().click())
+  expect(list()?.textContent).toContain('retry-model')
 })
 
 it('ignores late results after switching profiles', async () => {
@@ -74,7 +79,7 @@ const changeInput = (el: HTMLInputElement, value: string) => act(() => {
 it('imports the selected model limits and clears them for an unknown model', async () => {
   vi.mocked(api.aiModels).mockResolvedValue([{ id: 'new-model', contextWindow: 128000, maxOutput: 8192, efforts: ['low', 'high'] }])
   await act(async () => fetchButton().click())
-  act(() => { list()!.value = 'new-model'; list()!.dispatchEvent(new Event('change', { bubbles: true })) })
+  chooseModel('new-model')
   expect(input('ai-max-output')?.value).toBe('8192')
   changeInput(input('ai-model'), 'custom-other-model')
   expect(input('ai-context').value).toBe('')
@@ -116,7 +121,8 @@ it('clicking the current profile does not leave discovery stuck in a busy state'
   expect(fetchButton().disabled).toBe(false)
   vi.mocked(api.aiModels).mockResolvedValueOnce([{ id: 'retry' }])
   await act(async () => fetchButton().click())
-  expect(list()!.options[1].value).toBe('retry')
+  act(() => picker().click())
+  expect(list()?.textContent).toContain('retry')
 })
 it('keeps a newer discovery request busy when the superseded request completes', async () => {
   let first!: (r: any) => void
@@ -128,7 +134,8 @@ it('keeps a newer discovery request busy when the superseded request completes',
   await act(async () => first([{ id: 'old' }]))
   expect(fetchButton().disabled).toBe(true)
   await act(async () => second([{ id: 'new' }]))
-  expect(list()!.options[1].value).toBe('new')
+  act(() => picker().click())
+  expect(list()?.textContent).toContain('new')
   expect(fetchButton().disabled).toBe(false)
 })
 it('ignores discovery completion after closing the modal', async () => {

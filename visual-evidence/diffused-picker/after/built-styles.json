@@ -1,0 +1,42 @@
+{
+  "evidence": [
+    {
+      "name": "desktop",
+      "radius": "20px",
+      "blur": "blur(6px)",
+      "gutter": "radial-gradient(75% 100% at 0px 0px, rgb(43, 43, 42) 0%, rgb(36, 36, 35) 34%, rgb(27, 27, 26) 78%)",
+      "form": "rgb(27, 27, 26)",
+      "formImage": "none",
+      "pageOverflow": false,
+      "article": "none",
+      "canvas": "radial-gradient(110% 70% at 48% 0px, rgb(43, 43, 42) 0%, rgb(36, 36, 35) 34%, rgb(22, 22, 22) 68%, rgb(16, 16, 16) 100%)"
+    },
+    {
+      "name": "tablet",
+      "radius": "20px",
+      "blur": "blur(6px)",
+      "gutter": "radial-gradient(75% 100% at 0px 0px, rgb(43, 43, 42) 0%, rgb(36, 36, 35) 34%, rgb(27, 27, 26) 78%)",
+      "form": "rgb(27, 27, 26)",
+      "formImage": "none",
+      "pageOverflow": false,
+      "article": "none",
+      "canvas": "radial-gradient(110% 70% at 48% 0px, rgb(43, 43, 42) 0%, rgb(36, 36, 35) 34%, rgb(22, 22, 22) 68%, rgb(16, 16, 16) 100%)"
+    },
+    {
+      "name": "mobile",
+      "radius": "20px",
+      "blur": "blur(6px)",
+      "gutter": "radial-gradient(75% 100% at 0px 0px, rgb(43, 43, 42) 0%, rgb(36, 36, 35) 34%, rgb(27, 27, 26) 78%)",
+      "form": "rgb(27, 27, 26)",
+      "formImage": "none",
+      "pageOverflow": false,
+      "article": "none",
+      "canvas": "radial-gradient(110% 70% at 48% 0px, rgb(43, 43, 42) 0%, rgb(36, 36, 35) 34%, rgb(22, 22, 22) 68%, rgb(16, 16, 16) 100%)"
+    }
+  ],
+  "fallback": {
+    "blur": "none",
+    "bg": "rgba(0, 0, 0, 0.78)",
+    "gutter": "none"
+  }
+}

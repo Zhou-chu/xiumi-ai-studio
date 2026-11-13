@@ -1,3 +1,4 @@
+import { ModelPicker } from './ModelPicker'
 import { Help } from './Help'
 import { useEffect, useRef, useState } from 'react'
 import { api, type AiProfile } from './api'
@@ -238,18 +239,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
               <button data-testid="ai-load-models" disabled={!cur.baseUrl || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
               {modelStatus && <p className="hint" role="status" data-testid="ai-model-note">{modelStatus}</p>}
               {modelList.length > 0 && (
-                <label className="field"><span>可用模型（点击选择，也可在上方手动填写）</span>
-                  <select
-                    aria-label="可用模型"
-                    size={Math.min(6, modelList.length + 1)}
-                    value={modelList.some((m) => m.id === cur.model) ? cur.model : ''}
-                    disabled={cur.readonly}
-                    onChange={(e) => selectModel(e.target.value)}
-                  >
-                    <option value="" disabled>请选择模型…</option>
-                    {modelList.map((m) => <option key={m.id} value={m.id}>{m.id}{m.contextWindow ? `（${m.contextWindow} tokens）` : ''}</option>)}
-                  </select>
-                </label>
+                <ModelPicker models={modelList} value={cur.model} disabled={cur.readonly} onSelect={selectModel} />
               )}
               <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input data-testid="ai-context" type="number" min="0" step="1" value={cur.contextWindow || ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: Number(e.target.value) || 0 })} /></label>
               <label className="field"><span>思考强度（留空使用服务商默认）</span><input data-testid="ai-effort" list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value })} /></label>
