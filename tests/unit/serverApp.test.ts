@@ -307,3 +307,26 @@ it('rejects a third real upload while two business handlers are still processing
  completed.forEach(done=>done());expect((await first).status).toBe(200);expect((await second).status).toBe(200)
  boundary.assets.saveAsset.mockResolvedValue({id:'next'});expect((await upload('/api/assets','next.png')).status).toBe(200)
 })
+it('aborting a sent suggestion disconnect propagates to the model and does not block the next request', async () => {
+ let started!:()=>void;const ready=new Promise<void>(r=>started=r)
+ let cancelled!:()=>void;const stopped=new Promise<void>(r=>cancelled=r)
+ let modelSignal:AbortSignal|undefined
+ boundary.ai.chatJson.mockImplementationOnce(async (_s,_u,opts)=>{
+  modelSignal=opts.signal;started()
+  await new Promise<void>(resolve=>modelSignal?.addEventListener('abort',()=>{cancelled();resolve()},{once:true}))
+  throw new DOMException('Cancelled','AbortError')
+ })
+ const ctrl=new AbortController()
+ const pending=fetch(url+'/api/ai/suggest-instruction',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({context:{blocks:[]}}),signal:ctrl.signal})
+ const rejected=expect(pending).rejects.toMatchObject({name:'AbortError'})
+ await ready;expect(modelSignal).toBeDefined();expect(modelSignal?.aborted).toBe(false)
+ ctrl.abort();await rejected;await stopped
+ expect(modelSignal?.aborted).toBe(true)
+ expect((await json('/api/ai/suggest-instruction','POST',{context:{blocks:[]}})).status).toBe(200)
+})
+it('normal request-body close must not abort a live suggestion; model failures still reach HTTP error handling',async()=>{
+ let modelSignal:AbortSignal|undefined
+ boundary.ai.chatJson.mockImplementationOnce(async(_s,_u,opts)=>{modelSignal=opts.signal;await new Promise(r=>setTimeout(r,10));expect(modelSignal?.aborted).toBe(false);throw Object.assign(new Error('provider failed'),{status:502})})
+ const result=await json('/api/ai/suggest-instruction','POST',{context:{blocks:[]}})
+ expect(result.status).toBe(502);expect(modelSignal?.aborted).toBe(false)
+})

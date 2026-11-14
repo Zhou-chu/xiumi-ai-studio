@@ -46,6 +46,7 @@ interface ChatOpts {
   keepEffort?: boolean
   /** Capability probes only need an accepted request, not a complete answer. */
   allowTruncated?: boolean
+  signal?: AbortSignal
   timeoutMs?: number
 }
 
@@ -106,6 +107,9 @@ async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, k
     if (res.ok) return { response: res, wire: w }
     const message = await readError(res)
     const next = res.status === 400 || res.status === 422 ? adjustWire(w, message, keepEffort) : null
+    if (!next && w.effort && keepEffort && (res.status === 400 || res.status === 422) && /reasoning|effort|thinking/i.test(message) && /unsupported|not supported|not allowed|unknown|unrecognized|invalid|must be|不支持|无效/i.test(message)) {
+      throw Object.assign(new Error(`该模型拒绝了配置的思考强度。请在 AI 模型设置中清空“思考强度”后重试，或选择该模型支持的强度。配置未被自动修改。服务返回 ${res.status}: ${message}`), { status: 502 })
+    }
     if (!next) throw Object.assign(new Error(`AI 请求失败 ${res.status}: ${message}`), { status: 502 })
     w = next
   }
@@ -179,9 +183,13 @@ function generationText(data: any, wire: Wire, p: AiProfile, opts: ChatOpts): st
 }
 
 export async function chatText(system: string, user: string, opts: ChatOpts = {}): Promise<string> {
+  opts.signal?.throwIfAborted()
   const p = opts.profile ?? (await getProfile(opts.profileId))
+  opts.signal?.throwIfAborted()
   if (!p || !p.baseUrl || !p.model) throw Object.assign(new Error('尚未配置 AI 模型：请在「AI 模型设置」中添加'), { status: 503 })
   const ctrl = new AbortController()
+  const cancel = () => ctrl.abort(opts.signal?.reason)
+  opts.signal?.addEventListener('abort', cancel, { once: true })
   const timeout = opts.timeoutMs ?? 180_000
   const timer = setTimeout(() => ctrl.abort(), timeout)
   const effort = opts.effort ?? p.reasoningEffort ?? ''
@@ -195,12 +203,16 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
       }),
       start, Boolean(effort) || Boolean(opts.keepEffort),
     )
-    return generationText(await response.json(), wire, p, opts)
+    const data = await response.json()
+    ctrl.signal.throwIfAborted()
+    return generationText(data, wire, p, opts)
   } catch (e: any) {
+    if (opts.signal?.aborted) throw opts.signal.reason
     if (e.name === 'AbortError') throw Object.assign(new Error(`AI 请求超时（${Math.round(timeout / 1000)} 秒）`), { status: 504 })
     throw e
   } finally {
     clearTimeout(timer)
+    opts.signal?.removeEventListener('abort', cancel)
   }
 }
 

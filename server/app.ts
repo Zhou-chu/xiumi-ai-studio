@@ -271,7 +271,21 @@ ${JSON.stringify(b.layouts ?? {})}`
       throw Object.assign(new Error('无效的选中模块'), { status: 400 })
     }
     const prompt = suggestionPrompt(context, selectedId)
-    res.json(readSuggestion(await chatJson(SUGGESTION_SYSTEM, prompt, { defaultMaxTokens: 2000, profileId: pid(req) })))
+    const controller = new AbortController()
+    const disconnect = () => { if (!res.writableEnded) controller.abort() }
+    req.once('aborted', disconnect)
+    res.once('close', disconnect)
+    try {
+      if (req.aborted || res.destroyed) controller.abort()
+      controller.signal.throwIfAborted()
+      const result = await chatJson(SUGGESTION_SYSTEM, prompt, { defaultMaxTokens: 2000, profileId: pid(req), signal: controller.signal })
+      if (!controller.signal.aborted) res.json(readSuggestion(result))
+    } catch (error) {
+      if (!controller.signal.aborted) throw error
+    } finally {
+      req.removeListener('aborted', disconnect)
+      res.removeListener('close', disconnect)
+    }
   }))
   app.post('/api/ai/edit', h(async (req, res) => {
     const { context, instruction } = req.body

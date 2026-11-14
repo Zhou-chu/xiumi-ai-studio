@@ -96,3 +96,14 @@ it('cover entry shows the existing cover and can open/close the real designer',a
 it('canceling theme naming performs no save',async()=>{
  vi.spyOn(window,'prompt').mockReturnValue(null);const save=vi.spyOn(api,'saveTheme');await mount();await click(host.querySelector('[data-testid="tab-theme"]'));await click(button('保存为我的主题'));expect(save).not.toHaveBeenCalled()
 })
+for(const change of ['close','selection'] as const)it(`aborts the actual automatic suggestion signal on ${change}`,async()=>{
+ localStorage.setItem('xiumi:auto-input-suggestions','on')
+ vi.setSystemTime(Date.now()+120_000)
+ let signal:AbortSignal|undefined
+ vi.mocked(api.aiSuggestInstruction).mockImplementation(async(_c,_p,_s,s)=>{signal=s;return await new Promise((_resolve,reject)=>s?.addEventListener('abort',()=>reject(new DOMException('cancelled','AbortError')),{once:true}))})
+ await mount();await ai();await act(async()=>vi.advanceTimersByTimeAsync(31_500))
+ expect(signal).toBeDefined();expect(signal?.aborted).toBe(false)
+ if(change==='close')await click(host.querySelector('[data-testid="tab-style"]'))
+ else await act(async()=>state().select('b'))
+ expect(signal?.aborted).toBe(true)
+})
