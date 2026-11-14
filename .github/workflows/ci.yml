@@ -1,8 +1,7 @@
-name: CI
+name: Photo drag diagnostic (not acceptance)
 on:
   push:
-    branches: [main, 'fix/**', 'feat/**']
-  pull_request:
+    branches: ['fix/photo-drag-diagnostic-20261114']
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.19.0', '24']
+        node: ['24']
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -28,19 +27,14 @@ jobs:
         with:
           version: 12.6.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
       - run: pnpm build
       - run: pnpm exec playwright install chromium
       - run: pnpm sample
-      - run: pnpm e2e --update-snapshots=none
+      - run: pnpm e2e tests/e2e/features.spec.ts --update-snapshots=none
         env:
           XIUMI_RESPONSIVE_COMBINATION: '1'
-      - name: Editorial shell dark and responsive scenarios
-        run: pnpm exec playwright test --config playwright.shell.config.ts --update-snapshots=none
-        env:
-          SHELL_PHASE: 'after'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: failure()
+        if: always()
         with:
           name: playwright-failure-node-${{ matrix.node }}
           path: |
