@@ -1,9 +1,9 @@
-/* global console */
+/* global console, process */
 // 生成「清华电机系赴德国海外社会实践支队」公众号模板库（单文件 HTML）。
 // 运行：node build.mjs  →  eea-germany-template.html
 // 复制进公众号的模块只用行内样式；SVG 不使用 id 引用（渐变/图案/裁剪），网格与刻度都逐线绘制。
-import { writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'eea-germany-template.html')
@@ -477,8 +477,8 @@ function moduleCarousel() {
     svg(300, 13, rect(0, 0, 30, 9, { fill: C.purple }) + t(15, 6.6, 5.4, `0${i + 1}/05`, { fill: C.white, anchor: 'middle', fw: 700 }) + t(36, 7, 5.4, place, { fw: 700, ls: 1 }) +
       ln(36, 11.5, 300, 11.5, { op: 0.3 }) + ticks(150, 288, 8, 2.5, 5, { op: 0.3 }) + rect(292, 5, 8, 3, { fill: C.gold }), 'margin:0 0 4px') +
     `<section style="line-height:0">${IMG(id, 1080, 720, '轮播 · 建议 3:2（1080×720）')}</section>${capRow(`图｜${cap}`)}</section>`
-  const track = `<section style="display:flex;flex-wrap:nowrap;overflow-x:scroll;-webkit-overflow-scrolling:touch;width:100%;margin:6px 0 0;padding:0 0 6px;box-sizing:border-box">${cards.map(card).join('')}</section>`
-  const prog = svg(360, 10, [0, 1, 2, 3, 4].map((i) => rect(130 + i * 20, 4, 16, 2, { fill: i ? C.purple : C.purple, op: i ? 0.2 : 1 })).join('') +
+  const track = `<section style="display:flex;flex-wrap:nowrap;overflow-x:scroll;-webkit-overflow-scrolling:touch;width:100%;margin:6px 0 0;padding:0 0 6px;box-sizing:border-box">${cards.map((item, index) => card(item, index)).join('')}</section>`
+  const prog = svg(360, 10, [0, 1, 2, 3, 4].map((i) => rect(130 + i * 20, 4, 16, 2, { fill: C.purple, op: i ? 0.2 : 1 })).join('') +
     t(0, 7, 4.8, 'CAROUSEL · 85% CARD', { op: 0.55 }) + t(360, 7, 4.8, '01 → 05', { op: 0.55, anchor: 'end' }), 'margin:4px 0 0')
   return `<section style="margin:22px 0;box-sizing:border-box">${svg(360, 30, s)}${track}${prog}</section>`
 }
@@ -510,7 +510,7 @@ function moduleMaster() {
     svg(300, 12, path('M0 11V6.5Q0 2 4.5 1.2V3.4Q2.4 4 2.4 6.2H4.6V11ZM7 11V6.5Q7 2 11.5 1.2V3.4Q9.4 4 9.4 6.2H11.6V11Z', { fill: C.purple, c: 'none' }) +
       t(18, 9, 5.8, 'KEY INSIGHT · 引用高亮', { fw: 700, ls: 1 }) + rect(276, 5, 8, 3, { fill: C.black }) + rect(284, 5, 8, 3, { fill: C.red }) + rect(292, 5, 8, 3, { fill: C.gold })) +
     `<p style="margin:8px 0 0;font-size:14px;color:#000000;line-height:1.85;letter-spacing:0.8px;text-align:justify;font-weight:700">“能源转型不是某一项技术的胜利，而是整套系统的重新设计。”</p>` +
-    `<p style="${CAP}margin:6px 0 0;text-align:right">—— 交流嘉宾 · 埃尔朗根（示例）</p></section>`
+    `<p style="${CAP.replace('margin:0;', 'margin:6px 0 0;').replace('text-align:left;', 'text-align:right;')}">—— 交流嘉宾 · 埃尔朗根（示例）</p></section>`
   const nestedDual = dualA('1509390144018-eeaf65052242', '1581092160607-ee22621dd758', '图｜变电设备', '图｜实验室操作', '组图｜嵌套在文本框内的双图模块（宽度随容器自适应）', [800, 600])
   const body =
     `<p style="${P}">七月的埃尔朗根，清晨的空气里带着一丝凉意。支队成员走进当地一家能源装备企业的实验室，第一次近距离观察大型变流器的测试平台。从清华园课堂里的电路图，到眼前真实运转的设备，<strong style="color:#660874">每一条走线都有了重量</strong>。</p>` +
@@ -616,7 +616,11 @@ const IMAGES = [
   ['四图矩阵', '4:3', '960×720 ×4'], ['轮播', '3:2', '1080×720 ×5'], ['文本框内双图', '4:3', '800×600 ×2'],
 ]
 
-const page = `<!doctype html>
+/** Render the complete standalone document without writing to disk. */
+export function generateTemplate() {
+  const runtimePath = join(dirname(fileURLToPath(import.meta.url)), 'template-runtime.mjs')
+  const runtime = readFileSync(runtimePath, 'utf8').replace('export function ', 'function ')
+  return `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -646,8 +650,8 @@ const page = `<!doctype html>
   .sw span { display: block; height: 26px; }
   .sw em { display: block; font-style: normal; padding: 3px 4px; color: #52525B; }
   table.spec { width: 100%; border-collapse: collapse; font-size: 12px; }
-  table.spec td { border-top: 1px solid var(--line); padding: 5px 4px; vertical-align: top; color: #3F3F46; }
-  table.spec td:first-child { color: var(--ink); white-space: nowrap; }
+  table.spec td, table.spec th { border-top: 1px solid var(--line); padding: 5px 4px; vertical-align: top; color: #3F3F46; }
+  table.spec th { font-weight: normal; text-align: left; color: var(--ink); white-space: nowrap; }
   .note { background: #FFF7E6; border: 1px solid #F8D9A0; border-radius: 8px; padding: 10px 12px; }
   .note p { margin: 0 0 6px; font-size: 12.5px; } .note p:last-child { margin: 0; }
   .btn-all { margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--purple); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
@@ -718,15 +722,15 @@ const page = `<!doctype html>
 
     <h2>字体规范</h2>
     <table class="spec">
-      <tr><td>正文</td><td>14px · #000000 · 行高 1.85 · 字距 0.8px · 两端对齐</td></tr>
-      <tr><td>图注</td><td>12px · #888888 · 行高 1.5</td></tr>
-      <tr><td>刊头标题</td><td>20px 加粗 + 15px 紫色副题</td></tr>
-      <tr><td>H1</td><td>19px 加粗 + 10px 等宽英文编号</td></tr>
-      <tr><td>H2</td><td>15px 加粗 + 电路/齿轮图标</td></tr>
+      <tr><th scope="row">正文</th><td>14px · #000000 · 行高 1.85 · 字距 0.8px · 两端对齐</td></tr>
+      <tr><th scope="row">图注</th><td>12px · #888888 · 行高 1.5</td></tr>
+      <tr><th scope="row">刊头标题</th><td>20px 加粗 + 15px 紫色副题</td></tr>
+      <tr><th scope="row">H1</th><td>19px 加粗 + 10px 等宽英文编号</td></tr>
+      <tr><th scope="row">H2</th><td>15px 加粗 + 电路/齿轮图标</td></tr>
     </table>
 
     <h2>图片槽位与比例</h2>
-    <table class="spec">${IMAGES.map(([a, b, c]) => `<tr><td>${a}</td><td>${b} · ${c}</td></tr>`).join('')}</table>
+    <table class="spec">${IMAGES.map(([a, b, c]) => `<tr><th scope="row">${a}</th><td>${b} · ${c}</td></tr>`).join('')}</table>
     <p style="font-size:12px;color:#6B6B76">占位图来自 Unsplash（Unsplash License），仅用于预览效果，正式发布请换成支队自己的照片。每张图的 alt 中也写了建议比例。</p>
 
     <h2>公众号兼容说明</h2>
@@ -757,42 +761,23 @@ ${MODULES.map((m) => `        <div class="demo" id="${m.id}" data-name="${m.name
 </div>
 <div class="toast" id="toast"></div>
 <script>
-  // 复制：优先 ClipboardItem（text/html），失败时用 copy 事件写入，二者都只写入模块本身的 HTML
-  async function copyHtml(html, text) {
-    try {
-      if (navigator.clipboard && window.ClipboardItem && window.isSecureContext) {
-        await navigator.clipboard.write([new ClipboardItem({
-          'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([text], { type: 'text/plain' }),
-        })])
-        return true
-      }
-    } catch (e) { /* 退回 execCommand */ }
-    let ok = false
-    const onCopy = (e) => { e.clipboardData.setData('text/html', html); e.clipboardData.setData('text/plain', text); e.preventDefault(); ok = true }
-    document.addEventListener('copy', onCopy)
-    try { document.execCommand('copy') } finally { document.removeEventListener('copy', onCopy) }
-    return ok
-  }
-  const toast = (msg) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2600) }
-  const stageHtml = (demo) => demo.querySelector('.stage').innerHTML.trim()
-  document.querySelectorAll('.demo').forEach((demo) => {
-    const btn = demo.querySelector('.copy')
-    btn.addEventListener('click', async () => {
-      const ok = await copyHtml(stageHtml(demo), demo.querySelector('.stage').innerText)
-      toast(ok ? '已复制「' + demo.dataset.name + '」，到公众号后台 Ctrl+V 粘贴' : '复制失败：请换用 Chrome / Edge 打开本文件')
-      if (ok) { btn.classList.add('done'); btn.textContent = '✓ 已复制'; setTimeout(() => { btn.classList.remove('done'); btn.textContent = '📋 复制此模块到公众号' }, 1800) }
-    })
-  })
-  document.getElementById('copy-all').addEventListener('click', async () => {
-    const demos = [...document.querySelectorAll('.demo')]
-    const ok = await copyHtml(demos.map(stageHtml).join(''), document.getElementById('article').innerText)
-    toast(ok ? '已复制整篇示例（' + demos.length + ' 个模块）' : '复制失败：请换用 Chrome / Edge 打开本文件')
-  })
+${runtime}
+installTemplateInteractions(window)
 </script>
 </body>
 </html>
 `
 
-writeFileSync(OUT, page)
-console.log(`wrote ${OUT} (${(page.length / 1024).toFixed(1)} KB, ${MODULES.length} modules)`)
+}
+
+/** Keep CLI output destination compatible; tests may supply an isolated path. */
+export function writeTemplate(destination = OUT) {
+  const page = generateTemplate()
+  writeFileSync(destination, page)
+  return { destination, size: page.length, modules: MODULES.length }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const result = writeTemplate()
+  console.log(`wrote ${result.destination} (${(result.size / 1024).toFixed(1)} KB, ${result.modules} modules)`)
+}

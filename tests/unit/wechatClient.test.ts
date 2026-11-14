@@ -1,0 +1,96 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const storage=vi.hoisted(()=>({value:undefined as any,readJson:vi.fn(),writeJson:vi.fn(),wechatReady:vi.fn()}))
+vi.mock('../../server/store',()=>({DATA:'/isolated-wechat-unit',readJson:storage.readJson,writeJson:storage.writeJson}))
+vi.mock('../../server/assets',()=>({wechatReady:storage.wechatReady}))
+const fakeFetch=vi.fn()
+const response=(data:unknown)=>({json:async()=>data})
+let wx:typeof import('../../server/wechat')
+beforeEach(async()=>{
+  vi.resetModules();vi.resetAllMocks();storage.value=undefined
+  vi.stubEnv('WECHAT_APPID','unit-app-id');vi.stubEnv('WECHAT_APPSECRET','unit-test-only-not-a-credential')
+  vi.stubGlobal('fetch',fakeFetch)
+  storage.readJson.mockImplementation(async(_path,fallback)=>storage.value??fallback)
+  storage.writeJson.mockImplementation(async(_path,value)=>{storage.value=value})
+  storage.wechatReady.mockResolvedValue({buf:Buffer.from('image'),mime:'image/png',name:'image.png'})
+  wx=await import('../../server/wechat')
+})
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();vi.useRealTimers()})
+
+const draft={title:'title',content:'<p>text</p>',thumb_media_id:'cover'}
+describe('WeChat client boundaries with no real credentials or network',()=>{
+  it('reports configuration without returning the secret',()=>{
+    expect(wx.wechatStatus()).toEqual({configured:true,appid:expect.stringContaining('unit-a')})
+    vi.stubEnv('WECHAT_APPID','');expect(wx.wechatStatus()).toEqual({configured:false,appid:''})
+  })
+  it('fails missing credentials before making a network request',async()=>{
+    vi.stubEnv('WECHAT_APPSECRET','')
+    await expect(wx.uploadContentImage('x','fake-file')).rejects.toMatchObject({status:503})
+    expect(fakeFetch).not.toHaveBeenCalled()
+  })
+  it('uploads content images and covers with cache reuse and one cached access token',async()=>{
+    fakeFetch.mockResolvedValueOnce(response({access_token:'unit-token',expires_in:7200}))
+      .mockResolvedValueOnce(response({url:'https://mmbiz.qpic.cn/image'}))
+      .mockResolvedValueOnce(response({media_id:'cover-id',url:'cover-url'}))
+    expect(await wx.uploadContentImage('key','fake-file')).toBe('https://mmbiz.qpic.cn/image')
+    expect(await wx.uploadContentImage('key','fake-file')).toBe('https://mmbiz.qpic.cn/image')
+    expect(await wx.uploadCover('cover-key','fake-cover')).toEqual({media_id:'cover-id',url:'cover-url'})
+    expect(await wx.uploadCover('cover-key','fake-cover')).toEqual({media_id:'cover-id',url:'cover-url'})
+    expect(fakeFetch).toHaveBeenCalledTimes(3);expect(storage.wechatReady).toHaveBeenCalledTimes(2)
+    const mediaForm=fakeFetch.mock.calls[1][1].body as FormData
+    const file=mediaForm.get('media') as File;expect(file.name).toBe('image.png');expect(file.type).toBe('image/png')
+    expect(JSON.parse(fakeFetch.mock.calls[0][1].body)).toMatchObject({grant_type:'client_credential',force_refresh:false})
+  })
+  it.each([40001,42001])('refreshes an expired token once for error %s',async errcode=>{
+    fakeFetch.mockResolvedValueOnce(response({access_token:'unit-token-1',expires_in:7200}))
+      .mockResolvedValueOnce(response({errcode}))
+      .mockResolvedValueOnce(response({access_token:'unit-token-2',expires_in:7200}))
+      .mockResolvedValueOnce(response({media_id:'draft-id'}))
+    expect(await wx.addDraft(draft)).toEqual({media_id:'draft-id'})
+    expect(fakeFetch).toHaveBeenCalledTimes(4)
+    expect(JSON.parse(fakeFetch.mock.calls[2][1].body).force_refresh).toBe(true)
+    expect(fakeFetch.mock.calls[3][0]).toContain('unit-token-2')
+  })
+  it('does not retry indefinitely after a failed forced refresh operation',async()=>{
+    fakeFetch.mockResolvedValueOnce(response({access_token:'unit-1',expires_in:7200}))
+      .mockResolvedValueOnce(response({errcode:40001}))
+      .mockResolvedValueOnce(response({access_token:'unit-2',expires_in:7200}))
+      .mockResolvedValueOnce(response({errcode:40001}))
+    await expect(wx.addDraft(draft)).rejects.toMatchObject({status:502})
+    expect(fakeFetch).toHaveBeenCalledTimes(4)
+  })
+  it('refreshes a cached token when its remaining life is below sixty seconds',async()=>{
+    const now=vi.spyOn(Date,'now').mockReturnValue(100000)
+    fakeFetch.mockResolvedValueOnce(response({access_token:'first',expires_in:100}))
+      .mockResolvedValueOnce(response({media_id:'first-draft'}))
+      .mockResolvedValueOnce(response({access_token:'second',expires_in:7200}))
+      .mockResolvedValueOnce(response({media_id:'second-draft'}))
+    await wx.addDraft(draft);now.mockReturnValue(150000);await wx.addDraft({...draft,title:'next'})
+    expect(fakeFetch).toHaveBeenCalledTimes(4)
+  })
+  it.each([40007,40164,45009,45166,48001])('converts mapped service errors %s to safe 502 failures',async errcode=>{
+    fakeFetch.mockResolvedValueOnce(response({access_token:'unit',expires_in:7200})).mockResolvedValueOnce(response({errcode}))
+    await expect(wx.addDraft(draft)).rejects.toMatchObject({status:502,message:expect.stringContaining(String(errcode))})
+  })
+  it('surfaces missing-token and unknown-provider errors without writing a cache',async()=>{
+    fakeFetch.mockResolvedValueOnce(response({errcode:999,errmsg:'provider denied'}))
+    await expect(wx.uploadCover('x','fake')).rejects.toMatchObject({status:502,message:expect.stringContaining('provider denied')})
+    fakeFetch.mockResolvedValueOnce(response({}))
+    await expect(wx.addDraft(draft)).rejects.toMatchObject({status:502})
+    expect(storage.writeJson).not.toHaveBeenCalled()
+  })
+  it('preserves explicit author/digest but applies safe defaults for omitted values',async()=>{
+    fakeFetch.mockResolvedValueOnce(response({access_token:'unit',expires_in:7200})).mockResolvedValue(response({media_id:'draft'}))
+    await wx.addDraft(draft)
+    expect(JSON.parse(fakeFetch.mock.calls[1][1].body).articles[0]).toEqual({...draft,author:'',digest:'',need_open_comment:0,only_fans_can_comment:0})
+    await wx.addDraft({...draft,author:'Author',digest:'Summary'})
+    expect(JSON.parse(fakeFetch.mock.calls[2][1].body).articles[0]).toMatchObject({author:'Author',digest:'Summary'})
+  })
+  it('rejects invalid drafts before uploading and checks both image and background URL restrictions',async()=>{
+    await expect(wx.addDraft({...draft,title:''})).rejects.toMatchObject({status:400})
+    expect(fakeFetch).not.toHaveBeenCalled()
+    expect(wx.validateDraft({...draft,title:'x'.repeat(65),author:'x'.repeat(17),digest:'x'.repeat(121),content:'x'.repeat(1024*1024),thumb_media_id:''})).toHaveLength(6)
+    expect(wx.validateDraft({...draft,content:'<img src="/media/a.png"><div style="background:url(/media/b.jpg)"></div>'})).toHaveLength(2)
+    expect(wx.validateDraft({...draft,content:'<img src="https://mmbiz.qpic.cn/image"><div style="background:url(https://mmbiz.qpic.cn/bg)"></div>'})).toEqual([])
+  })
+})

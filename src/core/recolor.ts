@@ -34,10 +34,10 @@ function parseToken(tok: string): Parsed | null {
     const h = t.slice(1)
     if (h.length === 3 || h.length === 4) {
       const hex = '#' + [...h.slice(0, 3)].map((x) => x + x).join('')
-      return h.length === 4 ? { hex, alpha: (parseInt(h[3] + h[3], 16) / 255).toFixed(2) } : { hex }
+      return h.length === 4 ? { hex, alpha: (Number.parseInt(h[3] + h[3], 16) / 255).toFixed(2) } : { hex }
     }
     if (h.length === 6) return { hex: t }
-    return { hex: t.slice(0, 7), alpha: (parseInt(h.slice(6), 16) / 255).toFixed(2) }
+    return { hex: t.slice(0, 7), alpha: (Number.parseInt(h.slice(6), 16) / 255).toFixed(2) }
   }
   const nums = t.match(/[\d.]+%?/g)
   if (!nums || nums.length < 3) return null
@@ -103,7 +103,7 @@ export function recolorHtml(html: string, map: Record<string, string>, parse: Pa
     const to = map[p.hex]
     if (!to) return null
     if (p.alpha === undefined) return to
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(to.slice(i, i + 2), 16))
+    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(to.slice(i, i + 2), 16))
     return `rgba(${r}, ${g}, ${b}, ${p.alpha})`
   }
   visitColors(

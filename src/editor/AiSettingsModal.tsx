@@ -1,3 +1,5 @@
+import { removeParentheticalName } from '../core/textLinear'
+import { ModelPicker } from './ModelPicker'
 import { Help } from './Help'
 import { useEffect, useRef, useState } from 'react'
 import { api, type AiProfile } from './api'
@@ -8,6 +10,12 @@ import { useStore } from './store'
 const validExtra = (text = '') => {
   if (!text.trim()) return true
   try { const value = JSON.parse(text); return value && typeof value === 'object' && !Array.isArray(value) } catch { return false }
+}
+const endpointOrigin = (address: string): string | null => {
+  try {
+    const url = new URL(address)
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.origin : null
+  } catch { return null }
 }
 const COMMON_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
@@ -20,9 +28,12 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [activeId, setActiveId] = useState('')
   const [editing, setEditing] = useState<number>(-1)
   const [testing, setTesting] = useState('')
+  const [testRunning, setTestRunning] = useState(false)
+  const testBusy = useRef(false)
   const [probing, setProbing] = useState(false)
   const [effortNote, setEffortNote] = useState('')
   const actionRequest = useRef({ probe: 0, test: 0 })
+  const profileOrigins = useRef(new Map<string, string>())
   const [modelList, setModelList] = useState<Awaited<ReturnType<typeof api.aiModels>>>([])
   const [modelStatus, setModelStatus] = useState('')
   const [fetchingModels, setFetchingModels] = useState(false)
@@ -80,6 +91,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     setProbing(false)
     setEffortNote('')
     setTesting('')
+    testBusy.current = false
+    setTestRunning(false)
     return () => { state.probe++; state.test++ }
   }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey, cur?.model, cur?.extraBody, cur?.jsonMode, cur?.maxOutputTokens])
 
@@ -89,6 +102,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     setModelStatus('')
     setEffortNote('')
     setTesting('')
+    testBusy.current = false
+    setTestRunning(false)
     modelRequest.current.generation++
     actionRequest.current.probe++
     actionRequest.current.test++
@@ -97,15 +112,23 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const patch = (p: Partial<AiProfile>) => {
     // Invalidate synchronously, before a queued response can land after an edit.
     const endpoint = ['baseUrl', 'provider', 'apiKey'].some((key) => key in p)
+    const previousOrigin = cur ? profileOrigins.current.get(cur.id) ?? endpointOrigin(cur.baseUrl) : null
+    const nextOrigin = cur ? endpointOrigin(p.baseUrl ?? cur.baseUrl) : null
+    const changedService = !!cur && ((p.provider !== undefined && p.provider !== cur.provider) ||
+      (nextOrigin !== null && previousOrigin !== null && nextOrigin !== previousOrigin))
+    // Invalid intermediate URL drafts must not erase settings or forget the prior credential origin.
+    if (cur && (nextOrigin ?? previousOrigin)) profileOrigins.current.set(cur.id, (nextOrigin ?? previousOrigin)!)
     if (endpoint) modelRequest.current.generation++
     actionRequest.current.probe++
     actionRequest.current.test++
     setProbing(false)
     setTesting('')
+    testBusy.current = false
+    setTestRunning(false)
     setEffortNote('')
     setProfiles((list) => list.map((x, i) => i === editing ? {
       ...x,
-      ...(endpoint ? { contextWindow: 0, maxOutputTokens: 0, efforts: [], reasoningEffort: '' } : {}),
+      ...(changedService ? { contextWindow: 0, maxOutputTokens: 0, efforts: [], reasoningEffort: '', apiKey: '', hasKey: false } : {}),
       ...p,
     } : x))
   }
@@ -138,7 +161,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
 
   const addFromPreset = (key: string) => {
     const pre = AI_PRESETS.find((p) => p.key === key)!
-    const p: AiProfile = { ...blank(), id: `p${Date.now().toString(36)}`, name: pre.name.replace(/（.*）/, ''), provider: pre.provider, baseUrl: pre.baseUrl, model: pre.model }
+    const p: AiProfile = { ...blank(), id: `p${Date.now().toString(36)}`, name: removeParentheticalName(pre.name), provider: pre.provider, baseUrl: pre.baseUrl, model: pre.model }
     invalidate()
     setProfiles((list) => [...list, p])
     setEditing(profiles.length)
@@ -162,14 +185,27 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   const test = async (p: AiProfile) => {
+    if (testBusy.current) return
+    testBusy.current = true
+    setTestRunning(true)
     const request = ++actionRequest.current.test
-    setTesting('测试中…')
+    setTesting('测试中…（低预算连接检查）')
     try {
       const r = await api.testAi(p)
       if (request !== actionRequest.current.test) return
-      setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : `已响应但格式异常：${JSON.stringify(r.reply).slice(0, 80)}`)
+      const reply = r.reply && typeof r.reply === 'object' ? r.reply as {stage?: string; message?: string} : null
+      const message = typeof reply?.message === 'string' ? reply.message : ''
+      if (reply?.stage && message) {
+        const prefix = !r.ok ? '✕ ' : reply.stage === 'complete' ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）：` : '⚠ '
+        setTesting(prefix + message)
+      } else setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : '接口有响应，但最小 JSON 检查未通过。')
     } catch (e: any) {
       if (request === actionRequest.current.test) setTesting(`✕ ${e.message}`)
+    } finally {
+      if (request === actionRequest.current.test) {
+        testBusy.current = false
+        setTestRunning(false)
+      }
     }
   }
 
@@ -179,14 +215,14 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       <div className="ai-settings">
         <div className="ai-list">
           {profiles.map((p, i) => (
-            <div key={p.id || i} className={`ai-item ${i === editing ? 'on' : ''}`} onClick={() => { invalidate(); setEditing(i); setTesting('') }}>
-              <label onClick={(e) => e.stopPropagation()} title="设为当前使用">
-                <input type="radio" name="active" checked={activeId === p.id} onChange={() => setActiveId(p.id)} />
-              </label>
-              <div className="grow">
+            <div key={p.id || i} className={`ai-item ${i === editing ? 'on' : ''}`}>
+              <span title="设为当前使用">
+                <input aria-label={`设为当前模型：${p.name || '未命名'}`} type="radio" name="active" checked={activeId === p.id} onChange={() => setActiveId(p.id)} />
+              </span>
+              <button type="button" className="grow ai-profile-edit" aria-label={`编辑模型：${p.name || '未命名'}`} aria-pressed={i === editing} onClick={() => { invalidate(); setEditing(i); setTesting('') }} style={{ border: 0, padding: 0, background: 'transparent', color: 'inherit', textAlign: 'left', minWidth: 0 }} >
                 <b>{p.name || '未命名'}</b>
                 <small>{p.model || '未填写模型'}{p.readonly ? ' · 只读' : ''}</small>
-              </div>
+              </button>
             </div>
           ))}
           <select value="" disabled={!loaded} onChange={(e) => e.target.value && addFromPreset(e.target.value)} data-testid="ai-add-preset">
@@ -201,42 +237,31 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
             <>
               {cur.readonly && <p className="warn">此项来自 .env 文件，只能在 .env 中修改。</p>}
               <label className="field"><span>名称</span><input value={cur.name} disabled={cur.readonly} onChange={(e) => patch({ name: e.target.value })} /></label>
-              <label className="field">
+              <div className="field" role="group" aria-label="接口类型">
                 <span>接口类型</span>
                 <div className="seg">
-                  <button className={cur.provider === 'openai' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'openai' })}>OpenAI 兼容</button>
-                  <button className={cur.provider === 'anthropic' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'anthropic' })}>Anthropic Claude</button>
+                  <button aria-pressed={cur.provider === 'openai'} className={cur.provider === 'openai' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'openai' })}>OpenAI 兼容</button>
+                  <button aria-pressed={cur.provider === 'anthropic'} className={cur.provider === 'anthropic' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'anthropic' })}>Anthropic Claude</button>
                 </div>
-              </label>
+              </div>
               <label className="field"><span>接口地址 Base URL</span><input value={cur.baseUrl} disabled={cur.readonly} placeholder="https://…/v1" onChange={(e) => patch({ baseUrl: e.target.value })} /></label>
               <label className="field">
                 <span>API Key{preset?.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noreferrer">获取密钥 ↗</a>}</span>
                 <input type="password" value={cur.apiKey} disabled={cur.readonly} placeholder={cur.hasKey ? '已保存（留空则不修改）' : '粘贴密钥'} autoComplete="off" onChange={(e) => patch({ apiKey: e.target.value })} />
               </label>
               <label className="field"><span>模型名称</span><input data-testid="ai-model" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => selectModel(e.target.value)} /></label>
-              <button data-testid="ai-load-models" disabled={!cur.baseUrl || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
+              <button data-testid="ai-load-models" disabled={!endpointOrigin(cur.baseUrl) || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
               {modelStatus && <p className="hint" role="status" data-testid="ai-model-note">{modelStatus}</p>}
               {modelList.length > 0 && (
-                <label className="field"><span>可用模型（点击选择，也可在上方手动填写）</span>
-                  <select
-                    aria-label="可用模型"
-                    size={Math.min(6, modelList.length + 1)}
-                    value={modelList.some((m) => m.id === cur.model) ? cur.model : ''}
-                    disabled={cur.readonly}
-                    onChange={(e) => selectModel(e.target.value)}
-                  >
-                    <option value="" disabled>请选择模型…</option>
-                    {modelList.map((m) => <option key={m.id} value={m.id}>{m.id}{m.contextWindow ? `（${m.contextWindow} tokens）` : ''}</option>)}
-                  </select>
-                </label>
+                <ModelPicker models={modelList} value={cur.model} disabled={cur.readonly} onSelect={selectModel} />
               )}
               <label className="field"><span>上下文窗口（tokens，仅记录，不自动截断）</span><input data-testid="ai-context" type="number" min="0" step="1" value={cur.contextWindow || ''} disabled={cur.readonly} placeholder="上游未提供，可手动填写" onChange={(e) => patch({ contextWindow: Number(e.target.value) || 0 })} /></label>
               <label className="field"><span>思考强度（留空使用服务商默认）</span><input data-testid="ai-effort" list="ai-reasoning-efforts" value={cur.reasoningEffort ?? ''} disabled={cur.readonly} placeholder="例如 low / medium / high" onChange={(e) => patch({ reasoningEffort: e.target.value })} /></label>
               <datalist id="ai-reasoning-efforts">{(cur.efforts?.length ? cur.efforts : COMMON_EFFORTS).map((effort) => <option key={effort} value={effort} />)}</datalist>
               <Help title="思考强度参数">仅填写服务商支持的强度；OpenAI 兼容接口发送 reasoning_effort / max_completion_tokens，Claude 发送 output_config.effort。设置强度时不发送 temperature；不支持的参数会显示错误。</Help>
               <label className="field"><span>单次最大输出（tokens）</span><input data-testid="ai-max-output" type="number" min="0" step="1" value={cur.maxOutputTokens || ''} disabled={cur.readonly} placeholder="未知" onChange={(e) => patch({ maxOutputTokens: Number(e.target.value) || 0 })} /></label>
-              <Help title="输出上限">请求的输出上限不会超过此值；留空使用任务默认值。</Help>
-              <button data-testid="ai-probe-effort" disabled={!cur.baseUrl || !cur.model || probing} onClick={() => probe(cur)}>{probing ? '检测中…' : '检测支持的强度'}</button>
+              <Help title="输出上限">实际生成请求使用此输出预算；留空才使用任务默认值。思考与正文可能共用预算。连接和能力测试使用独立的小预算，不代表正式生成上限。</Help>
+              <button data-testid="ai-probe-effort" disabled={!endpointOrigin(cur.baseUrl) || !cur.model || probing} onClick={() => probe(cur)}>{probing ? '检测中…' : '检测支持的强度'}</button>
               <p className="hint">检测会向当前服务商发送多条请求，可能产生 API 费用；只有点击检测才会发送。</p>
               <p className="hint" data-testid="ai-effort-note">{effortNote || (cur.efforts?.length ? `已知强度：${cur.efforts.join('、')}` : '可手动填写服务商支持的强度，或点击检测。')}</p>
               <details className="ai-advanced">
@@ -250,7 +275,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 请求 JSON 模式（response_format；服务不支持时会自动关闭重试）
               </label>
               <div className="row gap">
-                <button onClick={() => test(cur)} disabled={!cur.baseUrl || !cur.model}>测试连接</button>
+                <button onClick={() => test(cur)} disabled={!endpointOrigin(cur.baseUrl) || !cur.model || testRunning}>测试连接</button>
                 {!cur.readonly && (
                   <button
                     className="danger"
@@ -263,7 +288,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                     删除
                   </button>
                 )}
-                <span className="hint">{testing}</span>
+                <span className="hint" role="status" data-testid="ai-test-note">{testing}</span>
               </div>
             </>
           )}
@@ -271,7 +296,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       </div>
       <div className="modal-actions">
         <button onClick={close}>取消</button>
-        <button className="primary" disabled={!loaded || busy || profiles.some((p) => !validExtra(p.extraBody))} onClick={save}>保存</button>
+        <button className="primary" disabled={!loaded || busy || profiles.some((p) => !validExtra(p.extraBody) || (!!p.baseUrl.trim() && !endpointOrigin(p.baseUrl)))} onClick={save}>保存</button>
       </div>
     </Modal>
   )

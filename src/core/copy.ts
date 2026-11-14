@@ -1,3 +1,4 @@
+import { copyHeading, shortQuote, trimEdgePunctuation } from './editorialText'
 // 文案结构：带标题级别的推文文稿（Markdown：# 推文标题，## 一级标题，### 二级标题，#### 三级标题）。
 // 套用模板时按这个结构逐项取模块；照片可以指定放在某一句话后面。
 import { parseArticle } from './outline'
@@ -29,24 +30,24 @@ export function parseCopy(input: string): Copy {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
   const marked = lines.some((l) => /^#{2,4}\s/.test(l) || LABELED_RE.test(l))
   if (!marked) return fromOutline(text)
-  const depths = [...new Set(lines.map((l) => l.match(/^(#{2,4})\s/)?.[1].length).filter((d): d is number => !!d))].sort()
+  const depths = [...new Set(lines.map((l) => l.match(/^(#{2,4})\s/)?.[1].length).filter((d): d is number => !!d))].sort((a, b) => a - b)
   const copy: Copy = { title: '', subtitle: '', items: [], credits: [] }
   let n = 0
   const id = () => `P${++n}`
   for (const [i, line] of lines.entries()) {
-    const h = line.match(/^(#{1,4})\s+(.+)$/)
+    const h = copyHeading(line)
     const labeled = line.match(LABELED_RE)
-    if (h && h[1].length === 1) {
-      if (!copy.title) copy.title = stripBold(h[2])
-      else copy.items.push({ id: id(), kind: 'heading', level: 1, text: stripBold(h[2]) })
-    } else if (h) copy.items.push({ id: id(), kind: 'heading', level: depths.indexOf(h[1].length) + 1, text: stripBold(h[2]) })
+    if (h && h[0].length === 1) {
+      if (!copy.title) copy.title = stripBold(h[1])
+      else copy.items.push({ id: id(), kind: 'heading', level: 1, text: stripBold(h[1]) })
+    } else if (h) copy.items.push({ id: id(), kind: 'heading', level: depths.indexOf(h[0].length) + 1, text: stripBold(h[1]) })
     else if (labeled) copy.items.push({ id: id(), kind: 'heading', level: '一二三'.indexOf(labeled[1]) + 1, text: stripBold(line.slice(labeled[0].length)) })
     else if (!copy.title && i === 0) copy.title = line
     else if (SUBTITLE_RE.test(line) && !copy.items.length) copy.subtitle = line.replace(SUBTITLE_RE, '')
     else if (/^>/.test(line)) {
       const t = line.replace(/^>\s*/, '')
-      const m = t.match(/^(.*?)\s*[—–]{1,2}\s*(.{1,30})$/)
-      copy.items.push({ id: id(), kind: 'quote', text: (m?.[1] ?? t).replace(/^[“"「]|[”"」]$/g, ''), source: m?.[2] ?? '' })
+      const m = shortQuote(t)
+      copy.items.push({ id: id(), kind: 'quote', text: (m?.[0] ?? t).replace(/^[“"「]|[”"」]$/g, ''), source: m?.[1] ?? '' })
     } else if (CREDIT_RE.test(line) && line.length < 80) copy.credits.push(line)
     else if (!/^!\[[^\]]*\]\([^)]+\)$/.test(line) && !/^-{3,}$/.test(line)) copy.items.push({ id: id(), kind: 'para', text: line.replace(/^[-*]\s+/, '') })
   }
@@ -100,7 +101,7 @@ export function copyToMarkdown(copy: Copy): string {
   return out.join('\n\n')
 }
 
-const norm = (s: string) => s.replace(/\*\*/g, '').replace(/[\s"'“”‘’「」『』]/g, '').replace(/^[，。！？；、,.!?;:：]+|[，。！？；、,.!?;:：]+$/g, '')
+const norm = (s: string) => trimEdgePunctuation(s.replace(/\*\*/g, '').replace(/[\s"'“”‘’「」『』]/g, ''))
 
 /** 找到包含这句话的段落（或标题），返回它的 id；找不到时返回空串 */
 export function findAnchor(copy: Copy, sentence: string): string {

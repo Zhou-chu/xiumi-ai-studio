@@ -37,11 +37,11 @@ describe('model discovery and reasoning', () => {
     expect(body.reasoning_effort).toBeUndefined()
     expect(body.temperature).toBe(0.4)
   })
-  it('gives reasoning connection probes enough budget for hidden reasoning', async () => {
+  it('keeps reasoning connectivity probes bounded instead of budgeting a full generation', async () => {
     let body: any
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] }) })
     await testConnection({ ...profile, reasoningEffort: 'high' })
-    expect(body.max_completion_tokens).toBe(4096)
+    expect(body.max_completion_tokens).toBe(128)
   })
   it('reports token exhaustion as a responding model, not missing JSON', async () => {
     vi.stubGlobal('fetch', async () => Response.json({ choices: [{ finish_reason: 'length', message: { content: '' } }] }))

@@ -130,23 +130,26 @@ test('选中模块后，AI 只改选中的模块', async ({ page }) => {
   await page.getByPlaceholder(/例如：把第二章/).fill('改简洁')
   await page.getByRole('button', { name: '生成修改建议' }).click()
   await expect(page.getByTestId('proposal')).toBeVisible()
-  await expect(page.locator('.proposal .op')).toHaveCount(0)
+  await expect(page.getByTestId('review-count')).toContainText('0')
   await expect(page.getByTestId('proposal')).toContainText('已忽略 3 条')
   await expect(page.getByTestId('proposal')).toContainText('修改其他模块不在选中的模块上')
   expect(bodies[0].context.focus).toEqual({ id: 'p2', type: 'paragraph' })
-  // 其他模块只给一行摘要，选中的才给完整内容
-  expect(bodies[0].context.blocks[0]).toMatchObject({ id: 'p1', summary: '第一段内容' })
-  expect(bodies[0].context.blocks[0]).not.toHaveProperty('props')
-  expect(bodies[0].context.blocks[1]).toHaveProperty('props')
+  // Only the exact selected module is transmitted, never unselected summaries.
+  expect(bodies[0].selectedId).toBe('p2')
+  expect(bodies[0].context.blocks).toHaveLength(1)
+  expect(bodies[0].context.blocks[0]).toMatchObject({ id: 'p2', props: { content: '第二段内容' } })
+  expect(bodies[0].context.blocks.map((block: { id: string }) => block.id)).not.toContain('p1')
+  expect(bodies[0].context.blocks.map((block: { id: string }) => block.id)).not.toContain('p3')
 
   // 切回整篇文章：所有修改都接受
   await page.getByLabel('修改范围').selectOption('document')
   await page.getByRole('button', { name: '生成修改建议' }).click()
-  await expect(page.locator('.proposal .op')).toHaveCount(3)
+  await expect(page.getByTestId('review-count')).toContainText('3')
   expect(bodies[1].context.focus).toBeUndefined()
 })
 
-test('AI 模型设置：从上游取模型列表和参数，检测思考强度并保存', async ({ page }) => {
+for (const mode of ['light','dark'] as const) test(`AI 模型设置：从上游取模型列表和参数，检测思考强度并保存 (${mode})`, async ({ page }) => {
+  await page.addInitScript(mode=>{if(window.top===window)localStorage.setItem('xiumi-color-mode',mode)},mode)
   // 上游由路由模拟（服务端逻辑见单元测试）；保存请求也只截获，不写进 e2e 的设置里
   await page.route('**/api/settings/ai/models', (r) => r.fulfill({ json: { models: [{ id: 'big-model', name: 'Big', contextWindow: 262144, maxOutput: 32768 }, { id: 'plain' }] } }))
   await page.route('**/api/settings/ai/probe-effort', (r) => r.fulfill({ json: { supported: ['low', 'high'], rejected: [{ effort: 'none', message: "Invalid value 'none'" }], ignored: false } }))
@@ -157,15 +160,19 @@ test('AI 模型设置：从上游取模型列表和参数，检测思考强度�
     await route.fulfill({ json: { activeId: '', profiles: [] } })
   })
   await page.goto('/')
+  await expect(page.locator('.workspace')).toBeVisible()
+  if (!(await page.getByTestId('open-ai-settings').isVisible())) await page.getByTestId('toolbar-more').click()
   await page.getByTestId('open-ai-settings').click()
   await page.getByTestId('ai-add-preset').selectOption('custom')
   await page.getByPlaceholder('https://…/v1').fill('http://127.0.0.1:5999/v1')
   await page.getByPlaceholder('粘贴密钥').fill('test-key-123456')
   await page.getByTestId('ai-load-models').click()
   await expect(page.getByTestId('ai-model-note')).toContainText('2 个模型')
+  await expect(page.getByRole('listbox', { name: '可用模型' })).toHaveCount(0)
+  await page.getByTestId('ai-model-picker').click()
   await expect(page.getByRole('listbox', { name: '可用模型' })).toBeVisible()
 
-  await page.getByRole('listbox', { name: '可用模型' }).selectOption('big-model')
+  await page.getByRole('option', { name: /^big-model（/ }).click()
   await expect(page.getByTestId('ai-context')).toHaveValue('262144')
   await expect(page.getByTestId('ai-max-output')).toHaveValue('32768')
   // 还没检测时给常见值；检测后只剩模型接受的

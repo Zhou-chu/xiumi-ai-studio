@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test'
 const blockTypes = (page: Page) => page.locator('[data-testid=canvas] [data-block-type]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.blockType))
 
 async function waitSaved(page: Page) {
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByTestId('save-status')).toHaveText('已保存', { timeout: 10_000 })
 }
 

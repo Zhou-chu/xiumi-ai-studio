@@ -231,7 +231,7 @@ function carousel(b: Block<'carousel'>, ctx: KitCtx): string {
     head +
     `<section style="${css({ display: 'inline-block', width: '100%', 'vertical-align': 'top', 'overflow-x': 'auto', 'box-sizing': 'border-box' })}">` +
     `<section style="${css({ width: `${track}%`, 'max-width': `${track}% !important`, 'font-size': 0, 'line-height': 0, overflow: 'hidden', 'box-sizing': 'border-box' })}">` +
-    slots.map(slide).join('') +
+    slots.map((slot, index) => slide(slot, index)).join('') +
     `</section></section>`
   )
 }

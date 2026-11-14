@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { buildFromDesign, normalizeDesign, outlineBrief } from '../core/aiDesign'
 import { assemble, kitLevels, type Placement } from '../core/assemble'
 import { normalizeBlocks } from '../core/blocks'
@@ -17,7 +17,9 @@ import { kitCandidates, KitPicker, layoutOptions, resolveKit, useComponents, typ
 import { Modal } from './Modal'
 import { PhotoPlanner, type PhotoGroup } from './PhotoPlanner'
 import { PlanIssues } from './PlanIssues'
-import { saveNow, useStore } from './store'
+import { saveBeforeLeave, useStore } from './store'
+import { loadIfUnchanged } from './documentNavigation'
+import { createVariantSaver } from './variantPersistence'
 
 const Copywriter = lazy(() => import('./Copywriter').then((m) => ({ default: m.Copywriter })))
 
@@ -75,13 +77,21 @@ const HINTS = ['清华风格，庄重典雅', '科技感，冷静理性', '温�
 
 export function ImportWizard({ onClose, initialText, initialImages, initialTemplates }: { onClose: () => void; initialText?: string; initialImages?: Asset[]; initialTemplates?: string[] }) {
   const themes = useStore((s) => s.themes)
-  const { load, notify } = useStore.getState()
+  const { notify } = useStore.getState()
   const [text, setText] = useState(initialText ?? '')
   const [images, setImages] = useState<Asset[]>(initialImages ?? [])
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [useAi, setUseAi] = useState(true)
   const [hint, setHint] = useState('')
   const [busy, setBusy] = useState('')
+  const [choiceError, setChoiceError] = useState('')
+  const choosing = useRef(false)
+  const mounted = useRef(true)
+  const [variantSaver] = useState(() => createVariantSaver(doc => api.saveProject(doc), id => api.project(id)))
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
   const [outline, setOutline] = useState<Outline | null>(null)
   const [aiDocs, setAiDocs] = useState<Variant[]>([])
   const [themeFor, setThemeFor] = useState<string[]>(RECIPES.map((r) => r.defaultTheme))
@@ -110,7 +120,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
   const refreshTemplates = () => api.templates().then(setTemplates).catch(() => {})
   useEffect(() => {
     api.aiStatus().then(setAi).catch(() => setAi(null))
-    refreshTemplates()
+    void refreshTemplates()
     window.addEventListener('templates-changed', refreshTemplates)
     return () => window.removeEventListener('templates-changed', refreshTemplates)
   }, [])
@@ -278,12 +288,30 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     }, 'AI 改写中…')
 
   const choose = async (doc: Doc, all?: Variant[]) => {
-    await saveNow()
-    if (all) for (const v of all) if (v.doc !== doc) await api.saveProject(v.doc)
-    load(doc)
-    await saveNow()
-    notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已打开所选方案')
-    onClose()
+    if (choosing.current || busy) return
+    choosing.current = true
+    setBusy('保存方案中…')
+    setChoiceError('')
+    try {
+      if (!(await saveBeforeLeave()) || !mounted.current) return
+      const expected = useStore.getState().doc
+      const isCurrent = () => mounted.current && useStore.getState().doc === expected
+      // Save the chosen draft last. A failure leaves the current editor untouched.
+      const docs = [...(all ?? []).filter(v => v.doc.id !== doc.id).map(v => v.doc), doc]
+      const saved = await variantSaver.saveAll(docs, isCurrent)
+      if (!saved) {
+        if (mounted.current) setChoiceError('等待期间当前文稿已变化，已保留编辑。已保存的方案可在项目中找到；请重试。')
+        return
+      }
+      if (!loadIfUnchanged(saved[saved.length - 1], expected)) return
+      notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已保存并打开所选方案')
+      onClose()
+    } catch (error) {
+      if (mounted.current) setChoiceError(`方案保存未完成，当前文稿未替换。已成功保存的方案会保留，可直接重试：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      choosing.current = false
+      if (mounted.current) setBusy('')
+    }
   }
 
   const card = (v: Variant, i: number) => (
@@ -293,14 +321,14 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
       </h4>
       <p className="hint concept">{v.description}</p>
       {v.recipe !== undefined && (
-        <select value={themeFor[v.recipe]} onChange={(e) => setThemeFor((t) => t.map((x, j) => (j === v.recipe ? e.target.value : x)))}>
+        <select disabled={!!busy} value={themeFor[v.recipe]} onChange={(e) => setThemeFor((t) => t.map((x, j) => (j === v.recipe ? e.target.value : x)))}>
           {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       )}
       {v.warnings?.map((w) => <p key={w} className="warn">{w}</p>)}
       <MiniPreview doc={v.doc} />
       <p className="hint">{v.doc.blocks.length} 个模块 · {compileDoc(v.doc).charCount.toLocaleString()} 字符</p>
-      <button className="primary wide" onClick={() => choose(v.doc)} data-testid={`choose-${v.key}`}>使用此方案</button>
+      <button className="primary wide" disabled={!!busy} onClick={() => void choose(v.doc)} data-testid={`choose-${v.key}`}>使用此方案</button>
     </div>
   )
 
@@ -464,11 +492,13 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
         </div>
       ) : (
         <div className="variants">
+          {choiceError && <p role="alert" className="warn" data-testid="variant-save-error">{choiceError}</p>}
+          {busy && <p role="status">{busy}</p>}
           <p className="hint">
             {kitMode
               ? `文案有 ${counts.map((c, i) => (c ? `${['一', '二', '三'][i]}级标题 ${c} 个` : '')).filter(Boolean).join('、') || '0 个标题'}，${images.length} 张照片。`
               : `识别到 ${outline.sections.length} 个章节、${outline.sections.reduce((n, s) => n + s.timeline.length, 0)} 个时间节点、${outline.sections.reduce((n, s) => n + s.quotes.length, 0)} 条引语、${images.length} 张图片。`}
-            <button className="link" onClick={() => setOutline(null)}>← 返回修改</button>
+            <button className="link" disabled={!!busy} onClick={() => setOutline(null)}>← 返回修改</button>
           </p>
           {kitMode && (
             <>
@@ -476,7 +506,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
                 模板套用
                 <button disabled={!!busy} onClick={() => run(() => fillKit(parseCopy(text)), '套用中…')} data-testid="refill">{busy || (aiOn ? '重新安排照片' : '重新套用')}</button>
               </h4>
-              {tplDocs.length > 0 ? <div className="variant-grid">{tplDocs.map(card)}</div> : <p className="empty">{busy || '没有生成结果'}</p>}
+              {tplDocs.length > 0 ? <div className="variant-grid">{tplDocs.map((variant, index) => card(variant, index))}</div> : <p className="empty">{busy || '没有生成结果'}</p>}
             </>
           )}
           {aiOn && (
@@ -488,13 +518,13 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
                   <button disabled={!!busy} onClick={() => run(() => designWithAi(outline), 'AI 设计中…')} data-testid="redesign">{busy || (aiDocs.length ? '重新设计' : '生成 AI 设计方案')}</button>
                 </span>
               </h4>
-              {aiDocs.length > 0 ? <div className="variant-grid">{aiDocs.map(card)}</div> : <p className="empty">{busy || '套用模板时不会自动生成 AI 设计方案，需要时点击右侧按钮'}</p>}
+              {aiDocs.length > 0 ? <div className="variant-grid">{aiDocs.map((variant, index) => card(variant, index))}</div> : <p className="empty">{busy || '套用模板时不会自动生成 AI 设计方案，需要时点击右侧按钮'}</p>}
             </>
           )}
           <h4 className="variants-title">内置版式</h4>
-          <div className="variant-grid">{builtin.map(card)}</div>
+          <div className="variant-grid">{builtin.map((variant, index) => card(variant, index))}</div>
           <div className="modal-actions">
-            <button onClick={() => choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
+            <button disabled={!!busy} data-testid="save-all-variants" onClick={() => void choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
           </div>
         </div>
       )}

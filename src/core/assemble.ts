@@ -1,3 +1,4 @@
+import { isDecorLabel, replaceFractionTotal } from './editorialText'
 // 按文案结构套用模块：标题用对应级别的标题模块，正文用正文段落（或大型容器），照片按指定位置和张数用对应的图片版式。
 // 每个标准名称只用一个模块（由用户在模板和收藏组件中选定），只替换文字和照片，不临时生成新版块。
 import { cloneBlock, coerceProps, createBlock, newId } from './blocks'
@@ -34,7 +35,7 @@ export interface AssembleOptions {
 
 const CJK = /[一-鿿]/
 const DECOR_NUMBER = /^(SECTION|PART|CHAPTER|NO\.?|Nº|STEP|CH)\s*\d/i
-const DECOR_LABEL = /[A-Za-z]{3,}.*[·|｜/]|[·|｜/].*[A-Za-z]{3,}/
+
 const LABEL_LINE = /^([一-鿿]{1,6})\s*([丨|｜:：/])\s*/
 const GENERIC_END = /关注|扫码|二维码|长按|感谢|阅读|END|在看|点赞|分享/i
 const CREDIT_GROUPS = [['文字', '文案', '文', '撰稿', '供稿'], ['图片', '摄影', '供图', '图'], ['编辑', '排版', '美编', '责编'], ['审核', '校对', '初审', '复审', '终审']]
@@ -122,7 +123,7 @@ function slotValues(block: Block<'html'>, f: Fill, opts: AssembleOptions): { val
       if (f.number !== undefined && (t.role === 'number' || DECOR_NUMBER.test(t.text))) {
         // “SECTION 01 / 04”：同时更新总章数
         const total = f.total
-        values[t.id] = total ? renumber(t.text, f.number).replace(/(\d+)(\s*\/\s*)(\d+)/, (_m, a, sep, b) => `${a}${sep}${String(total).padStart(b.length, '0')}`) : renumber(t.text, f.number)
+        values[t.id] = total ? replaceFractionTotal(renumber(t.text, f.number), total) : renumber(t.text, f.number)
       }
       continue
     }
@@ -154,7 +155,7 @@ function slotValues(block: Block<'html'>, f: Fill, opts: AssembleOptions): { val
     }
     const next = titles.shift() ?? (t.role === 'caption' ? notes.shift() : undefined)
     // 正文之前的中英混排短标签（“FIELD NOTES · 实践手记”）是版块的装饰性栏目名，没有新内容时保留
-    if (next === undefined && !bodyDone && t.role === 'title' && DECOR_LABEL.test(t.text) && (t.text.match(/[一-鿿]/g)?.length ?? 0) <= 6) continue
+    if (next === undefined && !bodyDone && t.role === 'title' && isDecorLabel(t.text) && (t.text.match(/[一-鿿]/g)?.length ?? 0) <= 6) continue
     values[t.id] = next ?? ''
   }
   return { values, placed: Math.min(n, f.photos?.length ?? 0) }

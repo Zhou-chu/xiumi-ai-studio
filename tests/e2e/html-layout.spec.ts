@@ -1,0 +1,33 @@
+import { expect, test } from '@playwright/test'
+// Only provider response is synthetic. Persistence and the review UI are real.
+test('HTML layout proposal is reviewed, persisted and restored after reload',async({page})=>{
+ const id=`html-layout-${Date.now()}`,now=Date.now()
+ const source='<div><h2>First chapter</h2><p>Original <a href="https://example.com">reference</a></p><h2>Second chapter</h2><p>Final text</p></div>'
+ const doc={id,title:'HTML layout verification',author:'',digest:'',themeId:'minimal-magazine',createdAt:now,updatedAt:now,blocks:[{id:'layout-block',type:'html',props:{html:source,label:'Layout sample'}}]}
+ expect((await page.request.put('/api/projects/'+id,{data:doc})).ok()).toBe(true)
+ await page.route('**/api/projects',route=>route.fulfill({json:[{id,title:doc.title}]}))
+ await page.route('**/api/ai/status',route=>route.fulfill({json:{enabled:true,provider:'openai',model:'synthetic',name:'Synthetic',profileId:'synthetic'}}))
+ await page.route('**/api/ai/suggest-instruction',route=>route.fulfill({json:{suggestion:''}}))
+ await page.route('**/api/ai/edit',route=>route.fulfill({json:{summary:'Rebuild chapter structure',ops:[{op:'update',id:'layout-block',themeId:'tsinghua-purple',layout:'chapters',reason:'Rebuild chapter structure'}]}}))
+ await page.goto('/')
+ await expect(page.locator('.title-input')).toHaveValue(doc.title)
+ const canvas=page.getByTestId('canvas')
+ await expect(canvas).toContainText('Original reference')
+ await expect(canvas.locator('[data-article-layout]')).toHaveCount(0)
+ await page.screenshot({path:'visual-evidence/html-layout-before.png'})
+ if(await page.getByTestId('workspace-right').isVisible()) await page.getByTestId('workspace-right').click()
+ await page.getByTestId('tab-ai').click()
+ await page.locator('.ai-suggestion-input textarea').fill('Rebuild all modules as Tsinghua purple chapters')
+ await page.getByRole('button',{name:'生成修改建议',exact:true}).click()
+ await expect(page.getByTestId('proposal')).toBeVisible()
+ await page.getByTestId('review-open').click()
+ await page.getByTestId('accept-review').click()
+ await expect(canvas.locator('[data-article-layout="chapters"]')).toHaveCount(1)
+ await expect(canvas.locator('[data-layout-chapter]')).toHaveCount(2)
+ await expect(canvas.locator('a[href="https://example.com"]')).toHaveText('reference')
+ await expect.poll(async()=>JSON.stringify(await (await page.request.get('/api/projects/'+id)).json())).toContain('data-article-layout')
+ await page.reload()
+ await expect(canvas.locator('[data-article-layout="chapters"]')).toHaveCount(1)
+ await expect(canvas).toContainText('Final text')
+ await page.screenshot({path:'visual-evidence/html-layout-after.png'})
+})

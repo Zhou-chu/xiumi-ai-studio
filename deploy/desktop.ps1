@@ -99,7 +99,8 @@ function Get-ApprovedHead {
   }
   return $sha
 }
-if ($FunctionsOnly) { return }
+function Invoke-DesktopDeployment {
+  param([string]$Root, [int]$Port = 5174, [switch]$Rollback)
 $version = & node --version
 if ($LASTEXITCODE -ne 0 -or $version -notmatch '^v24\.') { throw 'This deployment requires Node 24' }
 $pnpmVersion = & pnpm.cmd --version
@@ -109,7 +110,7 @@ New-Item -ItemType Directory -Force $Root,"$Root\releases","$Root\data","$Root\l
 $lock = $null
 try {
   $lock = [IO.File]::Open("$Root\deploy.lock",'OpenOrCreate','ReadWrite','None')
-} catch { Write-Output 'Another deploy is running; skipped'; exit 0 }
+} catch { Write-Output 'Another deploy is running; skipped'; return }
 try {
   $old = $null
   if (Test-Path "$Root\state.json") { $old = Get-Content "$Root\state.json" -Raw | ConvertFrom-Json }
@@ -121,7 +122,7 @@ try {
     Save-StartedState $restored
     $old = [pscustomobject]$restored
   }
-  if (-not $Rollback -and (Test-Path "$Root\paused")) { Write-Output "CD paused"; exit 0 }
+  if (-not $Rollback -and (Test-Path "$Root\paused")) { Write-Output "CD paused"; return }
   if ($Rollback) {
     if (-not $old -or -not $old.previous) { throw 'No previous release available' }
     $release = $old.previous
@@ -130,7 +131,7 @@ try {
     $sha = Get-ApprovedHead
     $release = Join-Path "$Root\releases" $sha
     if ($old -and $old.release -eq $release -and (Test-OwnedProcess $old)) {
-      Write-Output "Already serving $sha on 127.0.0.1:$Port"; exit 0
+      Write-Output "Already serving $sha on 127.0.0.1:$Port"; return
     }
     if (-not (Test-Path "$release\.ready")) {
       if (-not (Test-Path "$release\.git")) { Invoke-Checked 'git' @('clone','--no-checkout',$Repository,$release) }
@@ -179,3 +180,5 @@ try {
 } finally {
   $lock.Dispose()
 }
+}
+if (-not $FunctionsOnly) { Invoke-DesktopDeployment -Root $Root -Port $Port -Rollback:$Rollback }

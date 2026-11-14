@@ -55,6 +55,8 @@ test('配置 AI 模型并生成三套 AI 设计方案', async ({ page }) => {
   await page.goto('/')
   // 测试服务器刚启动时可能还在预构建依赖并刷新页面：等页面稳定后再操作
   await page.waitForLoadState('networkidle')
+  await expect(page.locator('.workspace')).toBeVisible()
+  if (!(await page.getByTestId('open-ai-settings').isVisible())) await page.getByTestId('toolbar-more').click()
   await page.getByTestId('open-ai-settings').click()
   await page.getByTestId('ai-add-preset').selectOption('custom')
   await page.getByLabel('名称', { exact: true }).fill('本地模拟模型')
@@ -83,6 +85,7 @@ test('配置 AI 模型并生成三套 AI 设计方案', async ({ page }) => {
   expect(html.toLowerCase()).toContain(PRIMARY[0])
 
   await aiCards.nth(0).getByRole('button', { name: '使用此方案' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByTestId('save-status')).toHaveText('已保存', { timeout: 10_000 })
   expect((await page.getByTestId('canvas').innerHTML()).toLowerCase()).toContain(PRIMARY[0])
   expect(calls.some((c) => c.includes('视觉设计师'))).toBe(true)
@@ -221,6 +224,7 @@ test('AI 写文案、按标准名称套用模板模块并安排照片，再按�
   expect(modal.y + modal.height).toBeLessThanOrEqual(900)
   expect(await page.locator('.modal-body').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
   await card.getByRole('button', { name: '使用此方案' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByTestId('save-status')).toHaveText('已保存', { timeout: 10_000 })
 
   // 选中原文片段，在右侧按槽位改字，保留原样式

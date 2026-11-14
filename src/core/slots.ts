@@ -1,3 +1,4 @@
+import { collapseNewlineWhitespace } from './textLinear'
 // 模板槽位：把原文片段（导入推文的 HTML）里的文字与图片识别为可替换的“槽位”。
 // 槽位按文档顺序编号（文字 t0、t1…，图片 i0、i1…），同一段 HTML 每次识别结果相同，因此不需要另存标记。
 // 表单改字换图、AI 修改导入内容、套用模板生成新推文，都只替换槽位里的文字和图片地址，结构与样式保持原样。
@@ -61,7 +62,7 @@ export function cleanText(s: string): string {
   return s
     .replace(/[\u200b\u200c\ufeff]|\u200d/g, '')
     .replace(/[ \t\r\f\v\u00a0]+/g, ' ')
-    .replace(/ *\n */g, '\n')
+    .replace(/ ?\n ?/g, '\n')
     .trim()
 }
 
@@ -143,7 +144,7 @@ function fontSize(el: Element | null): number {
     const m = (cur.getAttribute('style') ?? '').match(/font-size:\s*([\d.]+)px/i)
     if (m) return Number(m[1])
     const attr = cur.getAttribute('font-size')
-    if (attr && /^[\d.]+(px)?$/.test(attr)) return parseFloat(attr)
+    if (attr && /^[\d.]+(px)?$/.test(attr)) return Number.parseFloat(attr)
   }
   return 0
 }
@@ -156,12 +157,18 @@ function isBold(el: Element | null, stop: Node): boolean {
   return false
 }
 
-const longest = (list: Text[]) => list.reduce((a, b) => ((b.textContent ?? '').trim().length > (a.textContent ?? '').trim().length ? b : a))
+function longest(list: Text[]): Text | undefined {
+  let main = list[0]
+  for (const candidate of list.slice(1)) {
+    if ((candidate.textContent ?? '').trim().length > (main.textContent ?? '').trim().length) main = candidate
+  }
+  return main
+}
 
 function textSlot(id: string, node: Node, ctx: Element): TextSlot {
   const text = node.nodeType === 3 ? cleanText(node.textContent ?? '') : readText(node as Element)
   const main = node.nodeType === 3 ? (node as Text) : longest(textNodes(node))
-  const host = main.parentElement ?? ctx
+  const host = main?.parentElement ?? ctx
   const tight = !!ctx.closest('svg')
   const size = fontSize(host)
   const len = [...text].length
@@ -283,6 +290,7 @@ function setLine(el: Element, line: string, doc: Document, bold: boolean) {
   if (!texts.length) return
   const hadText = Array.from(el.querySelectorAll('*')).filter((e) => INLINE.has(tagOf(e)) && tagOf(e) !== 'br' && hasText(e))
   const main = longest(texts)
+  if (!main) return
   for (const t of texts) if (t !== main) t.textContent = ''
   el.querySelectorAll('br').forEach((b) => b.remove())
   main.replaceWith(...inlineNodes(line, doc, !!main.parentElement?.closest('text'), bold))
@@ -298,7 +306,7 @@ function writeText(node: Node, value: string, role: SlotRole, doc: Document, spl
       const span = doc.createElement('span')
       node.parentNode!.replaceChild(span, node)
       span.append(...inlineNodes(v.split('\n').map(tidy).join('\n'), doc, false, bold))
-    } else node.textContent = tidy(v.replace(/\*\*/g, '').replace(/\s*\n+\s*/g, ' '))
+    } else node.textContent = tidy(collapseNewlineWhitespace(v.replace(/\*\*/g, '')))
     return
   }
   const el = node as Element
@@ -608,4 +616,9 @@ export function setSlotAlign(html: string, id: string, align: Align, parse: Pars
     child = parent
   }
   return root.innerHTML
+}
+
+/** Read-only correspondence between stable scan order and actual rendered nodes. */
+export function readSlotNodes(root: Element): Array<{ slot: Slot; node: Node }> {
+  return scan(root)
 }

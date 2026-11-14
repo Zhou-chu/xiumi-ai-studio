@@ -1,0 +1,79 @@
+
+ RUN  v5.0.5 /workspace/scratch/7ae04dc66900/xiumi-concurrency
+
+ ❯ tests/unit/projectConcurrency.test.ts (3 tests | 3 failed) 64ms
+   × rejects stale and simultaneous saves without losing the winning content 26ms
+   × reads legacy documents without rewriting, upgrades on versioned save, and rejects old clients 10ms
+   × does not resurrect a deleted project with a stale version 26ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/projectConcurrency.test.ts > rejects stale and simultaneous saves without losing the winning content
+AssertionError: expected [ 'fulfilled', 'fulfilled' ] to deeply equal [ 'fulfilled', 'rejected' ]
+
+- Expected
++ Received
+
+  [
+    "fulfilled",
+-   "rejected",
++   "fulfilled",
+  ]
+
+ ❯ tests/unit/projectConcurrency.test.ts:19:38
+     17|     projects.put({ ...created, title: 'winner' }), projects.put({ ...c…
+     18|   ])
+     19|   expect(results.map(x => x.status)).toEqual(['fulfilled', 'rejected'])
+       |                                      ^
+     20|   expect(results[1]).toMatchObject({ reason: { status: 409 } })
+     21|   expect((await projects.get('a'))?.title).toBe('winner')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/unit/projectConcurrency.test.ts > reads legacy documents without rewriting, upgrades on versioned save, and rejects old clients
+AssertionError: expected undefined to deeply equal Any<String>
+
+- Expected:
+Any<String>
+
++ Received:
+undefined
+
+ ❯ tests/unit/projectConcurrency.test.ts:27:28
+     25|   await collection<{ id: string; title: string }>(dir).put({ id: 'old'…
+     26|   const loaded = await projects.get('old')
+     27|   expect(loaded?.revision).toEqual(expect.any(String))
+       |                            ^
+     28|   await expect(projects.put({ id: 'old', title: 'blind' })).rejects.to…
+     29|   const saved = await projects.put({ ...loaded!, title: 'upgraded' })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/unit/projectConcurrency.test.ts > does not resurrect a deleted project with a stale version
+AssertionError: promise resolved "{ id: 'a', title: 'base' }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "id": "a",
++   "title": "base",
+  }
+
+ ❯ tests/unit/projectConcurrency.test.ts:37:38
+     35|   const created = await projects.put({ id: 'a', title: 'base' })
+     36|   await projects.remove('a')
+     37|   await expect(projects.put(created)).rejects.toMatchObject({ status: …
+       |                                      ^
+     38|   expect(await projects.get('a')).toBeNull()
+     39| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  10:12:11
+   Duration  505ms (transform 61%, tests 26%, import 11%, worker 2%)

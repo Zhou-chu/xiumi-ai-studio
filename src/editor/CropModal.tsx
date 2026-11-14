@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
 import { api, type Asset } from './api'
 import { Modal } from './Modal'
@@ -19,8 +19,23 @@ export function CropModal({ asset, onClose, onDone }: { asset: Asset; onClose: (
   const [aspect, setAspect] = useState<number | undefined>(4 / 3)
   const [area, setArea] = useState<Area | null>(null)
   const [busy, setBusy] = useState(false)
+  const active = useRef(true)
+  const generation = useRef(0)
+  const running = useRef(false)
+  useEffect(() => {
+    active.current = true
+    const lifecycle = generation
+    lifecycle.current++
+    return () => { active.current = false; lifecycle.current++ }
+  }, [asset.id])
+  const close = () => {
+    active.current = false
+    generation.current++
+    if (running.current) useStore.getState().notify('已关闭裁剪；正在处理的图片可能仍会另存到素材库，不会关闭之后打开的窗口。')
+    onClose()
+  }
   return (
-    <Modal title={`裁剪：${asset.name}`} onClose={onClose} width={720}>
+    <Modal title={`裁剪：${asset.name}`} onClose={close} width={720}>
       <div className="crop-area">
         <Cropper
           image={`/media/${asset.file}`}
@@ -42,20 +57,26 @@ export function CropModal({ asset, onClose, onDone }: { asset: Asset; onClose: (
         <input type="range" min={1} max={4} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
       </div>
       <div className="modal-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={close}>取消</button>
         <button
           className="primary"
           disabled={!area || busy}
           onClick={async () => {
+            if (running.current || !active.current) return
+            running.current = true
+            const token = generation.current
+            const current = () => active.current && generation.current === token
             setBusy(true)
             try {
               const a = await api.cropAsset(asset.id, area!)
+              if (!current()) return
               useStore.getState().notify('已另存为新素材（原图保留）')
               onDone(a)
             } catch (e: any) {
-              useStore.getState().notify(e.message, 'error')
+              if (current()) useStore.getState().notify(e.message, 'error')
             } finally {
-              setBusy(false)
+              running.current = false
+              if (current()) setBusy(false)
             }
           }}
         >

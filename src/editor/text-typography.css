@@ -1,0 +1,10 @@
+.text-font-control { display: inline-flex; flex: 0 0 auto; white-space: nowrap; align-items: center; gap: 4px; font-size: 12px; }
+.text-font-control select { max-width: 160px; min-height: 32px; padding: 3px 5px; font-size: 14px; }
+.text-font-hint { font-size: 12px; color: var(--ui-text-secondary, #96968f); align-self: center; }
+.rich-toolbar { flex-wrap: wrap; }
+@media (max-width: 600px) { .text-font-control select { min-height: 40px; max-width: 138px; } .text-font-hint { flex-basis: 100%; } }
+.html-typography-controls { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+
+.text-font-control input[type="color"] { width: 36px; height: 32px; padding: 2px; border: 1px solid var(--ui-border, #888); background: transparent; cursor: pointer; }
+.rich-content .ProseMirror span[style*="color"] strong { color: inherit; }
+@media (max-width: 600px) { .text-font-control input[type="color"] { min-height: 40px; min-width: 40px; } }

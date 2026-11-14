@@ -1,3 +1,4 @@
+import type { ArticleImageResult } from '../../server/articleImages'
 import type { ComponentDraft, LibraryComponent } from '../core/components'
 import type { RoleId } from '../core/roles'
 import type { Block, Doc, ImageRef, Theme } from '../core/types'
@@ -81,20 +82,34 @@ export interface Template {
   createdAt: number
 }
 
-async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method }
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message) }
+}
+
+async function req<T>(method: string, url: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const init: RequestInit = { method, ...(signal ? { signal } : {}) }
   if (body instanceof FormData) init.body = body
   else if (body !== undefined) {
     init.body = JSON.stringify(body)
     init.headers = { 'content-type': 'application/json' }
   }
   const res = await fetch(url, init)
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error ?? `${res.status} ${res.statusText}`)
-  return data as T
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new ApiError(data?.error ?? `${res.status} ${res.statusText}`, res.status)
+  }
+  // A failed/aborted success body is not an empty document or project list.
+  return await res.json() as T
 }
 
 export const assetRef = (a: Asset): ImageRef => ({ src: `/media/${a.file}`, assetId: a.id, alt: a.name, width: a.width, height: a.height })
+
+// Match the server's resource-ID grammar before interpolating into a route.
+// Encoding alone is insufficient: URL parsers normalize dot path segments.
+function resourceId(value: string): string {
+  if (typeof value !== 'string' || !/^[\w-]{1,64}$/.test(value)) throw new ApiError('Invalid resource ID', 400)
+  return encodeURIComponent(value)
+}
 
 export const api = {
   assets: () => req<Asset[]>('GET', '/api/assets'),
@@ -103,8 +118,8 @@ export const api = {
     for (const f of Array.from(files)) fd.append('files', f)
     return req<Asset[]>('POST', '/api/assets', fd)
   },
-  cropAsset: (id: string, box: { x: number; y: number; width: number; height: number }) => req<Asset>('POST', `/api/assets/${id}/crop`, box),
-  deleteAsset: (id: string) => req('DELETE', `/api/assets/${id}`),
+  cropAsset: async (id: string, box: { x: number; y: number; width: number; height: number }) => req<Asset>('POST', `/api/assets/${resourceId(id)}/crop`, box),
+  deleteAsset: async (id: string) => req('DELETE', `/api/assets/${resourceId(id)}`),
   importFile(file: File) {
     const fd = new FormData()
     fd.append('file', file)
@@ -113,25 +128,25 @@ export const api = {
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
-  project: (id: string) => req<Doc>('GET', `/api/projects/${id}`),
-  saveProject: (doc: Doc) => req<{ updatedAt: number }>('PUT', `/api/projects/${doc.id}`, doc),
-  deleteProject: (id: string) => req('DELETE', `/api/projects/${id}`),
-  versions: (id: string) => req<VersionSummary[]>('GET', `/api/projects/${id}/versions`),
-  saveVersion: (doc: Doc, label: string) => req<VersionSummary>('POST', `/api/projects/${doc.id}/versions`, { doc, label }),
-  version: (pid: string, vid: string) => req<{ doc: Doc }>('GET', `/api/projects/${pid}/versions/${vid}`),
+  project: async (id: string) => req<Doc>('GET', `/api/projects/${resourceId(id)}`),
+  saveProject: async (doc: Doc) => req<{ updatedAt: number; revision?: string }>('PUT', `/api/projects/${resourceId(doc.id)}`, doc),
+  deleteProject: async (id: string) => req('DELETE', `/api/projects/${resourceId(id)}`),
+  versions: async (id: string) => req<VersionSummary[]>('GET', `/api/projects/${resourceId(id)}/versions`),
+  saveVersion: async (doc: Doc, label: string) => req<VersionSummary>('POST', `/api/projects/${resourceId(doc.id)}/versions`, { doc, label }),
+  version: async (pid: string, vid: string) => req<{ doc: Doc }>('GET', `/api/projects/${resourceId(pid)}/versions/${resourceId(vid)}`),
 
   templates: () => req<Template[]>('GET', '/api/templates'),
   saveTemplate: (name: string, blocks: Block[], theme?: Pick<Doc, 'themeId' | 'themeOverrides'>) =>
     req<Template>('POST', '/api/templates', { name, blocks, themeId: theme?.themeId, themeOverrides: theme?.themeOverrides }),
-  deleteTemplate: (id: string) => req('DELETE', `/api/templates/${id}`),
-  updateTemplate: (id: string, patch: { name?: string; roles?: Record<string, RoleId> }) => req<Template>('PUT', `/api/templates/${id}`, patch),
+  deleteTemplate: async (id: string) => req('DELETE', `/api/templates/${resourceId(id)}`),
+  updateTemplate: async (id: string, patch: { name?: string; roles?: Record<string, RoleId> }) => req<Template>('PUT', `/api/templates/${resourceId(id)}`, patch),
   components: () => req<LibraryComponent[]>('GET', '/api/components'),
   saveComponent: (draft: ComponentDraft) => req<{ component: LibraryComponent; duplicate: boolean }>('POST', '/api/components', draft),
-  updateComponent: (id: string, patch: { name?: string; tags?: string[]; kind?: string; role?: RoleId }) => req<LibraryComponent>('PUT', `/api/components/${id}`, patch),
-  deleteComponent: (id: string) => req('DELETE', `/api/components/${id}`),
+  updateComponent: async (id: string, patch: { name?: string; tags?: string[]; kind?: string; role?: RoleId }) => req<LibraryComponent>('PUT', `/api/components/${resourceId(id)}`, patch),
+  deleteComponent: async (id: string) => req('DELETE', `/api/components/${resourceId(id)}`),
   themes: () => req<Theme[]>('GET', '/api/themes'),
   saveTheme: (t: Theme) => req('POST', '/api/themes', t),
-  deleteTheme: (id: string) => req('DELETE', `/api/themes/${id}`),
+  deleteTheme: async (id: string) => req('DELETE', `/api/themes/${resourceId(id)}`),
 
   aiStatus: () => req<AiStatus>('GET', '/api/ai/status'),
   aiSettings: () => req<AiSettings>('GET', '/api/settings/ai'),
@@ -149,10 +164,11 @@ export const api = {
   aiCopywrite: (body: { brief: string; style: string; length: string; levels: number; extra: string; previous?: string; revise?: string; profileId?: string }) => req<{ markdown?: string }>('POST', '/api/ai/copywrite', body),
   aiEnrichCopy: (body: { text: string; photos: unknown[]; keep: string[]; profileId?: string }) => req<{ markdown?: string; changes?: string[] }>('POST', '/api/ai/enrich-copy', body),
   aiPlacePhotos: (body: unknown) => req<{ placements?: unknown[] }>('POST', '/api/ai/place-photos', body),
-  aiSuggestInstruction: (context: unknown, profileId?: string, selectedId?: string) => req<{ suggestion: string }>('POST', '/api/ai/suggest-instruction', { context, profileId, selectedId }),
-  aiEdit: (context: unknown, instruction: string, profileId?: string, selectedId?: string) => req<{ summary: string; ops: any[] }>('POST', '/api/ai/edit', { context, instruction, profileId, selectedId }),
+  aiSuggestInstruction: (context: unknown, profileId?: string, selectedId?: string | string[], signal?: AbortSignal) => req<{ suggestion: string }>('POST', '/api/ai/suggest-instruction', { context, profileId, selectedId }, signal),
+  aiEdit: (context: unknown, instruction: string, profileId?: string, selectedId?: string | string[]) => req<{ summary: string; ops: any[] }>('POST', '/api/ai/edit', { context, instruction, profileId, selectedId }),
   fetchReference: (url: string) => req<{ html: string }>('POST', '/api/reference/fetch', { url }),
   fetchArticle: (url: string) => req<{ html: string }>('POST', '/api/article/fetch', { url }),
+  importArticleImages: (urls: string[]) => req<ArticleImageResult[]>('POST', '/api/assets/import-article', { urls }),
   fetchAssets: (urls: string[]) => req<Record<string, Asset>>('POST', '/api/assets/fetch', { urls }),
 
   wechatStatus: () => req<{ configured: boolean; appid: string }>('GET', '/api/wechat/status'),

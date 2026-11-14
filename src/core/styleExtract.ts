@@ -1,3 +1,4 @@
+import { removeFirstImportant } from './textLinear'
 // 参考风格学习：从用户有权使用的参考文章 HTML 中提取设计参数，生成原创主题。
 // 只提取数值型设计令牌（颜色、字号、行距、间距、圆角、装饰倾向），不复制任何 HTML 结构或素材。
 import { lum, sat, tint as mix, toHex } from './color'
@@ -20,7 +21,7 @@ function parseStyle(s: string): Record<string, string> {
   const out: Record<string, string> = {}
   for (const decl of s.split(';')) {
     const i = decl.indexOf(':')
-    if (i > 0) out[decl.slice(0, i).trim().toLowerCase()] = decl.slice(i + 1).trim().replace(/\s*!important/, '')
+    if (i > 0) out[decl.slice(0, i).trim().toLowerCase()] = removeFirstImportant(decl.slice(i + 1).trim())
   }
   return out
 }

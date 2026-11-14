@@ -1,6 +1,6 @@
 import { Help } from './Help'
 // 封面设计：在 canvas 上合成 900×383（2.35:1）公众号封面，导出 PNG 存入素材库。
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { resolveTheme } from '../core/themes'
 import { api, assetRef, type Asset } from './api'
 import { Modal } from './Modal'
@@ -29,13 +29,14 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number): string
     } else line += ch
   }
   if (line) lines.push(line)
-  return lines.slice(0, 3)
+  return lines
 }
 
 export function CoverDesigner({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const { setDocFields, notify } = useStore.getState()
-  const theme = resolveTheme(doc)
+  const { themeId, themeOverrides } = doc
+  const theme = useMemo(() => resolveTheme({ themeId, themeOverrides }), [themeId, themeOverrides])
   const canvas = useRef<HTMLCanvasElement>(null)
   const [assets, setAssets] = useState<Asset[]>([])
   const [bg, setBg] = useState<string | undefined>(doc.cover?.src ?? (doc.blocks.find((b) => b.type === 'cover') as any)?.props.image?.src)
@@ -43,17 +44,27 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
   const [kicker, setKicker] = useState((doc.blocks.find((b) => b.type === 'cover') as any)?.props.kicker ?? '')
   const [layout, setLayout] = useState<Layout>('gradient')
   const [busy, setBusy] = useState(false)
+  const saving = useRef(false)
+  const [titleTooLong, setTitleTooLong] = useState(false)
+  const [renderedKey, setRenderedKey] = useState('')
+  const renderKey = JSON.stringify([bg, title, kicker, layout, theme])
+  const currentRenderKey = useRef(renderKey)
+  currentRenderKey.current = renderKey
+  const active = useRef(true)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
 
   useEffect(() => {
     api.assets().then(setAssets).catch(() => {})
   }, [])
 
   useEffect(() => {
+    setRenderedKey('')
     let cancelled = false
     ;(async () => {
       const cv = canvas.current
       if (!cv) return
-      const ctx = cv.getContext('2d')!
+      const ctx = cv.getContext('2d')
+      if (!ctx) throw new Error('Canvas unavailable')
       const c = theme.colors
       ctx.fillStyle = c.primary
       ctx.fillRect(0, 0, W, H)
@@ -67,6 +78,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
           /* 图片加载失败时保留纯色背景 */
         }
       }
+      if (cancelled) return
       const font = (size: number, weight = 700) => `${weight} ${size}px "PingFang SC","Microsoft YaHei",sans-serif`
       if (layout === 'gradient') {
         const g = ctx.createLinearGradient(0, 0, W * 0.75, 0)
@@ -94,36 +106,67 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
         y += 52
       }
       ctx.fillStyle = dark ? c.text : '#ffffff'
-      const size = layout === 'band' ? 36 : 44
-      ctx.font = font(size)
+      let size = layout === 'band' ? 36 : 44
       const maxW = layout === 'band' ? W - 112 : W * 0.5
-      const lines = wrap(ctx, title, maxW).slice(0, layout === 'band' ? 2 : 3)
-      lines.forEach((l, i) => ctx.fillText(l, x, y + i * size * 1.3))
-    })()
+      const maxLines = layout === 'band' ? 2 : 3
+      ctx.font = font(size)
+      let lines = wrap(ctx, title, maxW)
+      // Fit ordinary long titles without sacrificing readable type. If the
+      // full title still cannot fit, explicitly block exporting a partial one.
+      while (lines.length > maxLines && size > 24) {
+        size -= 1
+        ctx.font = font(size)
+        lines = wrap(ctx, title, maxW)
+      }
+      const overflow = lines.length > maxLines
+      lines.slice(0, maxLines).forEach((l, i) => ctx.fillText(l, x, y + i * size * 1.3))
+      setTitleTooLong(overflow)
+      setRenderedKey(renderKey)
+    })().catch(() => {
+      if (!cancelled) {
+        setRenderedKey('')
+        notify('封面预览生成失败，请调整标题或版式后重试。', 'error')
+      }
+    })
     return () => {
       cancelled = true
     }
-  }, [bg, title, kicker, layout, theme])
+  }, [bg, title, kicker, layout, theme, renderKey, notify])
 
   const save = async () => {
+    if (saving.current) return
+    if (renderedKey !== renderKey || titleTooLong) {
+      notify('封面尚未准备好或标题过长，请缩短标题并等待预览更新。', 'error')
+      return
+    }
+    const expected = useStore.getState().doc
+    saving.current = true
     setBusy(true)
     try {
       const blob = await new Promise<Blob>((r) => canvas.current!.toBlob((b) => r(b!), 'image/jpeg', 0.92))
       const [a] = await api.uploadAssets([new File([blob], `cover-${Date.now()}.jpg`, { type: 'image/jpeg' })])
+      if (!active.current) return
+      if (useStore.getState().doc !== expected || currentRenderKey.current !== renderKey) {
+        notify('等待期间文稿或封面已变化，已保留当前内容。生成图片仍可从素材库选择。', 'error')
+        window.dispatchEvent(new Event('assets-changed'))
+        return
+      }
       setDocFields({ cover: assetRef(a) })
       window.dispatchEvent(new Event('assets-changed'))
       notify('封面已生成并设置')
       onClose()
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (active.current) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      saving.current = false
+      if (active.current) setBusy(false)
     }
   }
 
   return (
     <Modal title="封面设计（900×383，2.35:1）" onClose={onClose} width={980}>
       <canvas ref={canvas} width={W} height={H} className="cover-canvas" />
+      {titleTooLong && <p role="alert" className="warn">标题过长，超出当前版式的可用空间，预览未显示完整标题。请缩短标题或切换版式后再生成；不会导出截断的标题。</p>}
       <Help title="封面裁切">公众号会从封面中裁出 1:1 区域作为小图，重要内容尽量放在左侧 383px 内。</Help>
       <div className="row gap wrap">
         <div className="seg">
@@ -143,7 +186,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
       <div className="modal-actions">
         <button onClick={onClose}>取消</button>
         {bg && <button onClick={() => { const a = assets.find((x) => bg.startsWith(`/media/${x.file}`)); if (a) { setDocFields({ cover: assetRef(a) }); notify('已直接使用原图作为封面'); onClose() } }}>直接用原图</button>}
-        <button className="primary" disabled={busy} onClick={save}>{busy ? '生成中…' : '生成并设为封面'}</button>
+        <button className="primary" disabled={busy || titleTooLong || renderedKey !== renderKey} onClick={save}>{busy ? '生成中…' : '生成并设为封面'}</button>
       </div>
     </Modal>
   )

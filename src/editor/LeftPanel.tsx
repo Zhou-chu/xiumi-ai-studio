@@ -1,3 +1,4 @@
+import { UiIcon } from './UiIcon'
 import { Help } from './Help'
 import { useDraggable } from '@dnd-kit/core'
 import { useCallback, useEffect, useState } from 'react'
@@ -9,7 +10,8 @@ import { TemplateModules } from './TemplateModules'
 import { ComponentLibrary } from './ComponentLibrary'
 import { CropModal } from './CropModal'
 import { KIT_ITEMS, KIT_THEME_ID, type KitItem } from './kitItems'
-import { emptyDoc, saveNow, selectedBlock, useStore } from './store'
+import { emptyDoc, saveBeforeLeave, selectedBlock, useStore } from './store'
+import { loadIfUnchanged } from './documentNavigation'
 
 type Tab = 'blocks' | 'components' | 'assets' | 'templates' | 'projects'
 
@@ -26,7 +28,7 @@ function LibItem({ type }: { type: BlockType }) {
       title="点击插入到选中模块之后，或拖入画布"
       data-testid={`lib-${type}`}
     >
-      <span className="lib-icon">{m.icon}</span>
+      <span className="lib-icon" aria-hidden="true"><span className="ui-legacy-icon">{m.icon}</span><UiIcon name={type} /></span>
       <span>{m.label}</span>
     </button>
   )
@@ -44,7 +46,7 @@ function KitLibItem({ item }: { item: KitItem }) {
       title="点击插入到选中模块之后（选中大型文本框时放进框内），或拖入画布"
       data-testid={`kit-${item.key}`}
     >
-      <span className="lib-icon">{item.icon}</span>
+      <span className="lib-icon" aria-hidden="true"><span className="ui-legacy-icon">{item.icon}</span><UiIcon name={item.key} /></span>
       <span>{item.label}</span>
     </button>
   )
@@ -237,10 +239,10 @@ export function LeftPanel() {
                   <button
                     title="用此模板新建项目"
                     onClick={async () => {
-                      await saveNow()
+                      if (!(await saveBeforeLeave())) return
                       const now = Date.now()
                       load({ ...emptyDoc(), title: t.name, ...(t.themeId && { themeId: t.themeId, themeOverrides: t.themeOverrides }), blocks: t.blocks.map(cloneBlock), createdAt: now, updatedAt: now })
-                      await saveNow()
+                      if (!(await saveBeforeLeave())) return
                       notify(`已用模板「${t.name}」新建项目`)
                     }}
                   >
@@ -269,9 +271,9 @@ export function LeftPanel() {
             <button
               className="wide"
               onClick={async () => {
-                await saveNow()
+                if (!(await saveBeforeLeave())) return
                 load(emptyDoc())
-                await saveNow()
+                if (!(await saveBeforeLeave())) return
                 refreshProjects()
               }}
             >
@@ -282,8 +284,10 @@ export function LeftPanel() {
                 <button
                   className="grow"
                   onClick={async () => {
-                    await saveNow()
-                    load(await api.project(p.id))
+                    if (!(await saveBeforeLeave())) return
+                    const expected = useStore.getState().doc
+                    const target = await api.project(p.id)
+                    loadIfUnchanged(target, expected)
                   }}
                 >
                   <b>{p.title || '未命名'}</b>

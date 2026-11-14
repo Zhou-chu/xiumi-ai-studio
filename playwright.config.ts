@@ -15,6 +15,8 @@ export default defineConfig({
     baseURL: 'http://localhost:5273',
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
     permissions: ['clipboard-read', 'clipboard-write'],
   },
   webServer: [

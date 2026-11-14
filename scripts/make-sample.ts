@@ -1,9 +1,12 @@
 // 生成验收用样例：约 2000 字的活动推文 + 10 张示意图片（原创合成，无版权素材）
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
-const OUT = join(import.meta.dirname, '..', 'samples')
+/** Generate only into the explicitly supplied directory; importing performs no I/O. */
+export async function generateSamples(outputDir: string): Promise<void> {
+const OUT = resolve(outputDir)
 mkdirSync(OUT, { recursive: true })
 
 const ARTICLE = `2026 秋季校园科技文化节圆满落幕
@@ -87,3 +90,8 @@ for (let i = 0; i < 10; i++) {
   await sharp(Buffer.from(svg)).jpeg({ quality: 82 }).toFile(join(OUT, `photo-${String(i + 1).padStart(2, '0')}.jpg`))
 }
 console.log('样例已生成：', OUT, '字数', ARTICLE.replace(/\s/g, '').length)
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await generateSamples(join(import.meta.dirname, '..', 'samples'))
+}

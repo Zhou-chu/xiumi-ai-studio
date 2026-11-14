@@ -1,7 +1,12 @@
+import { blockLabel } from '../core/blocks'
+import { findBlock } from '../core/tree'
+import { selectionIdentity, useSelectionScope } from './useSelectionScope'
+import { ArticleImageImport } from './ArticleImageImport'
+import { isImageLibraryRequest } from '../core/articleImages'
+import { UiIcon } from './UiIcon'
 import { Help } from './Help'
-import { useEffect, useMemo, useState } from 'react'
-import { compileDoc, variantUrl } from '../core/compiler'
-import { applyOps, describeOp } from '../core/ops'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { variantUrl } from '../core/compiler'
 import { QUICK_ACTIONS, aiContext } from '../core/quickActions'
 import { analyzeStyle, themeFromReport, type StyleReport } from '../core/styleExtract'
 import { getTheme, registerTheme, resolveTheme } from '../core/themes'
@@ -13,7 +18,6 @@ import { SuggestionInput } from './SuggestionInput'
 import { instructionSuggestions } from './suggestionQueue'
 import { PropsForm } from './PropsForm'
 import { selectedBlock, useStore } from './store'
-import { PhonePreview } from './Toolbar'
 
 type Tab = 'style' | 'theme' | 'ai' | 'reference'
 
@@ -30,7 +34,7 @@ function DocSettings() {
       <div className="field">
         <span>公众号封面（2.35:1）</span>
         {doc.cover ? <img className="cover-preview" src={variantUrl(doc.cover.src, '235:100', 600)} alt="" /> : <p className="hint">尚未设置</p>}
-        <button onClick={() => setDesigning(true)}>🎨 设计封面</button>
+        <button onClick={() => setDesigning(true)}><span className="ui-legacy-icon" aria-hidden="true">🎨 </span><UiIcon name="cover" /> 设计封面</button>
       </div>
       <Help title="编辑模块">提示：点击画布中的模块即可编辑该模块；双击正文类模块可直接编辑文字。</Help>
       {designing && <CoverDesigner onClose={() => setDesigning(false)} />}
@@ -38,10 +42,44 @@ function DocSettings() {
   )
 }
 
+/** Saving a theme may outlive this panel or the document it was requested for. */
+function useThemeSave() {
+  const active = useRef(true)
+  const pending = useRef(false)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
+  const save = async (theme: Theme) => {
+    if (pending.current) return
+    pending.current = true
+    setSaving(true)
+    const expected = useStore.getState().doc
+    const { commit, notify, refreshThemes } = useStore.getState()
+    try {
+      await api.saveTheme(theme)
+      registerTheme(theme)
+      refreshThemes()
+      if (!active.current) return
+      if (useStore.getState().doc !== expected) {
+        notify('主题已保存，但文稿已变化，未应用到当前文稿。可从主题列表手动选择。', 'error')
+        return
+      }
+      commit({ ...expected, themeId: theme.id, themeOverrides: undefined })
+      notify(`主题已保存并应用「${theme.name}」`)
+    } catch (error) {
+      if (active.current) notify(error instanceof Error ? error.message : '主题保存失败，请重试', 'error')
+    } finally {
+      pending.current = false
+      if (active.current) setSaving(false)
+    }
+  }
+  return { save, saving }
+}
+
 function ThemePanel() {
   const doc = useStore((s) => s.doc)
   const themes = useStore((s) => s.themes)
-  const { commit, notify, refreshThemes } = useStore.getState()
+  const { commit } = useStore.getState()
+  const { save, saving } = useThemeSave()
   const theme = resolveTheme(doc)
   const setOverride = (patch: Partial<ThemeTokens>, key: string) => {
     const o = doc.themeOverrides ?? {}
@@ -92,15 +130,12 @@ function ThemePanel() {
       {num('图片圆角', 'imageRadius', 0, 20)}
       <button
         className="wide"
+        disabled={saving}
         onClick={async () => {
           const name = prompt('保存为我的主题，名称：', `${getTheme(doc.themeId).name} · 自定义`)
           if (!name) return
           const t: Theme = { ...theme, id: `custom-${Date.now().toString(36)}`, name, description: '用户自定义主题' }
-          await api.saveTheme(t)
-          registerTheme(t)
-          refreshThemes()
-          commit({ ...doc, themeId: t.id, themeOverrides: undefined })
-          notify('主题已保存')
+          await save(t)
         }}
       >
         保存为我的主题
@@ -111,25 +146,28 @@ function ThemePanel() {
 
 function AiPanel() {
   const selected = useStore(selectedBlock)
-  const [scope, setScope] = useState<'selection' | 'document'>('selection')
+  const selectedIds = useStore(s => s.selectedIds)
+  const selectionKey = selectionIdentity(selectedIds)
   const doc = useStore((s) => s.doc)
   const proposal = useStore((s) => s.proposal)
-  const { propose, resolveProposal, clearProposal, notify } = useStore.getState()
+  const { scope, setScope } = useSelectionScope(doc.id, selectedIds)
+  const { propose, notify } = useStore.getState()
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [instruction, setInstruction] = useState('')
+  const [collectImages, setCollectImages] = useState(false)
+  const imageCommand = isImageLibraryRequest(instruction)
   const [busy, setBusy] = useState(false)
-  const [preview, setPreview] = useState<string | null>(null)
   const [autoSuggest, setAutoSuggest] = useState(readSuggestionPreference)
   const [suggestion, setSuggestion] = useState({ key: '', text: '', error: '' })
-  const selectedId = scope === 'selection' ? selected?.id : undefined
+  const selectedId = scope === 'selection' && selectedIds.length ? selectedIds.length === 1 ? selectedIds[0] : selectedIds : undefined
   // Strip image URLs and rich-text metadata, and send only selected content in selection mode.
-  const context = useMemo(() => aiContext(selectedId && selected ? { ...doc, blocks: [selected] } : doc), [doc, selected, selectedId])
+  const context = useMemo(() => aiContext(doc, selectedId), [doc, selectedId])
   const contextKey = JSON.stringify([doc.id, context, selectedId, ai?.profileId, ai?.model, ai?.provider, instructionSuggestions.revision])
   useEffect(() => {
     if (!autoSuggest || !ai?.enabled || instruction || busy || !context.blocks.length) return
     const controller = new AbortController()
     const timer = setTimeout(() => {
-      instructionSuggestions.get(contextKey, () => api.aiSuggestInstruction(context, ai.profileId, selectedId), controller.signal)
+      instructionSuggestions.get(contextKey, () => api.aiSuggestInstruction(context, ai.profileId, selectedId, controller.signal), controller.signal)
         .then((text) => { if (!controller.signal.aborted) setSuggestion({ key: contextKey, text, error: '' }) })
         .catch(() => { if (!controller.signal.aborted) setSuggestion({ key: contextKey, text: '', error: '自动建议暂不可用，可以直接输入修改要求。' }) })
     }, 1500)
@@ -137,24 +175,40 @@ function AiPanel() {
   }, [autoSuggest, ai, instruction, busy, context, contextKey, selectedId])
   useEffect(() => {
     const load = () => api.aiStatus().then(setAi).catch(() => setAi(null))
-    load()
+    void load()
     window.addEventListener('ai-settings-changed', load)
     return () => window.removeEventListener('ai-settings-changed', load)
   }, [])
+  const request = useRef(0)
+  const requesting = useRef(false)
+  useEffect(() => () => { request.current++; requesting.current = false }, [])
+  // A pending response belongs to the selection/scope at submission, not the next one.
+  useEffect(() => {
+    request.current++
+    if (requesting.current) {
+      requesting.current = false
+      setBusy(false)
+      notify('选择范围已变化，旧请求结果将被忽略，请重新生成建议。', 'error')
+    }
+  }, [doc.id, selectionKey, scope, notify])
   const run = async () => {
-    if (!instruction.trim()) return
+    if (!instruction.trim() || requesting.current) return
+    if (imageCommand) { setCollectImages(true); return }
+    requesting.current = true
+    const generation = ++request.current
     setBusy(true)
     try {
       const r = await api.aiEdit(aiContext(doc, selectedId), instruction, undefined, selectedId)
+      if (generation !== request.current) return
+      if (selectionIdentity(useStore.getState().selectedIds) !== selectionKey) throw new Error('选择范围已变化，请重新生成建议')
       if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
       propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [], selectedId)
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (generation === request.current) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      if (generation === request.current) { requesting.current = false; setBusy(false) }
     }
   }
-  const pending = proposal?.items.filter((i) => i.status === 'pending') ?? []
   return (
     <div className="props-form">
       <h4>AI 设计助手</h4>
@@ -163,60 +217,26 @@ function AiPanel() {
         <button className="link" onClick={() => window.dispatchEvent(new Event('open-ai-settings'))}>{ai?.enabled ? '切换' : '去配置'}</button>
       </p>
       <label className="field"><span>修改范围</span>
-        <select value={selected ? scope : 'document'} onChange={(e) => setScope(e.target.value as 'selection' | 'document')} disabled={busy}>
-          {selected && <option value="selection">仅选中模块：{selected.type}（{selected.id}）</option>}
+        <select data-testid="ai-edit-scope" value={scope} onChange={(e) => setScope(e.target.value as 'selection' | 'document')} disabled={busy}>
+          {selectedIds.length > 0 && <option value="selection">{selectedIds.length > 1 ? `已选 ${selectedIds.length} 个模块` : `仅选中模块：${selected?.type}（${selected?.id}）`}</option>}
           <option value="document">全文</option>
         </select>
       </label>
-      <p className="hint">{selected && scope === 'selection' ? '仅生成选中模块的修改建议，其他模块不会被修改。' : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
+      <p className="hint">{selected && scope === 'selection' ? `仅生成已选 ${selectedIds.length} 个模块的修改建议，其他模块不会被修改。` : '当前范围为全文；在画布点选一个模块后，可切换为仅修改选中模块。'}</p>
       <label className="hint"><input type="checkbox" checked={autoSuggest} onChange={(e) => { saveSuggestionPreference(e.target.checked); setAutoSuggest(e.target.checked) }} /> 自动生成输入建议</label>
       <p className="hint">开启后会将当前范围的文稿发送到当前模型，可能产生 API 费用；当前页面的建议请求间隔至少 30 秒。不发送图片文件。</p>
-      <SuggestionInput value={instruction} onChange={setInstruction} disabled={!ai?.enabled || busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
+      <SuggestionInput value={instruction} onChange={setInstruction} disabled={busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
       {autoSuggest && suggestion.key === contextKey && suggestion.error && <p className="hint" role="status">{suggestion.error}</p>}
-      <button className="primary wide" disabled={!ai?.enabled || busy} onClick={run}>{busy ? 'AI 思考中…' : '生成修改建议'}</button>
+      <button className="primary wide" data-testid={imageCommand ? 'ai-image-library-command' : undefined} disabled={(!ai?.enabled && !imageCommand) || busy} onClick={run}>{imageCommand ? '收集图片到素材库' : busy ? 'AI 思考中…' : '生成修改建议'}</button>
+      <button disabled={busy} onClick={() => setCollectImages(true)} data-testid="collect-article-images">收集当前范围图片到素材库</button>
+      {collectImages && <ArticleImageImport doc={doc} selectedId={selectedId} onClose={() => setCollectImages(false)} />}
       <h4>规则动作</h4>
       <div className="quick-grid">
         {QUICK_ACTIONS.map((a) => (
           <button key={a.id} onClick={() => { const r = a.run(doc); propose(r.summary, r.ops) }} data-testid={`qa-${a.id}`}>{a.label}</button>
         ))}
       </div>
-      {proposal && (
-        <div className="proposal" data-testid="proposal">
-          <div className="proposal-head">
-            <b>{proposal.summary}</b>
-            <button className="link" onClick={clearProposal}>关闭</button>
-          </div>
-          {proposal.errors.length > 0 && <p className="warn">已忽略 {proposal.errors.length} 条无效操作：{proposal.errors.join('；')}</p>}
-          {proposal.items.map((it, i) => {
-            const d = describeOp(proposal.base, it.op)
-            return (
-              <div key={i} className={`op ${it.status}`}>
-                <div className="op-title">{d.title}</div>
-                {it.op.reason && <div className="op-reason">{it.op.reason}</div>}
-                {d.before && <div className="diff del">− {d.before.slice(0, 160)}</div>}
-                {d.after && <div className="diff add">＋ {d.after.slice(0, 160)}</div>}
-                {it.status === 'pending' ? (
-                  <div className="op-actions">
-                    <button onClick={() => resolveProposal(i, 'rejected')}>拒绝</button>
-                    <button className="primary" onClick={() => resolveProposal(i, 'accepted')}>接受</button>
-                  </div>
-                ) : (
-                  <div className="op-state">{it.status === 'accepted' ? '已接受' : '已拒绝'}</div>
-                )}
-              </div>
-            )
-          })}
-          {pending.length > 0 && (
-            <div className="op-actions all">
-              <button onClick={() => setPreview(compileDoc(applyOps(doc, pending.map((p) => p.op))).html)}>预览效果</button>
-              <button onClick={() => resolveProposal('all', 'rejected')}>全部拒绝</button>
-              <button className="primary" onClick={() => resolveProposal('all', 'accepted')} data-testid="accept-all">全部接受（{pending.length}）</button>
-            </div>
-          )}
-          <Help title="撤销修改">接受后的修改可用 Ctrl+Z 撤销。</Help>
-        </div>
-      )}
-      {preview && <PhonePreview html={preview} title="AI 修改预览（未应用）" onClose={() => setPreview(null)} />}
+      {proposal && <button className="wide" onClick={() => window.dispatchEvent(new CustomEvent('workspace-view', { detail: 'canvas' }))}>在文中审阅修改（{proposal.items.filter(i => i.status === 'pending').length}）</button>}
     </div>
   )
 }
@@ -226,7 +246,8 @@ function ReferencePanel() {
   const [url, setUrl] = useState('')
   const [report, setReport] = useState<StyleReport | null>(null)
   const [authorized, setAuthorized] = useState(false)
-  const { commit, notify, refreshThemes } = useStore.getState()
+  const { notify } = useStore.getState()
+  const { save, saving } = useThemeSave()
   const draft = useMemo(() => (report ? themeFromReport(report, '参考风格主题') : null), [report])
   const analyze = (source: string) => {
     const dom = new DOMParser().parseFromString(source, 'text/html')
@@ -272,14 +293,12 @@ function ReferencePanel() {
           <p>标题样式 {draft.headingVariant} · 引言 {draft.quoteVariant} · 卡片 {draft.cardVariant}</p>
           <button
             className="primary wide"
+            disabled={saving}
             onClick={async () => {
-              const name = prompt('新主题名称', '我的参考风格') ?? '我的参考风格'
+              const name = prompt('新主题名称', '我的参考风格')
+              if (!name) return
               const t = { ...draft, name }
-              await api.saveTheme(t)
-              registerTheme(t)
-              refreshThemes()
-              commit({ ...useStore.getState().doc, themeId: t.id, themeOverrides: undefined })
-              notify(`已创建并应用主题「${name}」`)
+              await save(t)
             }}
           >
             保存并应用为新主题
@@ -293,6 +312,8 @@ function ReferencePanel() {
 export function RightPanel() {
   const [tab, setTab] = useState<Tab>('style')
   const block = useStore(selectedBlock)
+  const selectedIds = useStore(s=>s.selectedIds)
+  const doc = useStore(s=>s.doc)
   const hasProposal = useStore((s) => !!s.proposal)
   useEffect(() => {
     if (hasProposal) setTab('ai')
@@ -307,7 +328,13 @@ export function RightPanel() {
         ))}
       </nav>
       <div className="panel-body">
-        {tab === 'style' && (block ? <PropsForm key={block.id} block={block} /> : <DocSettings />)}
+        {tab === 'style' && (selectedIds.length > 1 ? <div className="props-form" data-testid="multi-selection-properties">
+          <h4>已选 {selectedIds.length} 个模块</h4>
+          <p>当前为多选。不同模块的属性不混用；点击单个模块可编辑其属性。</p>
+          <ul>{selectedIds.map(id=><li key={id}>{blockLabel(findBlock(doc.blocks,id)!.block)}</li>)}</ul>
+          <button data-testid="delete-selected-blocks" onClick={()=>useStore.getState().removeSelected()}>删除所选模块</button>
+          <button onClick={()=>useStore.getState().select(null)}>取消选择</button>
+        </div> : block ? <PropsForm key={block.id} block={block} /> : <DocSettings />)}
         {tab === 'theme' && <ThemePanel />}
         {tab === 'ai' && <AiPanel />}
         {tab === 'reference' && <ReferencePanel />}

@@ -35,11 +35,11 @@ it.each(['openai', 'anthropic'] as const)('reports truncated %s output instead o
   vi.stubGlobal('fetch', async () => Response.json(provider === 'openai' ? { choices: [{ finish_reason: 'length', message: { content: '{}' } }] } : { stop_reason: 'max_tokens', content: [{ text: '{}' }] }))
   await expect(chatJson('s', 'u', { profile: p({ provider }) })).rejects.toThrow(/token 上限/)
 })
-it('preserves the reasoning connection budget under the configured cap', async () => {
+it('uses a bounded reasoning connection probe under the configured cap', async () => {
   let body: any
   vi.stubGlobal('fetch', async (_u: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] }) })
   await testConnection(p({ reasoningEffort: 'high', maxOutputTokens: 3000 }))
-  expect(body.max_completion_tokens).toBe(3000)
+  expect(body.max_completion_tokens).toBe(128)
   expect(body.temperature).toBeUndefined()
 })
 it('normalizes Anthropic discovery paths and preserves legacy effort metadata', async () => {

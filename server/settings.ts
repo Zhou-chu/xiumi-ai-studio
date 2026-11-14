@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from './urlText'
 // 本机设置：AI 模型配置（可保存多套，选一套为当前使用）。
 // 密钥只保存在本机 data/settings.json，接口返回时打码，浏览器拿不到完整密钥。
 import { join } from 'node:path'
@@ -137,7 +138,7 @@ export async function saveAiSettings(input: { activeId: string; profiles: Partia
         id: p.id && /^[\w-]{1,40}$/.test(p.id) ? p.id : nanoid(8).replace(/[^\w]/g, 'x'),
         name: String(p.name ?? '未命名模型').slice(0, 40),
         provider: p.provider === 'anthropic' ? 'anthropic' : 'openai',
-        baseUrl: String(p.baseUrl ?? '').trim().replace(/\/+$/, ''),
+        baseUrl: trimTrailingSlashes(String(p.baseUrl ?? '').trim()),
         apiKey: key,
         model: String(p.model ?? '').trim(),
         jsonMode: p.jsonMode !== false,
@@ -159,7 +160,7 @@ export async function resolveDraftProfile(p: Partial<AiProfile>): Promise<AiProf
     id: p.id ?? 'draft',
     name: p.name ?? '',
     provider,
-    baseUrl: String(p.baseUrl ?? saved?.baseUrl ?? '').replace(/\/+$/, ''),
+    baseUrl: trimTrailingSlashes(String(p.baseUrl ?? saved?.baseUrl ?? '')),
     apiKey: key,
     model: String(p.model ?? saved?.model ?? ''),
     jsonMode: p.jsonMode !== false,

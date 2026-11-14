@@ -42,10 +42,15 @@ test('Escape dismisses a modal annotation before closing its dialog', async ({ p
   await expect(dialog).toHaveCount(0)
 })
 
-test('touch can explicitly open and dismiss annotation on phone', async ({ browser }) => {
+for (const mode of ['light','dark'] as const) test(`touch can explicitly open and dismiss annotation on phone (${mode})`, async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  await context.addInitScript(mode=>{if(window.top===window)localStorage.setItem('xiumi-color-mode',mode)},mode)
   const page = await context.newPage()
   await page.goto('/')
+  // Startup intentionally exposes no editing controls until its document is loaded.
+  await expect(page.locator('.workspace')).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-color-mode',mode)
+  if (await page.getByTestId('workspace-right').isVisible()) await page.getByTestId('workspace-right').tap()
   await page.getByRole('button', { name: '参考风格', exact: true }).tap()
   const help = page.getByRole('button', { name: '参考风格学习说明' })
   await help.tap()

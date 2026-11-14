@@ -1,5 +1,7 @@
+import { trimTrailingSlashes } from './urlText'
 // AI 提供方抽象：OpenAI 兼容接口（DeepSeek / 通义 / Kimi / 智谱 / MiniMax / MiMo / 豆包 / OpenAI / Gemini / Ollama…）或 Anthropic。
 // 密钥只在服务端读取；所有输出都要求是 JSON，再由调用方校验。
+import { THEMES } from '../src/core/themes'
 import { getProfile, type AiProfile } from './settings'
 import { fetchModels, type ModelInfo } from './aiModels'
 
@@ -19,8 +21,10 @@ export async function aiStatus(profileId?: string): Promise<AiStatus> {
 }
 
 function extractJson(text: string): any {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const raw = fenced ? fenced[1] : text
+  const opening = text.indexOf('```')
+  const startOfBody = opening + (text.startsWith('json', opening + 3) ? 7 : 3)
+  const closing = opening < 0 ? -1 : text.indexOf('```', startOfBody)
+  const raw = closing < 0 ? text : text.slice(startOfBody, closing).trimStart()
   const start = raw.search(/[[{]/)
   const end = Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']'))
   if (start < 0 || end < start) throw new Error('AI 没有返回 JSON')
@@ -28,7 +32,10 @@ function extractJson(text: string): any {
 }
 
 interface ChatOpts {
+  /** Explicit hard budget, reserved for capability probes. */
   maxTokens?: number
+  /** Task fallback used only when no model output budget is configured. */
+  defaultMaxTokens?: number
   temperature?: number
   profileId?: string
   /** 直接指定配置（用于“测试连接”） */
@@ -39,6 +46,7 @@ interface ChatOpts {
   keepEffort?: boolean
   /** Capability probes only need an accepted request, not a complete answer. */
   allowTruncated?: boolean
+  signal?: AbortSignal
   timeoutMs?: number
 }
 
@@ -92,93 +100,119 @@ export function adjustWire(w: Wire, message: string, keepEffort = true): Wire | 
   return null
 }
 
-async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, keepEffort: boolean): Promise<Response> {
+async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, keepEffort: boolean): Promise<{ response: Response; wire: Wire }> {
   let w = start
   for (let i = 0; i < 6; i++) {
     const res = await send(w)
-    if (res.ok) return res
+    if (res.ok) return { response: res, wire: w }
     const message = await readError(res)
     const next = res.status === 400 || res.status === 422 ? adjustWire(w, message, keepEffort) : null
+    if (!next && w.effort && keepEffort && (res.status === 400 || res.status === 422) && /reasoning|effort|thinking/i.test(message) && /unsupported|not supported|not allowed|unknown|unrecognized|invalid|must be|不支持|无效/i.test(message)) {
+      throw Object.assign(new Error(`该模型拒绝了配置的思考强度。请在 AI 模型设置中清空“思考强度”后重试，或选择该模型支持的强度。配置未被自动修改。服务返回 ${res.status}: ${message}`), { status: 502 })
+    }
     if (!next) throw Object.assign(new Error(`AI 请求失败 ${res.status}: ${message}`), { status: 502 })
     w = next
   }
   throw Object.assign(new Error('AI 请求失败：参数被服务反复拒绝'), { status: 502 })
 }
 
+/** Only numeric usage is surfaced; response text and private reasoning are never logged. */
+function outputLimitError(actual: number, configured: number | undefined, usage: any): Error {
+  const count = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined
+  const completed = count(usage?.completion_tokens ?? usage?.output_tokens)
+  const reasoning = count(usage?.completion_tokens_details?.reasoning_tokens)
+  return new Error(`AI 已响应，但输出达到 token 上限：本次请求 ${actual} tokens${configured ? `，模型设置 ${configured}` : '（模型未配置，使用任务默认值）'}${completed !== undefined ? `，服务返回输出用量 ${completed}` : ''}${reasoning !== undefined ? `（其中推理 ${reasoning}）` : ''}。思考与正文可能共用预算；请检查输出上限和模型限制，或拆分任务。`)
+}
+
 /** 调用模型，返回文本。OpenAI 兼容接口或 Anthropic */
-export async function chatText(system: string, user: string, opts: ChatOpts = {}): Promise<string> {
-  const p = opts.profile ?? (await getProfile(opts.profileId))
-  if (!p || !p.baseUrl || !p.model) throw Object.assign(new Error('尚未配置 AI 模型：请在「AI 模型设置」中添加'), { status: 503 })
-  const ctrl = new AbortController()
-  const timeout = opts.timeoutMs ?? 180_000
-  const timer = setTimeout(() => ctrl.abort(), timeout)
-  const effort = opts.effort ?? p.reasoningEffort ?? ''
-  const wanted = opts.maxTokens ?? 8000
-  const start: Wire = {
+function generationWire(p: AiProfile, opts: ChatOpts, effort: string): Wire {
+  const wanted = opts.maxTokens ?? (p.maxOutputTokens || opts.defaultMaxTokens || 8000)
+  return {
     json: p.jsonMode && p.provider !== 'anthropic',
     tokenField: effort && p.provider !== 'anthropic' ? 'max_completion_tokens' : 'max_tokens',
     temperature: !effort,
     effort: Boolean(effort),
     maxTokens: p.maxOutputTokens ? Math.min(wanted, p.maxOutputTokens) : wanted,
   }
+}
+
+function protocolRequest(p: AiProfile) {
+  if (p.provider === 'anthropic') return {
+    url: `${anthropicBase(p.baseUrl)}/messages`,
+    headers: { 'content-type': 'application/json', 'x-api-key': p.apiKey, 'anthropic-version': '2023-06-01' } as Record<string, string>,
+  }
+  return {
+    url: `${trimTrailingSlashes(p.baseUrl)}/chat/completions`,
+    headers: { 'content-type': 'application/json', ...(p.apiKey ? { authorization: `Bearer ${p.apiKey}` } : {}) },
+  }
+}
+
+function generationBody(p: AiProfile, opts: ChatOpts, w: Wire, input: { system: string; user: string; effort: string }) {
+  const { system, user, effort } = input
   const extra = extraBodyOf(p)
+  if (p.provider === 'anthropic') return {
+    model: p.model,
+    max_tokens: w.maxTokens,
+    ...(w.temperature ? { temperature: opts.temperature ?? 0.4 } : {}),
+    ...(w.effort ? { output_config: { effort } } : {}),
+    system,
+    messages: [{ role: 'user', content: user }],
+    ...extra,
+  }
+  return {
+    model: p.model,
+    ...(w.temperature ? { temperature: opts.temperature ?? 0.4 } : {}),
+    [w.tokenField]: w.maxTokens,
+    ...(w.effort ? { reasoning_effort: effort } : {}),
+    ...(w.json ? { response_format: { type: 'json_object' } } : {}),
+    messages: [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+    ],
+    ...extra,
+        }
+}
+
+function generationText(data: any, wire: Wire, p: AiProfile, opts: ChatOpts): string {
+  if (p.provider === 'anthropic') {
+    if (!opts.allowTruncated && data.stop_reason === 'max_tokens') throw outputLimitError(wire.maxTokens, p.maxOutputTokens, data.usage)
+    return data.content?.map((c: any) => c.text ?? '').join('') ?? ''
+  }
+  if (!opts.allowTruncated && data.choices?.[0]?.finish_reason === 'length') throw outputLimitError(wire.maxTokens, p.maxOutputTokens, data.usage)
+  return data.choices?.[0]?.message?.content ?? ''
+}
+
+export async function chatText(system: string, user: string, opts: ChatOpts = {}): Promise<string> {
+  opts.signal?.throwIfAborted()
+  const p = opts.profile ?? (await getProfile(opts.profileId))
+  opts.signal?.throwIfAborted()
+  if (!p || !p.baseUrl || !p.model) throw Object.assign(new Error('尚未配置 AI 模型：请在「AI 模型设置」中添加'), { status: 503 })
+  const ctrl = new AbortController()
+  const cancel = () => ctrl.abort(opts.signal?.reason)
+  opts.signal?.addEventListener('abort', cancel, { once: true })
+  const timeout = opts.timeoutMs ?? 180_000
+  const timer = setTimeout(() => ctrl.abort(), timeout)
+  const effort = opts.effort ?? p.reasoningEffort ?? ''
+  const start = generationWire(p, opts, effort)
   try {
-    if (p.provider === 'anthropic') {
-      const res = await sendAdaptive(
-        (w) =>
-          fetch(`${anthropicBase(p.baseUrl)}/messages`, {
-            method: 'POST',
-          redirect: 'error',
-            signal: ctrl.signal,
-            headers: { 'content-type': 'application/json', 'x-api-key': p.apiKey, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({
-              model: p.model,
-              max_tokens: w.maxTokens,
-              ...(w.temperature ? { temperature: opts.temperature ?? 0.4 } : {}),
-              ...(w.effort ? { output_config: { effort } } : {}),
-              system,
-              messages: [{ role: 'user', content: user }],
-              ...extra,
-            }),
-          }),
-        start,
-        Boolean(effort) || Boolean(opts.keepEffort),
-      )
-      const data: any = await res.json()
-      if (!opts.allowTruncated && data.stop_reason === 'max_tokens') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
-      return data.content?.map((c: any) => c.text ?? '').join('') ?? ''
-    }
-    const res = await sendAdaptive(
-      (w) =>
-        fetch(`${p.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-          method: 'POST',
-          redirect: 'error',
-          signal: ctrl.signal,
-          headers: { 'content-type': 'application/json', ...(p.apiKey ? { authorization: `Bearer ${p.apiKey}` } : {}) },
-          body: JSON.stringify({
-            model: p.model,
-            ...(w.temperature ? { temperature: opts.temperature ?? 0.4 } : {}),
-            [w.tokenField]: w.maxTokens,
-            ...(w.effort ? { reasoning_effort: effort } : {}),
-            ...(w.json ? { response_format: { type: 'json_object' } } : {}),
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: user },
-            ],
-            ...extra,
-          }),
-        }),
-      start,
-      Boolean(effort) || Boolean(opts.keepEffort),
+    const request = protocolRequest(p)
+    const { response, wire } = await sendAdaptive(
+      (w) => fetch(request.url, {
+        method: 'POST', redirect: 'error', signal: ctrl.signal, headers: request.headers,
+        body: JSON.stringify(generationBody(p, opts, w, { system, user, effort })),
+      }),
+      start, Boolean(effort) || Boolean(opts.keepEffort),
     )
-    const data: any = await res.json()
-    if (!opts.allowTruncated && data.choices?.[0]?.finish_reason === 'length') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
-    return data.choices?.[0]?.message?.content ?? ''
+    const data = await response.json()
+    ctrl.signal.throwIfAborted()
+    return generationText(data, wire, p, opts)
   } catch (e: any) {
+    if (opts.signal?.aborted) throw opts.signal.reason
     if (e.name === 'AbortError') throw Object.assign(new Error(`AI 请求超时（${Math.round(timeout / 1000)} 秒）`), { status: 504 })
     throw e
   } finally {
     clearTimeout(timer)
+    opts.signal?.removeEventListener('abort', cancel)
   }
 }
 
@@ -192,17 +226,106 @@ export interface DiscoveredModel extends ModelInfo {
 }
 
 function anthropicBase(base: string) {
-  return base.replace(/\/+$/, '').replace(/\/v1$/, '') + '/v1'
+  return trimTrailingSlashes(base).replace(/\/v1$/, '') + '/v1'
 }
 
 export async function discoverModels(p: AiProfile): Promise<DiscoveredModel[]> {
   return (await fetchModels(p)).map((m) => ({ ...m, ...(m.efforts ? { reasoningEfforts: m.efforts } : {}) }))
 }
 
-export function testConnection(profile: AiProfile): Promise<any> {
-  return chatJson('只输出 JSON。', '请输出 {"ok":true,"model":"你的模型名称"}', {
-    profile, maxTokens: profile.reasoningEffort ? 4096 : 100, temperature: 0,
-  })
+/** Connection is not a full generation-quality check. Never return private reasoning. */
+interface ProbeContext { budgetTokens: number; thinkingDisabled: boolean; probeOnly: boolean }
+
+function probeBody(profile: AiProfile, wire: Wire, effort: string, thinkingDisabled: boolean) {
+  const extra = extraBodyOf(profile)
+  delete extra.n
+  const anthropic = profile.provider === 'anthropic'
+  return anthropic ? {
+    ...extra, model: profile.model, max_tokens: wire.maxTokens,
+    ...(wire.effort ? { output_config: { effort } } : {}),
+    system: 'Reply only with JSON.', messages: [{ role: 'user', content: '{"ok":true}' }],
+  } : {
+    ...extra, model: profile.model, n: 1, [wire.tokenField]: wire.maxTokens,
+    ...(wire.effort ? { reasoning_effort: effort } : {}),
+    ...(wire.json ? { response_format: { type: 'json_object' } } : {}),
+    ...(thinkingDisabled ? { thinking: { type: 'disabled' } } : {}),
+    messages: [{ role: 'system', content: 'Reply only with JSON.' }, { role: 'user', content: 'Return exactly {"ok":true}.' }],
+  }
+}
+
+function probeHttpFailure(status: number) {
+  const stage = [401,403].includes(status) ? 'authentication' : status === 404 ? 'model_or_endpoint' : [400,422].includes(status) ? 'request' : 'service'
+  const message = stage === 'authentication' ? '鉴权被拒绝，请检查密钥及访问权限。' : stage === 'model_or_endpoint' ? '模型或接口路径不存在，请核对模型名称及 Base URL。' : stage === 'request' ? '服务拒绝了探针参数，请核对模型接口兼容性；未更改你的设置。' : '服务暂时拒绝请求，请检查限流、配额或服务状态。'
+  return { ok: false, stage, httpStatus: status, message }
+}
+
+function isProbeJson(text: unknown): boolean {
+  let valid = false
+  try { valid = typeof text === 'string' && extractJson(text)?.ok === true } catch { /* Accepted request, but formatting remains unverified. */ }
+  return valid
+}
+
+function probeResponse(data: any, anthropic: boolean, base: ProbeContext) {
+  const message = data?.choices?.[0]?.message
+  if (anthropic ? !Array.isArray(data?.content) : !message || typeof message !== 'object') {
+    return { ...base, ok: false, stage: 'response', message: '接口返回了响应，但不是兼容的模型响应结构。' }
+  }
+  if (anthropic ? data.stop_reason === 'max_tokens' : data.choices[0].finish_reason === 'length') {
+    return { ...base, ok: true, stage: 'budget_limited', message: '连接已确认；低预算探针达到输出上限，尚未验证完整 JSON 输出。这不代表业务生成已通过。' }
+  }
+  const text = anthropic ? data.content.map((item: { text?: string }) => item.text || '').join('') : message.content
+  const valid = isProbeJson(text)
+  return { ...base, ok: true, stage: valid ? 'complete' : 'format_warning', message: valid ? '连接成功，最小 JSON 响应正常；不代表完整业务生成已验证。' : '连接已确认，但最小 JSON 格式未通过；请检查结构化输出兼容性。' }
+}
+
+function probeConfiguration(profile: AiProfile) {
+  const budgetTokens = Math.min(128, profile.maxOutputTokens || 128)
+  let url: URL
+  try { url = new URL(profile.baseUrl) } catch {
+    return { error: { ok: false, stage: 'configuration', message: '接口地址无效。' } }
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || !profile.model) {
+    return { error: { ok: false, stage: 'configuration', message: '请填写 HTTP(S) 接口地址和模型名称。' } }
+  }
+  // Official DeepSeek defaults to thinking even when reasoning_effort is blank.
+  // This cheap connectivity probe alone disables it; saved/business settings stay intact.
+  const thinkingDisabled = profile.provider === 'openai' && url.protocol === 'https:' && url.hostname === 'api.deepseek.com' && /^\/(v1\/?)?$/.test(url.pathname)
+  const effort = thinkingDisabled ? '' : profile.reasoningEffort || ''
+  const wire: Wire = { json: profile.jsonMode && profile.provider !== 'anthropic', tokenField: effort && profile.provider !== 'anthropic' ? 'max_completion_tokens' : 'max_tokens', temperature: false, effort: !!effort, maxTokens: budgetTokens }
+  return { budgetTokens, thinkingDisabled, effort, wire }
+}
+
+export async function testConnection(profile: AiProfile) {
+  const config = probeConfiguration(profile)
+  if (config.error) return config.error
+  const { budgetTokens, thinkingDisabled, effort } = config
+  let wire = config.wire
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 20_000)
+  const base = { budgetTokens, thinkingDisabled, probeOnly: true }
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const anthropic = profile.provider === 'anthropic'
+      const body = probeBody(profile, wire, effort, thinkingDisabled)
+      const request = protocolRequest(profile)
+      const res = await fetch(request.url, {
+        method: 'POST', redirect: 'error', signal: ctrl.signal, headers: request.headers,
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const detail = await readError(res)
+        const next = attempt === 0 && [400,422].includes(res.status) ? adjustWire(wire, detail, true) : null
+        if (next) { wire = next; continue }
+        return { ...base, ...probeHttpFailure(res.status) }
+      }
+      const data = await res.json().catch(() => null)
+      return probeResponse(data, anthropic, base)
+    }
+    return { ...base, ok: false, stage: 'request', message: '探针兼容性重试已停止。' }
+  } catch (error) {
+    const timeout = ctrl.signal.aborted || (error as Error).name === 'AbortError'
+    return { ...base, ok: false, stage: timeout ? 'timeout' : 'transport', message: timeout ? '连接测试超时（20 秒），已停止，不自动重复请求。' : '网络连接失败，请检查地址、网络或代理。' }
+  } finally { clearTimeout(timer) }
 }
 
 export const OUTLINE_SYSTEM = `你是资深的微信公众号主编。把用户提供的文稿整理为结构化大纲，用于自动排版。
@@ -277,7 +400,9 @@ frame{caption,label,variant:flag|circuit|ticket}（图片框）
 photos{pics:[{caption}],layout:even|feature}（双图 / 三图 / 四图；pics 只能改图注）
 规则：不得编造事实；修改正文时保留原意；操作尽量少而精准。
 字段类型：除 columns 为数字 1-3 外，所有字段值都必须是字符串（例如 index 写 "01" 而不是 1）；items、headers、rows、pics 为数组；不要输出 image、images、html、children 字段。
-原文片段（type=html，导入推文的原版式）：只能修改文字，不能插入新的原文片段、不能改结构和样式。上下文里的 slots 列出了它的文字槽位，修改方式：{"op":"update","id":模块id,"slots":{"t0":"新文字","t2":"新文字"},"reason":"原因"}。同一个片段的所有改动合并在一条 update 里；带 max 的槽位在图形里，字数不能超过 max；写 "" 会删掉这一行。
+原文片段（type=html，导入推文的原版式）：支持文字槽位修改和显式主题适配，不允许输出任意 HTML 或删除内容来假装重做。用户明确要求全文或所选模块统一视觉主题时，必须对范围内每个原文片段输出 {"op":"update","id":模块id,"themeId":目标主题id,"reason":"统一主题配色与文字层级，保留全部文字、图片及结构"}；全文范围可另输出 setTheme，不能只 setTheme 就声称原文片段已改好。主题适配由应用安全计算配色、标题字体和正文排版，可与 slots 合并在同一条 update。它保留布局结构，不会重绘照片、位图内文字或SVG几何，不能承诺这些内容已改变。可用主题：${THEMES.map(t => `${t.id}（${t.name}）`).join("、")}。上下文里的 slots 列出了它的文字槽位，修改方式：{"op":"update","id":模块id,"slots":{"t0":"新文字","t2":"新文字"},"reason":"原因"}。同一个片段的所有改动合并在一条 update 里；带 max 的槽位在图形里，字数不能超过 max；写 "" 会删掉这一行。
+用户明确要求重做模块、重排或改变布局时，HTML 的 update 必须同时给 themeId 和 layout:"editorial"（连续编辑式分段）或 layout:"chapters"（按标题分章）。不要仅 setTheme 或仅换颜色字体冒充结构重做。例：{"op":"update","id":"原模块id","themeId":"tsinghua-purple","layout":"chapters","reason":"按章节重新组织全文"}。布局由本地确定性转换生成，保留全部文字、图片、链接及阅读顺序。表格、SVG、背景图片和复杂定位结构以完整原子区块保留；仅其余安全段落重排，必须明确不能承诺所有复杂控件都重新绘制。完全无法安全拆分的片段会拒绝重排，不能宣称已完成。结构重排不改变图片像素内容。
+insert.index 始终指当前请求中原始文稿的零基模块位置：插在该原模块之前，等于原模块总数时追加。多个插入不得累加前面插入造成的偏移；接受建议的先后顺序由应用按原模块锚点处理。
 输出 JSON：{"summary":"一句话说明做了什么","ops":[...]}`
 
 export const COPY_SYSTEM = `你是高校公众号的资深主笔，写的活动推文读起来像一个在现场的人写的，而不是机器生成的。根据用户给的活动描述，写一篇完整的推文文案。

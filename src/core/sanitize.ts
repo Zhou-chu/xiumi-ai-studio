@@ -1,3 +1,5 @@
+import DOMPurify from 'isomorphic-dompurify'
+
 // 原文 HTML 清洗：用于导入公众号推文和“原文片段”模块的就地编辑。
 // 白名单保留标签与内联样式，移除脚本、事件、class/id、隐藏元素与外部资源；
 // 图片统一为 https 的微信图片地址（data-src 懒加载 → src）。
@@ -18,7 +20,7 @@ const WX_WIDGETS: Record<string, string> = {
   'mp-common-profile': '公众号名片', 'mpvoice': '音频', 'mp-common-mpaudio': '音频', 'qqmusic': '音乐', 'mpvideosnap': '视频号',
   'mp-common-videosnap': '视频号', 'mpprofile': '公众号名片', 'mp-miniprogram': '小程序', 'mp-common-product': '商品卡片',
 }
-const ATTRS = new Set(['style', 'src', 'href', 'alt', 'colspan', 'rowspan', 'width', 'height', 'align', 'valign', 'color', 'size', 'face'])
+const ATTRS = new Set(['style', 'src', 'href', 'alt', 'colspan', 'rowspan', 'width', 'height', 'align', 'valign', 'color', 'size', 'face', 'start'])
 const SVG_ATTR_BAD = /^on|^(href|xlink:href)$/i
 
 const isWxImage = (u: string) => /^https?:\/\/[^/]*(qpic\.cn|qlogo\.cn)\//i.test(u)
@@ -146,6 +148,7 @@ export function sanitizeTree(root: Element) {
       for (const a of Array.from(node.attributes)) {
         const name = a.name.toLowerCase()
         if (!ATTRS.has(name)) node.removeAttribute(a.name)
+        else if (name === 'start' && (node.tagName.toLowerCase() !== 'ol' || !/^-?\d+$/.test(a.value))) node.removeAttribute(a.name)
         else if (name === 'href' && !/^https?:\/\//i.test(a.value)) node.removeAttribute(a.name)
         else if (name === 'src' && node.tagName.toLowerCase() !== 'img') node.removeAttribute(a.name)
       }
@@ -173,11 +176,43 @@ export function sanitizeHtml(html: string, parse: (s: string) => Document): stri
   return root.innerHTML
 }
 
-/** 编译阶段的最后防线（字符串级）：即使存储的数据被篡改也不会输出脚本 */
+/** SVG animations may change geometry/opacity, never a URL or executable attribute. */
+const SAFE_ANIMATION_ATTRIBUTES = new Set(['opacity', 'fill-opacity', 'stroke-opacity', 'transform', 'x', 'y', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height'])
+const ANIMATION_TAGS = new Set(['animate', 'animatetransform', 'animatemotion', 'set'])
+function numericAnimationValues(value: string): boolean {
+  return value.split(/[;,\s]+/).filter(Boolean).every(part => /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:%|px|em|rem)?$/i.test(part))
+}
+
+function safeAnimationValues(element: Element): boolean {
+  for (const name of ['values', 'from', 'to', 'by']) {
+    const value = element.getAttribute(name)
+    if (value !== null && !numericAnimationValues(value)) return false
+  }
+  const path = element.getAttribute('path')
+  return path === null || numericAnimationValues(path.replace(/[MmZzLlHhVvCcSsQqTtAa]/g, ' '))
+}
+
+DOMPurify.addHook('uponSanitizeElement', (node, data) => {
+  if (!ANIMATION_TAGS.has(data.tagName)) return
+  const element = node as Element
+  const attribute = (element.getAttribute('attributeName') ?? '').toLowerCase()
+  // Motion uses its own path and cannot target a URL-bearing attribute.
+  if ((data.tagName !== 'animatemotion' && !SAFE_ANIMATION_ATTRIBUTES.has(attribute)) || !safeAnimationValues(element)) {
+    element.remove()
+    return
+  }
+  element.removeAttribute('href')
+  element.removeAttribute('xlink:href')
+  element.removeAttributeNS('http://www.w3.org/1999/xlink', 'href')
+})
+
+/** Final rendering boundary: parse entities/namespaces before filtering active content. */
 export function guardHtml(html: string): string {
-  return html
-    .replace(/<(script|style|iframe|object|embed)[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<(script|style|iframe|object|embed)\b[^>]*>/gi, '')
-    .replace(/\s(on\w+|class|id)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/javascript:/gi, '')
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ['foreignObject', ...ANIMATION_TAGS],
+    HTML_INTEGRATION_POINTS: { foreignobject: true, 'annotation-xml': true },
+    ADD_ATTR: ['attributeName', 'repeatCount', 'keyTimes', 'keySplines', 'calcMode', 'values', 'dur', 'begin', 'end', 'from', 'to', 'by', 'type', 'path'],
+    FORBID_TAGS: [...DROP],
+    FORBID_ATTR: ['class', 'id'],
+  })
 }

@@ -1,0 +1,16 @@
+{
+  "stats": {
+    "total": 134,
+    "expected": 134,
+    "unexpected": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "ok": true
+  },
+  "startTime": 1794600110422,
+  "errors": [],
+  "reportSha256": "e68509834a02fd0a6e9d8916c2959ab679a40854ab56c6ab55fde879644f0d9c",
+  "durationMs": 408767.382,
+  "sourceCommit": "8656eff4b7bcb8e8bde462b928c4ac7faf5d281a",
+  "harnessNote": "Windows PowerShell ErrorAction Stop treated a NO_COLOR stderr warning as NativeCommandError after the child finished. The actual Playwright HTML report and .last-run.json both record all 134 passed with zero skipped/flaky/errors. No test was rerun or assertion relaxed for this warning."
+}

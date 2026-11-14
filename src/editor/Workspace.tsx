@@ -48,6 +48,35 @@ const save = (w: Widths) => {
 
 export function Workspace({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLElement>(null)
+  const [view, setView] = useState<'left' | 'canvas' | 'right'>('canvas')
+  // Preserve keyboard editing when resize/theme changes collapse the surrounding UI.
+  useEffect(() => {
+    const revealFocusedPanel = () => {
+      const workspace = ref.current
+      const switcher = workspace?.querySelector('.workspace-switcher')
+      const active = document.activeElement
+      if (!workspace || !switcher || !active || !workspace.contains(active) || getComputedStyle(switcher).display === 'none') return
+      const region = Array.from(workspace.children).find((child) => child.contains(active))
+      if (region?.matches('.panel.left')) setView('left')
+      else if (region?.matches('.panel.right')) setView('right')
+      else if (region?.matches('.canvas-wrap,.canvas-scroll')) setView('canvas')
+    }
+    window.addEventListener('resize', revealFocusedPanel)
+    const observer = new MutationObserver(revealFocusedPanel)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-color-mode'] })
+    return () => {
+      window.removeEventListener('resize', revealFocusedPanel)
+      observer.disconnect()
+    }
+  }, [])
+  useEffect(() => {
+    const show = (event: Event) => {
+      const next = (event as CustomEvent).detail
+      if (next === 'canvas' || next === 'left' || next === 'right') setView(next)
+    }
+    window.addEventListener('workspace-view', show)
+    return () => window.removeEventListener('workspace-view', show)
+  }, [])
   const [widths, setWidths] = useState<Widths>(load)
   const [dragging, setDragging] = useState<Side | null>(null)
   // 拖动开始时的指针位置和侧栏宽度：按指针移动的距离改宽度，开始拖动时不会跳一下
@@ -55,7 +84,7 @@ export function Workspace({ children }: { children: ReactNode }) {
   const current = (side: Side) => {
     const el = ref.current
     if (!el) return PANEL_LIMITS[side][0]
-    return parseFloat(getComputedStyle(el).getPropertyValue(`--${side === 'left' ? 'left' : 'right'}-w`)) || PANEL_LIMITS[side][0]
+    return Number.parseFloat(getComputedStyle(el).getPropertyValue(`--${side === 'left' ? 'left' : 'right'}-w`)) || PANEL_LIMITS[side][0]
   }
   const set = (side: Side, want: number | null, persist = true) => {
     const el = ref.current
@@ -94,8 +123,11 @@ export function Workspace({ children }: { children: ReactNode }) {
       className={`panel-resizer ${side} ${dragging === side ? 'on' : ''}`}
       role="separator"
       aria-orientation="vertical"
+      aria-valuenow={shown[side] ?? current(side)}
+      aria-valuemin={PANEL_LIMITS[side][0]}
+      aria-valuemax={box > 0 ? clampWidth(side, PANEL_LIMITS[side][1], box, shown[side === 'left' ? 'right' : 'left'] ?? current(side === 'left' ? 'right' : 'left')) : PANEL_LIMITS[side][1]}
       aria-label={side === 'left' ? '拖动调整左侧栏宽度' : '拖动调整右侧栏宽度'}
-      title="拖动调整宽度，双击恢复默认"
+      title="拖动或方向键调整宽度，双击或 Home 恢复默认"
       tabIndex={0}
       data-testid={`resizer-${side}`}
       onPointerDown={(e) => {
@@ -116,6 +148,7 @@ export function Workspace({ children }: { children: ReactNode }) {
       }}
       onDoubleClick={() => set(side, null)}
       onKeyDown={(e) => {
+        if (e.key === 'Home') { e.preventDefault(); set(side, null); return }
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
         e.preventDefault()
         const grow = (e.key === 'ArrowRight') === (side === 'left') ? 1 : -1
@@ -125,10 +158,16 @@ export function Workspace({ children }: { children: ReactNode }) {
   )
   return (
     <main
-      className="workspace"
+      className="workspace" data-workspace-view={view}
       ref={ref}
       style={{ ...(shown.left !== undefined && { ['--left-w' as string]: `${shown.left}px` }), ...(shown.right !== undefined && { ['--right-w' as string]: `${shown.right}px` }) }}
     >
+      <nav className="workspace-switcher" aria-label="编辑工作区">
+        {([['left', '资源'], ['canvas', '画布'], ['right', '属性']] as const).map(([value, label]) => (
+          <button key={value} type="button" data-testid={`workspace-${value}`} aria-pressed={view === value}
+            onClick={() => setView(value)}>{label}</button>
+        ))}
+      </nav>
       {children}
       {handle('left')}
       {handle('right')}

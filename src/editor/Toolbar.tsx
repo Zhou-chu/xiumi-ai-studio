@@ -1,6 +1,6 @@
 import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
 import { displayHtml } from '../core/images'
@@ -8,7 +8,7 @@ import { checkedXiumiParts, splitForXiumi, xiumiReport, xiumiSvgBoxes } from '..
 import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
-import { normalizeDoc, saveNow, useStore } from './store'
+import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
 import { compileForWechat, copyRichText, download, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
@@ -27,23 +27,42 @@ export function PhonePreview({ html, title, onClose }: { html: string; title: st
 }
 
 function VersionsModal({ onClose }: { onClose: () => void }) {
+  const active = useRef(true)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
   const doc = useStore((s) => s.doc)
   const { commit, notify } = useStore.getState()
   const [list, setList] = useState<VersionSummary[]>([])
-  const refresh = () => api.versions(doc.id).then(setList).catch(() => {})
+  const pendingSave = useRef(false)
+  const [saving, setSaving] = useState(false)
+  const refresh = () => api.versions(doc.id).then(items => {
+    if (active.current && useStore.getState().doc.id === doc.id) setList(items)
+  }).catch(() => {})
   useEffect(() => {
-    refresh()
+    void refresh()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal title="历史版本" onClose={onClose}>
       <button
         className="primary wide"
+        disabled={saving}
         onClick={async () => {
+          if (pendingSave.current) return
           const label = prompt('版本说明', `手动保存 ${new Date().toLocaleTimeString()}`)
           if (label === null) return
-          await api.saveVersion(doc, label || '手动保存')
-          refresh()
-          notify('版本已保存')
+          pendingSave.current = true
+          setSaving(true)
+          const expected = useStore.getState().doc
+          try {
+            await api.saveVersion(expected, label || '手动保存')
+            if (!active.current || useStore.getState().doc !== expected) return
+            await refresh()
+            if (active.current && useStore.getState().doc === expected) notify('版本已保存')
+          } catch {
+            if (active.current && useStore.getState().doc === expected) notify('版本保存失败，当前文稿未改变，请重试。', 'error')
+          } finally {
+            pendingSave.current = false
+            if (active.current) setSaving(false)
+          }
         }}
       >
         保存当前为新版本
@@ -57,10 +76,20 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
           </div>
           <button
             onClick={async () => {
-              const { doc: old } = await api.version(doc.id, v.id)
-              commit(normalizeDoc({ ...old, id: doc.id }))
-              notify(`已恢复「${v.label}」`)
-              onClose()
+              const expected = useStore.getState().doc
+              try {
+                const { doc: old } = await api.version(expected.id, v.id)
+                if (!active.current) return
+                if (useStore.getState().doc !== expected) {
+                  notify('等待期间文稿已变化，已保留当前内容。请重新选择恢复版本。', 'error')
+                  return
+                }
+                commit(normalizeDoc({ ...old, id: expected.id }))
+                notify(`已恢复「${v.label}」`)
+                onClose()
+              } catch (e: any) {
+                if (active.current) notify(e.message, 'error')
+              }
             }}
           >
             恢复
@@ -266,11 +295,33 @@ export function Toolbar() {
   const doc = useStore((s) => s.doc)
   const saveStatus = useStore((s) => s.saveStatus)
   const saveError = useStore((s) => s.saveError)
+  const saveConflict = useStore((s) => s.saveConflict)
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
   const { undo, redo, setDocFields } = useStore.getState()
   const [modal, setModal] = useState<'' | 'preview' | 'versions' | 'export' | 'import' | 'ai' | 'article'>('')
   const [wizardTemplates, setWizardTemplates] = useState<string[] | undefined>()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const moreButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!moreOpen || modal) return
+    const outside = (event: PointerEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setMoreOpen(false)
+      moreButton.current?.focus()
+    }
+    window.addEventListener('pointerdown', outside)
+    window.addEventListener('keydown', escape)
+    return () => {
+      window.removeEventListener('pointerdown', outside)
+      window.removeEventListener('keydown', escape)
+    }
+  }, [moreOpen, modal])
+
   useEffect(() => {
     // 从「模板」面板打开时带上预选的模板
     const open = (e: Event) => {
@@ -286,6 +337,7 @@ export function Toolbar() {
     }
   }, [])
   return (
+    <>
     <header className="toolbar">
       <div className="brand">XIUMI <b>AI</b> Studio</div>
       <input className="title-input" value={doc.title} onChange={(e) => setDocFields({ title: e.target.value }, 'title')} aria-label="文章标题" />
@@ -293,15 +345,22 @@ export function Toolbar() {
         {{ saved: '已保存', dirty: '未保存', saving: '保存中…', error: '保存失败' }[saveStatus]}
       </span>
       <div className="spacer" />
-      <ColorModeControl />
-      <button onClick={undo} disabled={!canUndo} title="撤销 Ctrl+Z">↶ 撤销</button>
-      <button onClick={redo} disabled={!canRedo} title="重做 Ctrl+Y">↷ 重做</button>
-      <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
-      <button onClick={() => setModal('preview')} data-testid="open-preview">📱 手机预览</button>
-      <button onClick={() => setModal('ai')} data-testid="open-ai-settings">⚙ AI 模型</button>
-      <button onClick={() => setModal('article')} data-testid="open-article-import">⤓ 导入推文</button>
-      <button className="accent" onClick={() => (setWizardTemplates(undefined), setModal('import'))} data-testid="open-import">✨ AI 一键排版</button>
-      <button className="primary" onClick={() => setModal('export')} data-testid="open-export">导出 / 发布</button>
+
+      <button className="toolbar-undo" onClick={undo} disabled={!canUndo} title="撤销 Ctrl+Z" aria-label="撤销"><span aria-hidden="true">↶</span><span className="toolbar-action-label"> 撤销</span></button>
+      <button className="toolbar-redo" onClick={redo} disabled={!canRedo} title="重做 Ctrl+Y" aria-label="重做"><span aria-hidden="true">↷</span><span className="toolbar-action-label"> 重做</span></button>
+      <button onClick={() => setModal('article')} data-testid="open-article-import"><span className="toolbar-legacy-icon" aria-hidden="true">⤓ </span><span className="toolbar-label-full">导入推文</span><span className="toolbar-label-short" aria-hidden="true">导入</span></button>
+      <button className="accent" onClick={() => (setWizardTemplates(undefined), setModal('import'))} data-testid="open-import"><span className="toolbar-legacy-icon" aria-hidden="true">✨ </span><span className="toolbar-label-full">AI 一键排版</span><span className="toolbar-label-short" aria-hidden="true">AI 排版</span></button>
+      <button onClick={() => setModal('preview')} data-testid="open-preview"><span className="toolbar-legacy-icon" aria-hidden="true">📱 </span><span className="toolbar-label-full">手机预览</span><span className="toolbar-label-short" aria-hidden="true">预览</span></button>
+      <div className="toolbar-overflow" ref={moreRef} data-open={moreOpen}>
+        <button ref={moreButton} className="toolbar-more" type="button" data-testid="toolbar-more"
+          aria-expanded={moreOpen} aria-controls="toolbar-secondary" onClick={() => setMoreOpen(!moreOpen)}>更多</button>
+        <div className="toolbar-secondary" id="toolbar-secondary">
+          <ColorModeControl />
+          <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
+          <button onClick={() => setModal('ai')} data-testid="open-ai-settings"><span className="toolbar-legacy-icon" aria-hidden="true">⚙ </span>AI 模型</button>
+        </div>
+      </div>
+      <button className="primary" onClick={() => setModal('export')} data-testid="open-export"><span className="toolbar-label-full">导出 / 发布</span><span className="toolbar-label-short" aria-hidden="true">导出</span></button>
       {modal === 'preview' && <PhonePreview html={compileDoc(doc).html} title="手机预览" onClose={() => setModal('')} />}
       {modal === 'versions' && <VersionsModal onClose={() => setModal('')} />}
       {modal === 'export' && <ExportModal onClose={() => setModal('')} />}
@@ -317,5 +376,11 @@ export function Toolbar() {
         </Suspense>
       )}
     </header>
+      {saveConflict && <div role="alert" className="save-conflict">
+        <span>其他页面已修改此稿。你的内容仍在当前页。</span>
+        <button disabled={saveStatus === 'saving'} onClick={() => void saveConflictCopy()}>另存冲突副本</button>
+        <button onClick={() => setModal('export')}>导出当前内容</button>
+      </div>}
+    </>
   )
 }

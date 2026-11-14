@@ -2,16 +2,27 @@
 // 样张 01、02 只用项目原创内容；03、04、05、06 取自本机已导入的模板，属于用户的私有数据，不得提交或外传。
 // 本脚本只读取模板和样例，只写 compat-probe 目录。实测结果由人工填写 docs/05-xiumi-compat-probe.md。
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve, relative, isAbsolute, sep, parse as parsePath } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import sharp from 'sharp'
 import { createBlock } from '../src/core/blocks'
 import { compileDoc } from '../src/core/compiler'
 import { textToRich } from '../src/core/richtext'
 import type { Block, Doc } from '../src/core/types'
-import { DATA, DIRS, ROOT } from '../server/store'
 
-const OUT = join(DATA, 'compat-probe')
+export interface ProbePaths { outputDir: string; samplesDir: string; templatesDir: string }
+
+/** Explicit paths keep tests and callers away from the user's data; no import-time I/O. */
+export async function generateXiumiProbe(options: ProbePaths): Promise<void> {
+const OUT = resolve(options.outputDir)
+const samplesDir = resolve(options.samplesDir)
+const templatesDir = resolve(options.templatesDir)
+// Refuse a destructive output path that contains either input directory.
+if (OUT === parsePath(OUT).root || [samplesDir, templatesDir].some(input => {
+  const path = relative(OUT, input)
+  return !path || (!isAbsolute(path) && path !== '..' && !path.startsWith('..' + sep))
+})) throw new Error('Probe output must not contain its input directories')
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 
@@ -40,7 +51,7 @@ const textBlocks = (): Block[] => [
 ]
 
 const dataUri = async (file: string, w: number, h?: number) => {
-  const buf = await sharp(join(ROOT, 'samples', file)).resize({ width: w, height: h, fit: 'cover' }).jpeg({ quality: 70 }).toBuffer()
+  const buf = await sharp(join(samplesDir, file)).resize({ width: w, height: h, fit: 'cover' }).jpeg({ quality: 70 }).toBuffer()
   return `data:image/jpeg;base64,${buf.toString('base64')}`
 }
 
@@ -61,8 +72,8 @@ const stat = (html: string) => {
   return { svg: d.querySelectorAll('svg').length, animate: d.querySelectorAll('animate, animateTransform, animateMotion').length, bg: d.querySelectorAll('[style*="background-image"]').length }
 }
 const html: string[] = []
-for (const f of readdirSync(DIRS.templates).filter((x) => x.endsWith('.json'))) {
-  const t = JSON.parse(readFileSync(join(DIRS.templates, f), 'utf8'))
+for (const f of readdirSync(templatesDir).filter((x) => x.endsWith('.json'))) {
+  const t = JSON.parse(readFileSync(join(templatesDir, f), 'utf8'))
   for (const b of t.blocks ?? []) if (b.type === 'html') html.push(b.props.html)
 }
 const small = html.filter((h) => stat(h).svg > 0 && h.length < 20000).sort((a, b) => b.length - a.length)[0]
@@ -87,7 +98,7 @@ write('05-background-paste-test', '探针 05 背景图粘贴', '在浏览器打�
 const wxImage = (dir: string) => html.flatMap((h) => [...h.matchAll(new RegExp(`https://mmbiz\\.qpic\\.cn/${dir}/[^"'&)\\s]+`, 'gi'))].map((m) => m[0]))[0]
 const toData = (mime: string, buf: Buffer) => `data:${mime};base64,${buf.toString('base64')}`
 const kb = (n: number) => `${Math.round(n / 1024)}KB`
-const sample = sharp(join(ROOT, 'samples', 'photo-06.jpg')).resize({ width: 480 })
+const sample = sharp(join(samplesDir, 'photo-06.jpg')).resize({ width: 480 })
 const smallJpg = await sample.clone().jpeg({ quality: 70 }).toBuffer()
 const smallPng = await sample.clone().resize({ width: 240 }).ensureAlpha(0.8).png().toBuffer()
 const smallGif = await sample.clone().resize({ width: 160 }).gif().toBuffer()
@@ -117,3 +128,12 @@ write('06-image-matrix-private', '探针 06 图片矩阵', '私有数据，不�
 // 大图单独一份：如果秀米限制总大小，不会连累上面的矩阵
 write('07-large-image', '探针 07 大图', '检查内嵌大图是否被接受', `<section>${row(`B 内嵌大 JPG（${kb(bigJpg.length)}）`, img(toData('image/jpeg', bigJpg)))}</section>`)
 console.log('完成。按 docs/05-xiumi-compat-probe.md 的步骤实测；03、04、05、06 不要提交或发给他人。')
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const root = resolve(import.meta.dirname, '..')
+  const data = resolve(process.env.DATA_DIR ?? join(root, 'data'))
+  const templatesDir = join(data, 'templates')
+  mkdirSync(templatesDir, { recursive: true })
+  await generateXiumiProbe({ outputDir: join(data, 'compat-probe'), samplesDir: join(root, 'samples'), templatesDir })
+}

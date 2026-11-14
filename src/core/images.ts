@@ -13,7 +13,7 @@ export function rehostUrls(html: string, parse: Parse = defaultParse): string[] 
   const urls = new Set<string>()
   root.querySelectorAll('img').forEach((el) => urls.add(el.getAttribute('src') ?? ''))
   root.querySelectorAll('image').forEach((el) => urls.add(el.getAttribute('href') ?? el.getAttribute('xlink:href') ?? ''))
-  root.querySelectorAll('[style*="url("]').forEach((el) => {
+  Array.from(root.querySelectorAll('[style]')).filter(el => (el.getAttribute('style') ?? '').includes('url(')).forEach((el) => {
     for (const m of (el.getAttribute('style') ?? '').matchAll(URL_RE)) urls.add(m[2])
   })
   return [...urls].filter(isXiumiImage)
@@ -33,7 +33,7 @@ export function rewriteImages(html: string, map: Record<string, string>, parse: 
       if (to) el.setAttribute(a, to)
     }
   })
-  root.querySelectorAll('[style*="url("]').forEach((el) => {
+  Array.from(root.querySelectorAll('[style]')).filter(el => (el.getAttribute('style') ?? '').includes('url(')).forEach((el) => {
     const st = el.getAttribute('style') ?? ''
     el.setAttribute('style', st.replace(URL_RE, (m, _q, u) => (map[u] ? `url("${map[u]}")` : m)))
   })

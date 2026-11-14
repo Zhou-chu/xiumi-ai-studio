@@ -1,7 +1,9 @@
+import { applyImageWidths } from './imageResize'
 // 微信 HTML 编译器：文档 JSON → 全内联样式 HTML。
 // 画布、手机预览、复制、草稿箱都使用同一份输出，保证所见即所得。
 import { boxParts, boxTheme, KIT_RENDERERS, KIT_TYPES, kitEmptySlots, type KitCtx } from './kit'
 import { guardHtml } from './sanitize'
+import { safeTextFont, safeTextSize } from './textTypography'
 import { css, esc, safeColor } from './style'
 import { resolveTheme } from './themes'
 import { flatBlocks } from './tree'
@@ -80,15 +82,44 @@ class Ctx implements KitCtx {
 
 // ---------- 富文本 ----------
 
-function renderInline(n: RichNode, ctx: Ctx): string {
-  if (n.type === 'hardBreak') return '<br>'
-  if (n.type !== 'text') return (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
-  let html = esc(n.text ?? '').replace(/(^ +| {2,}| +$)/g, (spaces) => '&nbsp;'.repeat(spaces.length))
+/** Whitespace belongs to a visual line, not to each differently marked text node. */
+function renderInlines(nodes: RichNode[], ctx: Ctx): string {
+  const leaves: RichNode[] = []
+  const visit = (node: RichNode) => {
+    if (node.type === 'text' || node.type === 'hardBreak') leaves.push(node)
+    else (node.content ?? []).forEach(visit)
+  }
+  nodes.forEach(visit)
+  const hardBreaks = new Set<number>()
+  let position = 0
+  const source = leaves.map(node => {
+    if (node.type === 'hardBreak') { hardBreaks.add(position++); return '\n' }
+    const text = node.text ?? ''
+    position += text.length
+    return text
+  }).join('')
+  let offset = 0
+  return leaves.map(node => {
+    if (node.type === 'hardBreak') { offset++; return '<br>' }
+    const text = node.text ?? ''
+    const preserved = text.replace(/ +/g, (spaces, local: number) => {
+      const start = offset + local, end = start + spaces.length
+      const atEdge = start === 0 || end === source.length || hardBreaks.has(start - 1) || hardBreaks.has(end)
+      const repeated = spaces.length > 1 || source[start - 1] === ' ' || source[end] === ' '
+      return atEdge || repeated ? '\u00a0'.repeat(spaces.length) : spaces
+    })
+    offset += text.length
+    return renderInline(node, ctx, esc(preserved).replaceAll('\u00a0', '&nbsp;'))
+  }).join('')
+}
+
+function renderInline(n: RichNode, ctx: Ctx, textHtml: string): string {
+  let html = textHtml
   let linkHref: string | undefined
   for (const m of n.marks ?? []) {
     switch (m.type) {
       case 'bold':
-        html = `<strong style="${css({ 'font-weight': 700, color: ctx.c.primary })}">${html}</strong>`
+        html = `<strong style="${css({ 'font-weight': 700, color: safeColor(n.marks?.find(mark => mark.type === 'textStyle')?.attrs?.color) ?? ctx.c.primary })}">${html}</strong>`
         break
       case 'italic':
         html = `<em style="${css({ 'font-style': 'italic' })}">${html}</em>`
@@ -104,7 +135,9 @@ function renderInline(n: RichNode, ctx: Ctx): string {
         break
       case 'textStyle': {
         const color = safeColor(m.attrs?.color)
-        if (color) html = `<span style="${css({ color })}">${html}</span>`
+        const fontFamily = safeTextFont(m.attrs?.fontFamily)
+        const fontSize = safeTextSize(m.attrs?.fontSize)
+        if (color || fontFamily || fontSize) html = `<span style="${css({ color, 'font-family': fontFamily, 'font-size': fontSize })}">${html}</span>`
         break
       }
       case 'link':
@@ -132,16 +165,16 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
     const mb = last ? 0 : gap
     const nodeAlign = n.attrs?.textAlign ?? align
     if (n.type === 'paragraph') {
-      const inner = (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
+      const inner = renderInlines(n.content ?? [], ctx)
       out.push(ctx.p(inner || '<br>', { 'margin-bottom': mb, 'text-align': nodeAlign }))
     } else if (n.type === 'heading') {
-      const inner = (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
+      const inner = renderInlines(n.content ?? [], ctx)
       out.push(ctx.p(inner, { 'margin-bottom': mb, 'text-align': nodeAlign, 'font-weight': 700, 'font-size': ctx.t.h2Size - 1, color: ctx.c.primary }))
     } else if (n.type === 'bulletList' || n.type === 'orderedList') {
       // 微信对 ul/ol 的缩进处理不稳定，统一渲染为带符号的段落
       ;(n.content ?? []).forEach((li, j) => {
         const marker = n.type === 'bulletList' ? '●' : `${j + 1}.`
-        const inner = (li.content ?? []).map((x) => (x.content ?? []).map((y) => renderInline(y, ctx)).join('')).join('<br>')
+        const inner = (li.content ?? []).map((x) => renderInlines(x.content ?? [], ctx)).join('<br>')
         const isLast = j === (n.content?.length ?? 0) - 1
         out.push(
           ctx.p(
@@ -484,9 +517,9 @@ export function compileBlock(block: Block, theme: Theme, opts: CompileOptions = 
     return `<section style="${parts.outer}">${parts.header}<section style="${parts.body}">${inner}</section>${parts.footer}</section>`
   }
   const kit = KIT_RENDERERS[block.type as keyof typeof KIT_RENDERERS] as ((b: Block, ctx: KitCtx) => string) | undefined
-  if (kit) return kit(block, ctx)
+  if (kit) return applyImageWidths(kit(block, ctx), block)
   const render = R[block.type as keyof Renderers] as Renderer<keyof Renderers>
-  return render(block as never, ctx)
+  return applyImageWidths(render(block as never, ctx), block)
 }
 
 export interface CompileResult {

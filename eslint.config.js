@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
 
 export default tseslint.config(
-  { ignores: ['dist', 'data', 'node_modules', 'test-results', 'playwright-report'] },
+  { ignores: ['dist', 'data', 'node_modules', 'test-results', 'test-results-*', 'playwright-report', 'coverage', 'coverage-*', 'audit-results'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

@@ -3,7 +3,7 @@
 import { createBlock, newId } from './blocks'
 import { lum, shade, tint, toHex } from './color'
 import { ImagePool } from './layouts'
-import type { Outline, OutlineSection } from './outline'
+import { sectionTables, type Outline, type OutlineSection } from './outline'
 import { textToRich } from './richtext'
 import { SANS, SERIF } from './themes'
 import type { Block, BlockPropsMap, Doc, ImageRef, ThemeTokens } from './types'
@@ -155,8 +155,7 @@ function sectionBlocks(s: OutlineSection, plan: DesignSpec['sections'][number], 
       paras.splice(0).forEach((p, j) => out.push(j < 3 && p.length < 260 ? createBlock('card', { title: '', content: textToRich(p), variant: 'auto' }) : para(p)))
       break
     case 'galleryLead':
-      if (imgs.length === 1) out.push(...imagesBlock(imgs.splice(0)))
-      else out.push(...imagesBlock(imgs.splice(0)))
+      out.push(...imagesBlock(imgs.splice(0)))
       paras.splice(0).forEach((p) => out.push(para(p)))
       break
     case 'quoteLead':
@@ -183,9 +182,9 @@ function sectionBlocks(s: OutlineSection, plan: DesignSpec['sections'][number], 
   }
   out.push(...imagesBlock(imgs))
   if (!usedTimeline && s.timeline.length) out.push(createBlock('timeline', { items: s.timeline }))
-  if (s.table) out.push(createBlock('table', { ...s.table, caption: '' }))
+  for (const table of sectionTables(s)) out.push(createBlock('table', { ...table, caption: '' }))
   for (const p of s.people) out.push(createBlock('profile', { ...p }))
-  s.quotes.slice(usedQuote ? 1 : 0, 2).forEach((q) => out.push(createBlock('quote', { ...q, variant: 'auto' })))
+  s.quotes.slice(usedQuote ? 1 : 0).forEach((q) => out.push(createBlock('quote', { ...q, variant: 'auto' })))
   return out
 }
 
@@ -245,7 +244,8 @@ export function outlineBrief(o: Outline, imageCount: number) {
       firstSentence: (s.paragraphs[0] ?? '').split(/[。！？]/)[0].slice(0, 40),
       timeline: s.timeline.length,
       quotes: s.quotes.length,
-      table: Boolean(s.table),
+      table: sectionTables(s).length > 0,
+      tables: sectionTables(s).length,
       people: s.people.length,
     })),
   }

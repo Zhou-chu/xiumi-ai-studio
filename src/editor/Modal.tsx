@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 
-const focusable = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+const focusable = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [contenteditable="true"], [contenteditable=""], [tabindex]:not([tabindex="-1"])'
 
 export function Modal({ title, children, onClose, width = 560 }: { title: string; children: ReactNode; onClose: () => void; width?: number }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -10,13 +10,20 @@ export function Modal({ title, children, onClose, width = 560 }: { title: string
     const dialog = ref.current!
     const trigger = document.activeElement as HTMLElement | null
     const isTop = () => [...document.querySelectorAll('[role="dialog"]')].at(-1) === dialog
-    const items = () => [...dialog.querySelectorAll<HTMLElement>(focusable)].filter(el => !el.hidden && !el.closest('[hidden]') && el.closest('[role="dialog"]') === dialog)
+    const items = () => [...dialog.querySelectorAll<HTMLElement>(focusable)].filter(el => {
+      if (el.closest('[role="dialog"]') !== dialog || el.closest('[hidden],[inert]') || el.matches(':disabled,[aria-disabled="true"],input[type="hidden"],[contenteditable="false"]')) return false
+      for (let node: HTMLElement | null = el; node && node !== dialog; node = node.parentElement) {
+        const style = getComputedStyle(node)
+        if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return false
+      }
+      return true
+    })
     if (isTop()) (items()[0] ?? dialog).focus()
     const k = (e: KeyboardEvent) => {
       if (!isTop()) return
       if (e.key === 'Escape') {
         // Dismiss the active annotation first, without also closing its dialog.
-        if (document.querySelector('[data-help-open]')) return
+        if (document.querySelector('[data-help-open]') || dialog.querySelector('[data-model-picker-open]')) return
         e.preventDefault()
         e.stopImmediatePropagation()
         close.current()

@@ -209,7 +209,7 @@ export function useComponents() {
   const [comps, setComps] = useState<LibraryComponent[]>([])
   useEffect(() => {
     const load = () => api.components().then(setComps).catch(() => {})
-    load()
+    void load()
     window.addEventListener('components-changed', load)
     return () => window.removeEventListener('components-changed', load)
   }, [])

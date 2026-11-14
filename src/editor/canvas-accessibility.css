@@ -1,0 +1,21 @@
+/* Editor-only selection controls; never target rendered article descendants. */
+.canvas-wrap .block > button.block-select {
+  position: absolute; left: -30px; top: 26px; z-index: 4;
+  width: 28px; min-height: 28px; padding: 2px; border: 1px solid transparent;
+  border-radius: 2px; background: var(--ui-panel, #fff); color: var(--ui-text, #333);
+  font-family: var(--ui-font, sans-serif); font-size: 14px; line-height: 18px;
+  letter-spacing: 0; opacity: 0; cursor: pointer;
+}
+.canvas-wrap .block:hover > button.block-select,
+.canvas-wrap .block:focus-within > button.block-select,
+.canvas-wrap .block > button.block-select:focus-visible { opacity: 1; }
+.canvas-wrap .block > button.block-select:focus-visible { outline: 2px solid var(--ui-text, #333); outline-offset: 2px; box-shadow: 0 0 0 4px var(--ui-panel, #fff); }
+.canvas-wrap .block > button.block-select[aria-pressed="true"] { border-color: currentColor; }
+.canvas-wrap .pick-toolbar > [data-testid="pick-status"] { max-width: 18em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (pointer: coarse) {
+  .canvas-wrap .block > button.block-select { opacity: 1; }
+}
+
+@media (max-width: 600px) {
+  .canvas-wrap .block > button.block-select { left: -26px; width: 24px; }
+}

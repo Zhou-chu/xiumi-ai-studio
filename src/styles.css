@@ -453,3 +453,5 @@ textarea.code { font-family: Consolas, 'Courier New', monospace; font-size: 12px
 
 .ai-suggestion-input textarea { width: 100%; }
 .ai-suggestion-input textarea::placeholder { color: #778196; opacity: 1; }
+
+.save-conflict { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; color: var(--text); background: var(--panel); border-bottom: 1px solid var(--danger); }

@@ -12,7 +12,7 @@ export function toHex(c: string): string | undefined {
   return undefined
 }
 
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
 
 /** 相对亮度（0 黑 – 1 白，近似） */
 export function lum(hex: string) {

@@ -27,7 +27,7 @@ const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' '
 export function detectSource(doc: Document, url = ''): SourceKind {
   if (/^https?:\/\/mp\.weixin\.qq\.com\//i.test(url) || doc.querySelector('#js_content')) return 'wechat'
   const imgs = Array.from(doc.querySelectorAll('img')).map((i) => i.getAttribute('data-src') || i.getAttribute('src') || '')
-  const bg = Array.from(doc.querySelectorAll('[style*="url("]')).some((e) => /xiumi\.us|xiumius\.cn/i.test(e.getAttribute('style') ?? ''))
+  const bg = Array.from(doc.querySelectorAll('[style]')).filter(el => (el.getAttribute('style') ?? '').includes('url(')).some((e) => /xiumi\.us|xiumius\.cn/i.test(e.getAttribute('style') ?? ''))
   if (bg || imgs.some((u) => isXiumiImage(u.replace(/^\/\//, 'https://')))) return 'xiumi'
   if (imgs.some((u) => /qpic\.cn|qlogo\.cn/i.test(u))) return 'wechat'
   return Array.from(doc.querySelectorAll('[powered-by]')).some((e) => /xiumi/i.test(e.getAttribute('powered-by') ?? '')) ? 'xiumi' : 'other'
@@ -71,6 +71,8 @@ export function contentLayer(root: Element): { layer: Element; wrappers: Element
     const only = kids[0]
     const st = only.getAttribute('style') ?? ''
     if (!['section', 'p', 'span', 'div'].includes(only.tagName.toLowerCase()) || !only.children.length || LAYOUT.test(st)) break
+    // Keep unsafe outer shells intact, just as nested card splitting does.
+    if (['section', 'div'].includes(only.tagName.toLowerCase()) && !shellOk(only)) break
     if (BOXY.test(st)) wrappers.push(only)
     cur = only
   }
@@ -218,9 +220,9 @@ function splitSection(el: Element, maxPlainRun: number, depth: number, force = f
   return pieces
 }
 
-/** 竖直外边距，只认 px 和 0（其他单位返回 NaN），后写的声明覆盖先写的 */
+/** 竖直外边距，只认 px 和 0（其他单位返回 Number.NaN），后写的声明覆盖先写的 */
 function verticalMargins(el: Element): [number, number] {
-  const px = (s: string) => (/^(0|-?\d*\.?\d+px)$/i.test(s) ? parseFloat(s) || 0 : NaN)
+  const px = (s: string) => (/^(0|-?(?:\d+(?:\.\d+)?|\.\d+)px)$/i.test(s) ? Number.parseFloat(s) || 0 : Number.NaN)
   let top = 0
   let bottom = 0
   for (const d of splitDecls(el.getAttribute('style') ?? '')) {
@@ -244,11 +246,11 @@ const OWN_CONTEXT = /display:\s*(?!block)[a-z-]+|overflow(-y)?:\s*(hidden|auto|s
 
 /**
  * 元素一侧的外边距：自己的，以及穿过它合并上来的子元素外边距（自己这一侧没有内边距、边框、固定高度时）。
- * 无法确定（非 px 单位、负值）时返回 NaN。
+ * 无法确定（非 px 单位、负值）时返回 Number.NaN。
  */
 function edgeMargin(el: Element, side: 'top' | 'bottom', depth = 0): { own: number; nested: number } {
   const own = verticalMargins(el)[side === 'top' ? 0 : 1]
-  if (!(own >= 0)) return { own: NaN, nested: NaN }
+  if (!(own >= 0)) return { own: Number.NaN, nested: Number.NaN }
   const st = el.getAttribute('style') ?? ''
   const pad = new RegExp(`padding(-${side})?\\s*:\\s*([^;]+)`, 'gi')
   const padded = Array.from(st.matchAll(pad)).some((m) => {
@@ -386,6 +388,24 @@ export function articleToMarkdown(a: ImportedArticle): { markdown: string; image
         images.push(src)
         lines.push(`![](${src})`)
       }
+      return
+    }
+    if (tag === 'ul' || tag === 'ol') {
+      const renderList = (list: Element, indent: string): string[] => {
+        const ordered = list.tagName.toLowerCase() === 'ol'
+        const parsedStart = Number(list.getAttribute('start') ?? 1)
+        const start = Number.isInteger(parsedStart) ? parsedStart : 1
+        return Array.from(list.children).filter((c) => c.tagName.toLowerCase() === 'li').flatMap((item, index) => {
+          const content = item.cloneNode(true) as Element
+          content.querySelectorAll('ul, ol').forEach((nested) => nested.remove())
+          const prefix = ordered ? String(start + index) + '. ' : '- '
+          const nested = Array.from(item.children).filter((c) => /^(ul|ol)$/i.test(c.tagName))
+          return [indent + prefix + text(content), ...nested.flatMap((list) => renderList(list, indent + ' '.repeat(prefix.length)))]
+        })
+      }
+      lines.push(renderList(el, '').join('\n'))
+      el.querySelectorAll('img').forEach((img) => leaf(img))
+      seen.add(el)
       return
     }
     if (tag === 'table') {

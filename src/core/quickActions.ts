@@ -1,7 +1,6 @@
 // 无需大模型的规则化“AI”动作：同样产出 ops，走同一套差异审阅流程。
 import { createBlock } from './blocks'
 import { richToPlain, textToRich } from './richtext'
-import { summarize } from './ops'
 import { extractSlots } from './slots'
 import { findBlock } from './tree'
 import type { Block, Doc, DocOp } from './types'
@@ -20,7 +19,6 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: '拆分长段落',
     run(doc) {
       const ops: DocOp[] = []
-      let offset = 0
       doc.blocks.forEach((b, i) => {
         if (b.type !== 'paragraph') return
         const text = richToPlain(b.props.content)
@@ -28,8 +26,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
         const parts = sentences(text)
         const half = Math.ceil(parts.length / 2)
         ops.push({ op: 'update', id: b.id, props: { content: textToRich(parts.slice(0, half).join('')) }, reason: `段落 ${text.length} 字，手机上阅读压力大` })
-        ops.push({ op: 'insert', index: i + 1 + offset, block: createBlock('paragraph', { content: textToRich(parts.slice(half).join('')) }), reason: '拆出的后半段' })
-        offset++
+        ops.push({ op: 'insert', index: i + 1, block: createBlock('paragraph', { content: textToRich(parts.slice(half).join('')) }), reason: '拆出的后半段' })
       })
       return { summary: ops.length ? `拆分 ${ops.length / 2} 个超过 200 字的段落` : '没有需要拆分的长段落', ops }
     },
@@ -40,14 +37,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
     run(doc) {
       const ops: DocOp[] = []
       const existing = new Set(doc.blocks.filter((b) => b.type === 'quote').map((b) => (b as Block<'quote'>).props.text))
-      let offset = 0
       doc.blocks.forEach((b, i) => {
         // 全文引言最多 4 处，避免重复点击不断堆叠
         if (b.type !== 'paragraph' || existing.size + ops.length >= 4) return
         const m = richToPlain(b.props.content).match(/[“"「]([^”"」]{12,60})[”"」]/)
         if (!m || existing.has(m[1])) return
-        ops.push({ op: 'insert', index: i + 1 + offset, block: createBlock('quote', { text: m[1], source: '', variant: 'auto' }), reason: '段落中的直接引语适合单独突出' })
-        offset++
+        ops.push({ op: 'insert', index: i + 1, block: createBlock('quote', { text: m[1], source: '', variant: 'auto' }), reason: '段落中的直接引语适合单独突出' })
       })
       return { summary: ops.length ? `提炼 ${ops.length} 处引语` : '没有找到合适的引语', ops }
     },
@@ -57,14 +52,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: '章节间加分割',
     run(doc) {
       const ops: DocOp[] = []
-      let offset = 0
       let seenHeading = false
       doc.blocks.forEach((b, i) => {
         if (b.type !== 'heading') return
         const prev = doc.blocks[i - 1]
         if (seenHeading && prev?.type !== 'divider') {
-          ops.push({ op: 'insert', index: i + offset, block: createBlock('divider', { variant: 'auto' }), reason: '分隔章节，增加呼吸感' })
-          offset++
+          ops.push({ op: 'insert', index: i, block: createBlock('divider', { variant: 'auto' }), reason: '分隔章节，增加呼吸感' })
         }
         seenHeading = true
       })
@@ -88,11 +81,11 @@ export const QUICK_ACTIONS: QuickAction[] = [
 ]
 
 /** 发送给大模型的精简文档上下文（富文本转纯文本，图片只给数量） */
-export function aiContext(doc: Doc, focusId?: string | null) {
+export function aiContext(doc: Doc, focusId?: string | string[] | null) {
   const block = (b: Block, index: number): Record<string, unknown> => {
     // 原文片段只给文字槽位，AI 按槽位修改
     if (b.type === 'html') {
-      const slots = extractSlots(b.props.html).flatMap((s) => (s.kind === 'text' ? [{ id: s.id, role: s.role, text: s.text.slice(0, 300), ...(s.tight && { max: s.max }) }] : []))
+      const slots = extractSlots(b.props.html).flatMap((s) => (s.kind === 'text' ? [{ id: s.id, role: s.role, text: s.text, ...(s.tight && { max: s.max }) }] : []))
       return { index, id: b.id, type: b.type, props: { label: b.props.label, slots } }
     }
     const p: any = { ...b.props }
@@ -106,16 +99,14 @@ export function aiContext(doc: Doc, focusId?: string | null) {
     }
     return { index, id: b.id, type: b.type, props: p }
   }
-  // 选中了模块：只把它（所在的顶层模块）完整交给模型，其余模块只给一行摘要，当作位置参考
-  const focus = findBlock(doc.blocks, focusId)
-  if (focus) {
-    const top = focus.parent ?? focus.block
-    return {
-      title: doc.title,
-      themeId: doc.themeId,
-      focus: { id: focus.block.id, type: focus.block.type },
-      blocks: doc.blocks.map((b, i) => (b.id === top.id ? block(b, i) : { index: i, id: b.id, type: b.type, summary: summarize(b).slice(0, 30) })),
-    }
+  // Explicit scopes never include unselected parents, siblings or summaries.
+  // null/undefined alone means the whole document; unknown IDs fail closed.
+  if (focusId !== undefined && focusId !== null) {
+    const ids = [...new Set(Array.isArray(focusId) ? focusId : [focusId])]
+    const selected = ids.map(id => findBlock(doc.blocks, id))
+    if (!ids.length || selected.some(found => !found)) throw new Error('选中的模块已不存在，请重新选择')
+    const focus = Array.isArray(focusId) ? { ids } : { id: selected[0]!.block.id, type: selected[0]!.block.type }
+    return { title: doc.title, themeId: doc.themeId, focus, blocks: selected.map(found => block(found!.block, found!.index)) }
   }
-  return { title: doc.title, themeId: doc.themeId, blocks: doc.blocks.map(block) }
+  return { title: doc.title, themeId: doc.themeId, blocks: doc.blocks.map((item, index) => block(item, index)) }
 }
