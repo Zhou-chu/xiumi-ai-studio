@@ -1,32 +1,32 @@
 {
-  "sourceCommit": "66b59e2e7f2c7a0aeaa276b8adf590dc1a3285ac",
-  "verifiedAt": "2026-11-13T21:01:45.167Z",
-  "unitTests": 1257,
+  "sourceCommit": "bab3c9d3aa9c3f3ad3ec0298633668e38103b37a",
+  "verifiedAt": "2026-11-14T05:10:03.423Z",
+  "unitTests": 1290,
   "productionFiles": 120,
   "coverage": {
     "lines": {
-      "total": 8126,
-      "covered": 7999,
+      "total": 8177,
+      "covered": 8050,
       "skipped": 0,
-      "pct": 98.43
+      "pct": 98.44
     },
     "statements": {
-      "total": 10888,
-      "covered": 10566,
+      "total": 10950,
+      "covered": 10627,
       "skipped": 0,
-      "pct": 97.04
+      "pct": 97.05
     },
     "functions": {
-      "total": 2839,
-      "covered": 2765,
+      "total": 2845,
+      "covered": 2771,
       "skipped": 0,
       "pct": 97.39
     },
     "branches": {
-      "total": 8645,
-      "covered": 7972,
+      "total": 8721,
+      "covered": 8043,
       "skipped": 0,
-      "pct": 92.21
+      "pct": 92.22
     },
     "branchesTrue": {
       "total": 0,
@@ -39,20 +39,20 @@
     "passed": 134,
     "failed": 0,
     "exitCode": 0,
-    "reportSha256": "40e02b4570d9e2266a7bc5ac2ec441da2d784ef6b5a92fadd1b23a833574046e"
+    "reportSha256": "667ddc700c6f63c490d118fd5d19f275d37e7835f8b0a5a3a7a5d127f1db4cab"
   },
   "deployment": {
     "passed": 20,
     "failed": 0,
     "commands": "211/215",
-    "note": "Nested-shell result-export command-loading failure; unchanged independent rerun exit 0."
+    "note": "Independent current-candidate Pester invocation exit 0."
   },
   "static": "passed",
   "build": "passed with existing chunk-size advisory",
   "live": {
     "passed": true,
-    "seconds": 12.5,
+    "seconds": 12.8,
     "settingsUnchanged": true
   },
-  "sonar": "exact-candidate rescan pending; no S5693 risk acceptance"
+  "sonar": "Current exact-candidate rescan pending. Previous 3e350175 Gate OK with S5693 Accepted by user authorization, not Fixed/FP."
 }

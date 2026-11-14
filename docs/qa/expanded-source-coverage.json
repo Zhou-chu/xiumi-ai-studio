@@ -1,33 +1,33 @@
 {
-  "measuredAt": "2026-11-13T20:52:14.156Z",
+  "measuredAt": "2026-11-14T05:00:27.063Z",
   "scope": "All production JS/TS: src, server, scripts, templates; declaration-only files excluded. PowerShell reported separately in native command metric. Tests/configuration/generated HTML/fonts are not executable-source denominators.",
-  "sourceSha256": "675be65bb9b448983df37b37f00cbc5d3c65fdfe638bce431f61c50a0f9c2a3a",
+  "sourceSha256": "db4b9af691432fff820a29ca08f475a80419346b63255188075eda5705cc916e",
   "fileCount": 120,
-  "tests": 1257,
+  "tests": 1290,
   "total": {
     "lines": {
-      "total": 8126,
-      "covered": 7999,
+      "total": 8177,
+      "covered": 8050,
       "skipped": 0,
-      "pct": 98.43
+      "pct": 98.44
     },
     "statements": {
-      "total": 10888,
-      "covered": 10566,
+      "total": 10950,
+      "covered": 10627,
       "skipped": 0,
-      "pct": 97.04
+      "pct": 97.05
     },
     "functions": {
-      "total": 2839,
-      "covered": 2765,
+      "total": 2845,
+      "covered": 2771,
       "skipped": 0,
       "pct": 97.39
     },
     "branches": {
-      "total": 8645,
-      "covered": 7972,
+      "total": 8721,
+      "covered": 8043,
       "skipped": 0,
-      "pct": 92.21
+      "pct": 92.22
     },
     "branchesTrue": {
       "total": 0,
@@ -101,31 +101,31 @@
       "path": "server/ai.ts",
       "metrics": {
         "lines": {
-          "total": 134,
-          "covered": 133,
+          "total": 144,
+          "covered": 143,
           "skipped": 0,
-          "pct": 99.25
+          "pct": 99.3
         },
         "functions": {
-          "total": 33,
-          "covered": 32,
+          "total": 34,
+          "covered": 33,
           "skipped": 0,
-          "pct": 96.96
+          "pct": 97.05
         },
         "statements": {
-          "total": 167,
-          "covered": 164,
+          "total": 179,
+          "covered": 176,
           "skipped": 0,
-          "pct": 98.2
+          "pct": 98.32
         },
         "branches": {
-          "total": 228,
-          "covered": 223,
+          "total": 239,
+          "covered": 235,
           "skipped": 0,
-          "pct": 97.8
+          "pct": 98.32
         }
       },
-      "sha256": "89b712ab33ad344c7c4044a70edbe564239c1f82c661a514b9f6468a298ed3ef"
+      "sha256": "24ae5c3a12021047a008485c98790b214f7518321619846838708584a229b2aa"
     },
     {
       "path": "server/aiEdit.ts",
@@ -221,31 +221,31 @@
       "path": "server/app.ts",
       "metrics": {
         "lines": {
-          "total": 220,
-          "covered": 220,
+          "total": 231,
+          "covered": 231,
           "skipped": 0,
           "pct": 100
         },
         "functions": {
-          "total": 73,
-          "covered": 71,
+          "total": 74,
+          "covered": 72,
           "skipped": 0,
-          "pct": 97.26
+          "pct": 97.29
         },
         "statements": {
-          "total": 275,
-          "covered": 273,
+          "total": 291,
+          "covered": 288,
           "skipped": 0,
-          "pct": 99.27
+          "pct": 98.96
         },
         "branches": {
-          "total": 193,
-          "covered": 182,
+          "total": 203,
+          "covered": 189,
           "skipped": 0,
-          "pct": 94.3
+          "pct": 93.1
         }
       },
-      "sha256": "0f34aab4b86189d46a9af704c6649806db2c1b7c9248b7b3e6f0f9233e3a9e6a"
+      "sha256": "097071deb8e2d8ff49330742b32d38ec78804d005cea34a509daa5929a717605"
     },
     {
       "path": "server/articleImages.ts",
@@ -911,10 +911,10 @@
       "path": "src/core/compiler.ts",
       "metrics": {
         "lines": {
-          "total": 227,
-          "covered": 226,
+          "total": 247,
+          "covered": 246,
           "skipped": 0,
-          "pct": 99.55
+          "pct": 99.59
         },
         "functions": {
           "total": 59,
@@ -923,19 +923,19 @@
           "pct": 98.3
         },
         "statements": {
-          "total": 270,
-          "covered": 268,
+          "total": 290,
+          "covered": 288,
           "skipped": 0,
-          "pct": 99.25
+          "pct": 99.31
         },
         "branches": {
-          "total": 302,
-          "covered": 299,
+          "total": 314,
+          "covered": 311,
           "skipped": 0,
-          "pct": 99
+          "pct": 99.04
         }
       },
-      "sha256": "318280d18c5f014c05f1cafecc9029fd919557d2e4500b1dd70f70cdac5b18ba"
+      "sha256": "e73f9ca7075ce441f50b4232ea21af7e54d000f7b92d8ff76a7142c6a3498747"
     },
     {
       "path": "src/core/components.ts",
@@ -1277,25 +1277,25 @@
           "pct": 89.28
         },
         "functions": {
-          "total": 16,
-          "covered": 13,
+          "total": 18,
+          "covered": 15,
           "skipped": 0,
-          "pct": 81.25
+          "pct": 83.33
         },
         "statements": {
-          "total": 42,
-          "covered": 36,
+          "total": 44,
+          "covered": 38,
           "skipped": 0,
-          "pct": 85.71
+          "pct": 86.36
         },
         "branches": {
-          "total": 25,
-          "covered": 13,
+          "total": 29,
+          "covered": 15,
           "skipped": 0,
-          "pct": 52
+          "pct": 51.72
         }
       },
-      "sha256": "d79b2b8b4c5446eff5382bf743cca3d7f3d7a967ce3ee61c10892c82f4f0c311"
+      "sha256": "af3afee15db9a3f271b7df1fd357d0993f205c927ba9e20a5a64ccc62738f8ef"
     },
     {
       "path": "src/core/kit.ts",
@@ -1997,25 +1997,25 @@
           "pct": 100
         },
         "functions": {
-          "total": 59,
-          "covered": 58,
+          "total": 60,
+          "covered": 59,
           "skipped": 0,
-          "pct": 98.3
+          "pct": 98.33
         },
         "statements": {
-          "total": 364,
-          "covered": 356,
+          "total": 365,
+          "covered": 357,
           "skipped": 0,
           "pct": 97.8
         },
         "branches": {
-          "total": 331,
-          "covered": 298,
+          "total": 333,
+          "covered": 299,
           "skipped": 0,
-          "pct": 90.03
+          "pct": 89.78
         }
       },
-      "sha256": "f49a0c076166075f7e5119b9848d1218391910ca0a021c9362f2711c5a90bf13"
+      "sha256": "ba6f5f7c93e32e2f34a1317111f5eb8b605cd36f313fec0e38a7846762d0b53e"
     },
     {
       "path": "src/core/xiumiExport.ts",
@@ -2081,31 +2081,31 @@
       "path": "src/editor/AiSettingsModal.tsx",
       "metrics": {
         "lines": {
-          "total": 166,
-          "covered": 166,
+          "total": 176,
+          "covered": 176,
           "skipped": 0,
           "pct": 100
         },
         "functions": {
-          "total": 59,
-          "covered": 59,
+          "total": 60,
+          "covered": 60,
           "skipped": 0,
           "pct": 100
         },
         "statements": {
-          "total": 213,
-          "covered": 211,
+          "total": 224,
+          "covered": 222,
           "skipped": 0,
-          "pct": 99.06
+          "pct": 99.1
         },
         "branches": {
-          "total": 174,
-          "covered": 163,
+          "total": 203,
+          "covered": 189,
           "skipped": 0,
-          "pct": 93.67
+          "pct": 93.1
         }
       },
-      "sha256": "b1c3b3326ffcc889f6827d7471e30b048152fc733183324c1e7e7862013dd1a1"
+      "sha256": "64a2cc9c33289f04759cd9541398b1307b4bf758574aca595f96c80bc8231ae7"
     },
     {
       "path": "src/editor/api.ts",
@@ -2129,13 +2129,13 @@
           "pct": 100
         },
         "branches": {
-          "total": 17,
-          "covered": 17,
+          "total": 19,
+          "covered": 19,
           "skipped": 0,
           "pct": 100
         }
       },
-      "sha256": "a358c57b507074f49f77959b8a011f0901c68b171a8f7993a9582fb9341de1d4"
+      "sha256": "9ab2a4c600e5e0b006e3b5e2ee0a3c9e65c84ed7908c120ea7e834191aa58f7f"
     },
     {
       "path": "src/editor/ArticleImageImport.tsx",
@@ -3120,12 +3120,12 @@
         },
         "branches": {
           "total": 138,
-          "covered": 130,
+          "covered": 131,
           "skipped": 0,
-          "pct": 94.2
+          "pct": 94.92
         }
       },
-      "sha256": "276040b655f290be27867397a6af30849fc89aeeaceab715e5bed24244ff1eae"
+      "sha256": "daee029d70c132118dfbfd28c7faa4fbd3d014ed62d4880ac5dad80c662c2635"
     },
     {
       "path": "src/editor/RoleSelect.tsx",
@@ -3299,13 +3299,13 @@
           "pct": 93.61
         },
         "branches": {
-          "total": 15,
-          "covered": 11,
+          "total": 21,
+          "covered": 19,
           "skipped": 0,
-          "pct": 73.33
+          "pct": 90.47
         }
       },
-      "sha256": "feff1f4d6738bb4772efbc3731a36ece340496bc607315477b0d697ee8723b6d"
+      "sha256": "6e2ce02c7a66a15c66df3c1860aa19822c187ed701f35dec5f9228b0d8677763"
     },
     {
       "path": "src/editor/TemplateModules.tsx",
@@ -3668,5 +3668,6 @@
       }
     ]
   },
-  "sourceHashMethod": "SHA256 of sorted relative-path + NUL + file SHA256 + LF records (localeCompare ordering)"
+  "sourceHashMethod": "SHA256 of sorted relative-path + NUL + file SHA256 + LF records (localeCompare ordering)",
+  "sourceCommit": "bab3c9d3aa9c3f3ad3ec0298633668e38103b37a"
 }

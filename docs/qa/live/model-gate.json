@@ -1,20 +1,16 @@
 {
-  "at": "2026-11-13T21:00:46.799Z",
+  "at": "2026-11-14T05:09:17.808Z",
   "profile": {
     "provider": "openai",
     "model": "deepseek-flash"
   },
-  "syntheticDocument": "live-gate-1794603636231",
+  "syntheticDocument": "live-gate-1794632947502",
   "realProvider": true,
   "connectionProbe": {
     "ok": true,
     "stage": "format_warning"
   },
   "layoutOps": [
-    {
-      "op": "setTheme",
-      "themeId": "tsinghua-purple"
-    },
     {
       "op": "update",
       "id": "live-html",
@@ -24,6 +20,10 @@
     {
       "op": "update",
       "id": "live-heading"
+    },
+    {
+      "op": "setTheme",
+      "themeId": "tsinghua-purple"
     }
   ],
   "selectedOps": [
