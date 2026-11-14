@@ -1,3 +1,4 @@
+import { providerErrorText, safeProviderError } from './providerError'
 import { trimTrailingSlashes } from './urlText'
 // 从上游读取可用模型（id、上下文、输出上限、思考强度），并检测一个模型接受哪些思考强度。
 // 只访问用户在「AI 模型设置」里填写的地址，带用户自己的密钥；不跟随重定向，避免把密钥带到别处。
@@ -71,6 +72,11 @@ const checkUrl = (p: AiProfile) => {
 
 /** 读取上游模型列表 */
 export async function fetchModels(p: AiProfile, fetcher: typeof fetch = fetch): Promise<ModelInfo[]> {
+  try { return await fetchModelsInternal(p, fetcher) }
+  catch (error) { throw safeProviderError(error, p.apiKey) }
+}
+
+async function fetchModelsInternal(p: AiProfile, fetcher: typeof fetch): Promise<ModelInfo[]> {
   checkUrl(p)
   const anthropic = p.provider === 'anthropic'
   const all: ModelInfo[] = []
@@ -130,7 +136,7 @@ export async function probeEfforts(p: AiProfile, send: typeof chatText = chatTex
   try {
     await ask('')
   } catch (e: any) {
-    return { baseError: e?.message ?? String(e), supported: [], rejected: [], ignored: false }
+    return { baseError: providerErrorText(e?.message ?? e, p.apiKey), supported: [], rejected: [], ignored: false }
   }
   let ignored = false
   try {
@@ -146,7 +152,7 @@ export async function probeEfforts(p: AiProfile, send: typeof chatText = chatTex
       await ask(effort)
       supported.push(effort)
     } catch (e: any) {
-      rejected.push({ effort, message: String(e?.message ?? e).replace(/^AI 请求失败 \d+: /, '').slice(0, 160) })
+      rejected.push({ effort, message: providerErrorText(e?.message ?? e, p.apiKey).replace(/^AI 请求失败 \d+: /, '').slice(0, 160) })
     }
   }
   return { supported, rejected, ignored }
