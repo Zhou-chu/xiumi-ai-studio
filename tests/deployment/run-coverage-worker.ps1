@@ -1,5 +1,6 @@
-﻿param([Parameter(Mandatory=$true)][string]$SandboxRoot, [switch]$IsolationOnly, [switch]$StateWriteProof, [switch]$NonSmokeOnly, [switch]$BoundaryOnly, [ValidateSet('None','WithoutCoverage','WithCoverage')][string]$ThrowDiagnostic='None')
+﻿param([Parameter(Mandatory=$true)][string]$SandboxRoot, [switch]$IsolationOnly, [switch]$StateWriteProof, [switch]$NonSmokeOnly, [switch]$SmokeOnly, [switch]$BoundaryOnly, [ValidateSet('None','WithoutCoverage','WithCoverage')][string]$ThrowDiagnostic='None')
 $ErrorActionPreference='Stop'
+if($SmokeOnly -and ($IsolationOnly -or $StateWriteProof -or $NonSmokeOnly -or $BoundaryOnly -or $ThrowDiagnostic -ne 'None')) {throw 'Select one test mode'}
 . "$PSScriptRoot\TestIsolation.ps1"
 Assert-XiumiTestEnvironment $SandboxRoot
 if($IsolationOnly) { & "$PSScriptRoot\isolation-self-check.ps1" -SandboxRoot $SandboxRoot; exit 0 }
@@ -29,8 +30,11 @@ foreach($name in $boundaries) {
 try {
  $selection=@{}
  if($NonSmokeOnly) {$selection['ExcludeTag']='smoke'}
+ if($SmokeOnly) {$selection['Tag']='smoke'}
  if($BoundaryOnly) {
   $result=Invoke-Pester -Script "$PSScriptRoot\BoundaryProof.Tests.ps1" -PassThru
+ } elseif($SmokeOnly) {
+  $result=Invoke-Pester @selection -Script "$PSScriptRoot\Deployment.Tests.ps1" -PassThru
  } else {
  $result=Invoke-Pester @selection -Script "$PSScriptRoot\Deployment.Tests.ps1" -CodeCoverage @("$repo\deploy\desktop.ps1","$repo\deploy\install-desktop.ps1") -PassThru
  }
@@ -45,6 +49,14 @@ try {
 if($BoundaryOnly) {
  if($result.FailedCount -gt 0 -or $result.PassedCount -ne 3) {throw 'Private boundary proof failed or incomplete'}
  Write-Output 'Private Pester boundary subset passed; command identities restored; full deployment suite and smoke NOT run'
+ exit 0
+}
+if($SmokeOnly) {
+ New-Item -ItemType Directory -Force $Output | Out-Null
+ 'null' | Set-Content "$Output\coverage.json" -Encoding UTF8
+ @{framework='Pester 3.4.0';completeSuite=$false;selectedTags=@('smoke');simulatedOnly=$true;passed=$result.PassedCount;failed=$result.FailedCount;coverage=$null} | ConvertTo-Json | Set-Content "$Output\summary.json" -Encoding UTF8
+ if($result.FailedCount -gt 0 -or $result.PassedCount -ne 1) {throw 'Simulated smoke subset failed or incomplete'}
+ Write-Output 'Simulated smoke subset passed; full suite and real application smoke NOT run; no coverage claim'
  exit 0
 }
 New-Item -ItemType Directory -Force $Output | Out-Null

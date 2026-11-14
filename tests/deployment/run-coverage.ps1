@@ -1,5 +1,6 @@
-﻿param([string]$Output = "$PSScriptRoot\..\..\coverage-deployment", [switch]$IsolationOnly, [switch]$StateWriteProof, [switch]$NonSmokeOnly, [switch]$BoundaryOnly, [ValidateSet('None','WithoutCoverage','WithCoverage')][string]$ThrowDiagnostic='None')
+﻿param([string]$Output = "$PSScriptRoot\..\..\coverage-deployment", [switch]$IsolationOnly, [switch]$StateWriteProof, [switch]$NonSmokeOnly, [switch]$SmokeOnly, [switch]$BoundaryOnly, [ValidateSet('None','WithoutCoverage','WithCoverage')][string]$ThrowDiagnostic='None')
 $ErrorActionPreference='Stop'
+if($SmokeOnly -and ($IsolationOnly -or $StateWriteProof -or $NonSmokeOnly -or $BoundaryOnly -or $ThrowDiagnostic -ne 'None')) {throw 'Select one test mode'}
 if($ThrowDiagnostic -ne 'None' -and ($IsolationOnly -or $StateWriteProof -or $NonSmokeOnly -or $BoundaryOnly)) {throw 'Select one test mode'}
 if(($BoundaryOnly -and ($IsolationOnly -or $StateWriteProof -or $NonSmokeOnly)) -or ($IsolationOnly -and $StateWriteProof) -or ($NonSmokeOnly -and ($IsolationOnly -or $StateWriteProof))) {throw 'Select one test mode'}
 . "$PSScriptRoot\TestIsolation.ps1"
@@ -20,6 +21,7 @@ try {
  if($IsolationOnly) {$workerArgs+='-IsolationOnly'}
  if($StateWriteProof) {$workerArgs+='-StateWriteProof'}
  if($NonSmokeOnly) {$workerArgs+='-NonSmokeOnly'}
+ if($SmokeOnly) {$workerArgs+='-SmokeOnly'}
  if($BoundaryOnly) {$workerArgs+='-BoundaryOnly'}
  if($ThrowDiagnostic -ne 'None') {$workerArgs+=@('-ThrowDiagnostic',$ThrowDiagnostic)}
  & $engine @workerArgs

@@ -263,6 +263,10 @@ Context 'Exact latest main CI approval data contract' {
 } else {
 Context 'Existing smoke-script contract under mocked OS boundaries' {
  It 'runs the unchanged smoke script without starting, stopping or binding a real process or port' {
+  $priorSmokeContext=Get-Variable -Name XiumiIsolatedSmokeContext -Scope Global -ErrorAction SilentlyContinue
+  $hadSmokeContext=$null -ne $priorSmokeContext
+  $priorSmokeValue=if($hadSmokeContext){$priorSmokeContext.Value}else{$null}
+  try {
   $global:XiumiSmokeRunning=$false
   $global:XiumiSmokeProcess=New-Object System.Diagnostics.Process
   foreach($entry in @{Id=12345;StartTime=[datetime]::UtcNow;ProcessName='node';HasExited=$false}.GetEnumerator()) {
@@ -274,14 +278,53 @@ Context 'Existing smoke-script contract under mocked OS boundaries' {
   $global:XiumiSmokeListener | Add-Member ScriptMethod Start {if($global:XiumiSmokeRunning){throw 'mock occupied port'}}
   $global:XiumiSmokeListener | Add-Member ScriptMethod Stop {}
   Mock New-Object {$global:XiumiSmokeListener} -ParameterFilter {$TypeName -like 'Net.Sockets.TcpListener*'}
-  Mock Start-Process {$global:XiumiSmokeRunning=$true;$global:XiumiSmokeProcess}
+  $global:XiumiIsolatedSmokeContext=@{Repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'));Root=$null;Uris=(New-Object 'System.Collections.Generic.List[string]')}
+  Mock Start-Process {
+   if([IO.Path]::GetFullPath($WorkingDirectory) -cne $global:XiumiIsolatedSmokeContext.Repo) {throw 'Unexpected smoke working directory'}
+   foreach($path in @($RedirectStandardOutput,$RedirectStandardError,$env:DATA_DIR)) {
+    $null=Assert-XiumiTestPath $path $env:TEMP
+   }
+   $root=Split-Path $env:DATA_DIR -Parent
+   if((Split-Path $root -Leaf) -notmatch '^xiumi-deploy-test-[a-f0-9]{32}$') {throw 'Unexpected child smoke root'}
+   if($global:XiumiIsolatedSmokeContext.Root -and $global:XiumiIsolatedSmokeContext.Root -cne $root) {throw 'Child root changed'}
+   $global:XiumiIsolatedSmokeContext.Root=$root
+   if($WindowStyle -ne 'Hidden') {throw 'Unexpected visible process request'}
+   $global:XiumiSmokeRunning=$true;$global:XiumiSmokeProcess
+  }
   Mock Get-Process {if($global:XiumiSmokeRunning){$global:XiumiSmokeProcess}else{$null}}
-  Mock Stop-Process {$global:XiumiSmokeRunning=$false}
+  Mock Stop-Process {
+   if(@($InputObject).Count -ne 1 -or -not [object]::ReferenceEquals(@($InputObject)[0],$global:XiumiSmokeProcess)) {throw 'Unexpected process stop target'}
+   $global:XiumiSmokeRunning=$false
+  }
   Mock Start-Sleep {}
-  Mock Invoke-WebRequest {@{StatusCode=200;Content='[]'}}
+  Mock Invoke-WebRequest {$global:XiumiIsolatedSmokeContext.Uris.Add([string]$Uri);@{StatusCode=200;Content='[]'}}
+  $beforeFiles=@(Get-ChildItem -LiteralPath $env:TEMP -Recurse -File | ForEach-Object FullName)
   $output=& "$PSScriptRoot\..\..\deploy\test-desktop.ps1"
+  $afterFiles=@(Get-ChildItem -LiteralPath $env:TEMP -Recurse -File | ForEach-Object FullName)
+  $newFiles=@($afterFiles | Where-Object {$_ -notin $beforeFiles})
+  $newFiles.Count | Should Be 2
+  foreach($path in $newFiles) {$null=Assert-XiumiTestPath $path $global:XiumiIsolatedSmokeContext.Root}
+  ($newFiles -contains (Join-Path $global:XiumiIsolatedSmokeContext.Root 'state.json')) | Should Be $true
+  ($newFiles -contains (Join-Path $global:XiumiIsolatedSmokeContext.Root 'data\preserve.txt')) | Should Be $true
+  Test-Path (Join-Path $global:XiumiIsolatedSmokeContext.Root 'state.tmp') | Should Be $false
+  $state=Get-Content -LiteralPath (Join-Path $global:XiumiIsolatedSmokeContext.Root 'state.json') -Raw | ConvertFrom-Json
+  $state.pid | Should Be 12345
+  $state.release | Should Be $global:XiumiIsolatedSmokeContext.Repo
+  Assert-MockCalled Start-Process -Times 2 -Exactly -Scope It
+  Assert-MockCalled Stop-Process -Times 2 -Exactly -Scope It
+  Assert-MockCalled Get-Process -Times 9 -Exactly -Scope It
+  Write-Output ('Mock URI trace: '+($global:XiumiIsolatedSmokeContext.Uris -join ' -> '))
+  ($global:XiumiIsolatedSmokeContext.Uris -join '|') | Should Be 'http://127.0.0.1:5276/api/projects|http://127.0.0.1:5276/|http://127.0.0.1:5276/api/projects|http://127.0.0.1:5276/'
+  Assert-MockCalled Invoke-WebRequest -Times 4 -Exactly -Scope It
+  Assert-MockCalled Invoke-WebRequest -Times 2 -Exactly -Scope It -ParameterFilter {[string]$Uri -eq 'http://127.0.0.1:5276/api/projects'}
+  Assert-MockCalled Invoke-WebRequest -Times 2 -Exactly -Scope It -ParameterFilter {[string]$Uri -eq 'http://127.0.0.1:5276/'}
+  Assert-MockCalled New-Object -Times 3 -Exactly -Scope It -ParameterFilter {$TypeName -like 'Net.Sockets.TcpListener*'}
   ($output -join ' ') | Should Match 'Desktop deployment guard tests passed'
   $global:XiumiSmokeRunning | Should Be $false
+  } finally {
+   if($hadSmokeContext) {Set-Variable -Name XiumiIsolatedSmokeContext -Scope Global -Value $priorSmokeValue}
+   else {Remove-Variable -Name XiumiIsolatedSmokeContext -Scope Global -ErrorAction SilentlyContinue}
+  }
  }
 }
 
