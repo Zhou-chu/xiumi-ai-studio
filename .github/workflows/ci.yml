@@ -33,6 +33,8 @@ jobs:
       - run: pnpm exec playwright install chromium
       - run: pnpm sample
       - run: pnpm e2e --update-snapshots=none
+        env:
+          XIUMI_RESPONSIVE_COMBINATION: '1'
       - name: Editorial shell dark and responsive scenarios
         run: pnpm exec playwright test --config playwright.shell.config.ts --update-snapshots=none
         env:
