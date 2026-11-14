@@ -316,6 +316,7 @@ test('AI 写文案、按标准名称套用模板模块并安排照片，再按�
     const events = ['mousedown', 'mouseup', 'dragstart', 'dragover', 'drop', 'dragend']
     events.forEach(type => document.addEventListener(type, record, { capture: true, passive: true }))
     record()
+    ;(window as unknown as { readPhotoDiagnostic: () => unknown }).readPhotoDiagnostic = () => records
     ;(window as unknown as { finishPhotoDiagnostic: () => unknown }).finishPhotoDiagnostic = () => {
       events.forEach(type => document.removeEventListener(type, record, true))
       return { records, dropped, finalPhotos: geometry() }
@@ -323,17 +324,38 @@ test('AI 写文案、按标准名称套用模板模块并安排照片，再按�
   })
   try {
     // 相邻的大图拖动时页面可能滚动，落点不一定是第二张：只要求恰好有两张互换了位置
-    await photos.nth(0).dragTo(photos.nth(1))
+    // Begin a real native drag before Playwright scrolls the offscreen target.
+    const source = photos.nth(0)
+    const destination = photos.nth(1)
+    const sourceIdentity = await source.evaluate(el => ({ blockId: el.closest('[data-block-id]')!.getAttribute('data-block-id'), photoIndex: el.getAttribute('data-photo') }))
+    await source.scrollIntoViewIfNeeded()
+    const start = await source.boundingBox()
+    expect(start).not.toBeNull()
+    await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(start!.x + start!.width / 2 + 16, start!.y + start!.height / 2, { steps: 4 })
+    const events = () => page.evaluate(() => (window as unknown as { readPhotoDiagnostic: () => Array<{ type: string; blockId: string | null; photoIndex: string | null }> }).readPhotoDiagnostic())
+    await expect.poll(async () => (await events()).filter(e => e.type === 'dragstart').map(e => ({ blockId: e.blockId, photoIndex: e.photoIndex }))).toEqual([sourceIdentity])
+    await destination.scrollIntoViewIfNeeded()
+    const end = await destination.boundingBox()
+    expect(end).not.toBeNull()
+    await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 4 })
+    await page.mouse.move(end!.x + end!.width / 2 + 1, end!.y + end!.height / 2)
+    await expect.poll(async () => (await events()).filter(e => e.type === 'dragover').length).toBeGreaterThan(0)
+    await page.mouse.up()
+    await expect.poll(async () => (await events()).filter(e => e.type === 'drop').length).toBe(1)
     await expect(page.locator('.toast')).toContainText('已交换两张照片')
     const after = await first()
     expect([...after].sort()).toEqual([...before].sort())
     expect(after.filter((s, i) => s !== before[i])).toHaveLength(2)
   } finally {
+    await page.mouse.up().catch(() => undefined)
     try {
       const diagnostic = await page.evaluate(() => {
-        const w = window as unknown as { finishPhotoDiagnostic?: () => unknown }
+        const w = window as unknown as { finishPhotoDiagnostic?: () => unknown; readPhotoDiagnostic?: () => unknown }
         const result = w.finishPhotoDiagnostic?.()
         delete w.finishPhotoDiagnostic
+        delete w.readPhotoDiagnostic
         return result
       })
       await testInfo.attach('photo-drag-diagnostic', { body: JSON.stringify(diagnostic, null, 2), contentType: 'application/json' })
