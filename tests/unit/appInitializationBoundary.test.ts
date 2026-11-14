@@ -4,6 +4,7 @@ import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from '../../src/App'
+import { createBlock } from '../../src/core/blocks'
 import { emptyDoc, useStore } from '../../src/editor/store'
 vi.mock('../../src/editor/Canvas', () => ({ Canvas: () => null }))
 vi.mock('../../src/editor/LeftPanel', () => ({ LeftPanel: () => null }))
@@ -71,4 +72,17 @@ it('does not replace edits made while the valid empty list was pending', async (
   await act(async () => deliver(Response.json([])))
   expect(writes).toEqual([])
   expect(useStore.getState().doc.title).toBe('New work during startup')
+})
+
+it('keyboard multi-delete is one undo while typing and dialogs retain their own delete behavior',async()=>{
+ transport({});await act(async()=>root.render(createElement(App)))
+ const state=()=>useStore.getState()
+ act(()=>{state().load({...emptyDoc(),blocks:['a','b','c'].map(id=>({...createBlock('paragraph'),id}))});state().select('a');state().select('b',{toggle:true})})
+ const input=document.createElement('input');host.append(input)
+ act(()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true})));expect(state().doc.blocks).toHaveLength(3)
+ const dialog=document.createElement('div');dialog.setAttribute('role','dialog');host.append(dialog)
+ act(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete'})));expect(state().doc.blocks).toHaveLength(3);dialog.remove()
+ act(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete'})));expect(state().doc.blocks.map(b=>b.id)).toEqual(['c']);expect(state().past).toHaveLength(1)
+ act(()=>state().undo());expect(state().doc.blocks.map(b=>b.id)).toEqual(['a','b','c'])
+ act(()=>{state().select('b');window.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete'}))});expect(state().selectedId).toBe('c')
 })

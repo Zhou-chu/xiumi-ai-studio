@@ -14,7 +14,7 @@ async function pick(){await act(async()=>img.click());await tick()}
 async function key(key:string,shiftKey=false){await act(async()=>host.querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown',{key,shiftKey,bubbles:true,cancelable:true})))}
 beforeEach(async()=>{
  (globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;frames.clear();frameId=0;vi.stubGlobal('requestAnimationFrame',(fn:FrameRequestCallback)=>{frames.set(++frameId,fn);return frameId});vi.stubGlobal('cancelAnimationFrame',(id:number)=>frames.delete(id));HTMLElement.prototype.setPointerCapture=vi.fn()
- block=createBlock('html',{html:'<img src="/media/p.png"><p>preserved</p>'});useStore.setState({...initial,doc:{...emptyDoc(),blocks:[block]},selectedId:block.id},true)
+ block=createBlock('html',{html:'<img src="/media/p.png"><p>preserved</p>'});useStore.setState({...initial,doc:{...emptyDoc(),blocks:[block]},selectedId:block.id,selectedIds:[block.id]},true)
  rect={left:20,top:20,width:200,height:100,bottom:120,right:220} as DOMRect;parentWidth=400
  article=document.createElement('div');article.innerHTML=`<div class="canvas-scroll"><div class="article"><div data-block-id="${block.id}"><div class="block-html"><img data-photo="0" src="/media/p.png"></div></div></div></div>`;document.body.append(article);img=article.querySelector('img')!
  vi.spyOn(img,'getBoundingClientRect').mockImplementation(()=>rect);vi.spyOn(img.parentElement!,'getBoundingClientRect').mockImplementation(()=>({width:parentWidth} as DOMRect));vi.spyOn(article.querySelector('.canvas-scroll')!,'getBoundingClientRect').mockReturnValue({top:0,bottom:500,left:0,right:500} as DOMRect)
@@ -115,4 +115,34 @@ it.each([false,true])('rebinds only owned HTML commits without animation frames 
  const before=useStore.getState().doc;const current=host.querySelector('img')!;current.replaceWith(current.cloneNode(true))
  await key('End');expect(useStore.getState().doc).toBe(before)
  vi.restoreAllMocks()
+})
+it('multi membership cancels pending resize even when the primary image remains unchanged',async()=>{
+ const state=()=>useStore.getState();const other={...createBlock('paragraph'),id:'other'}
+ await act(async()=>{state().commit({...state().doc,blocks:[...state().doc.blocks,other]});state().select('other');state().select(block.id,{toggle:true})})
+ // Return to the image alone before the drag; adding another member while retaining primary is a distinct scope.
+ await act(async()=>state().select(block.id));await pick();await pointer('pointerdown');await pointer('pointermove',70)
+ const before=state().doc
+ await act(async()=>{state().select('other',{toggle:true});state().select(block.id,{toggle:true});state().select(block.id,{toggle:true})});await tick()
+ expect(state().selectedId).toBe(block.id);expect(state().selectedIds).toHaveLength(2);expect(host.querySelector('button')).toBeNull();expect(img.style.width).toBe('');expect(state().doc).toBe(before)
+})
+it.each(['multi','aba'] as const)('old image keyboard action cannot commit in the same event as %s membership change',async mode=>{
+ const state=()=>useStore.getState();await act(async()=>state().commit({...state().doc,blocks:[...state().doc.blocks,{...createBlock('paragraph'),id:'other'}]}))
+ await pick();const button=host.querySelector('button')!;const before=state().doc
+ act(()=>{state().select('other',{toggle:true});if(mode==='aba')state().select(block.id);button.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))})
+ expect(state().doc).toBe(before)
+})
+it('membership ABA cancels an active pointer drag before a same-event old pointerup',async()=>{
+ const state=()=>useStore.getState();await act(async()=>state().commit({...state().doc,blocks:[...state().doc.blocks,{...createBlock('paragraph'),id:'other'}]}))
+ await pick();await pointer('pointerdown');await pointer('pointermove',80);const button=host.querySelector('button')!;const before=state().doc
+ act(()=>{state().select('other',{toggle:true});state().select(block.id);const event=new MouseEvent('pointerup',{bubbles:true});Object.defineProperty(event,'pointerId',{value:1});button.dispatchEvent(event)})
+ expect(state().doc).toBe(before);expect(img.style.width).toBe('')
+})
+it('a fresh keyboard event works after membership ABA without repicking or geometry changes',async()=>{
+ await pick();const before=useStore.getState().doc;const oldHandle=host.querySelector('button')!
+ await act(async()=>{
+  useStore.setState({selectedIds:[block.id,'other']});useStore.setState({selectedIds:[block.id]})
+  oldHandle.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}))
+ })
+ expect(useStore.getState().doc).toBe(before)
+ await key('End');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('100%');expect(useStore.getState().past).toHaveLength(1)
 })

@@ -8,7 +8,10 @@ import './ImageResize.css'
 
 /** Editor-only sibling of the article; drag previews never enter history or output. */
 export function ImageResize() {
-  const selected = useStore((s) => s.selectedId)
+  const selectionRevision = useRef(0)
+  const [, renderSelectionRevision] = useState(0)
+  const renderedSelectionRevision = selectionRevision.current
+  const selected = useStore((s) => s.selectedIds.length === 1 ? s.selectedId : null)
   const doc = useStore((s) => s.doc)
   const editing = useStore((s) => s.editingId || s.pickingId)
   const [target, setTarget] = useState<{ blockId: string; index: number; docId: string } | null>(null)
@@ -41,6 +44,24 @@ export function ImageResize() {
   const cancel = () => {
     const d = drag.current
     if (d) { if (d.original === null) d.img.removeAttribute('style'); else d.img.setAttribute('style', d.original); drag.current = null }
+  }
+  // Observe each store transition synchronously: a batched multi-selection ABA must
+  // cancel a drag before an old pointer/key handler can write through the old DOM.
+  useLayoutEffect(() => {
+    const key = (s: ReturnType<typeof useStore.getState>) => JSON.stringify([s.doc.id, s.selectedId, s.selectedIds, s.editingId, s.pickingId])
+    return useStore.subscribe((next, previous) => {
+      if (key(next) !== key(previous)) {
+        selectionRevision.current++
+        renderSelectionRevision(selectionRevision.current)
+        const wasDragging = Boolean(drag.current)
+        cancel()
+        if (wasDragging) next.notify('图片所在模块已变化，请重新选择后调整')
+      }
+    })
+  }, [])
+  const currentSelection = () => {
+    const s = useStore.getState()
+    return renderedSelectionRevision === selectionRevision.current && s.selectedIds.length === 1 && s.selectedId === target?.blockId && !s.editingId && !s.pickingId
   }
   useEffect(() => {
     const pick = (e: MouseEvent) => {
@@ -89,7 +110,7 @@ export function ImageResize() {
   }, [target, selected, editing, doc]) // eslint-disable-line react-hooks/exhaustive-deps
   const commit = (percent: number, expected: Block, docId: string, expectedImage?: HTMLImageElement) => {
     const s = useStore.getState()
-    if (!target || s.doc.id !== docId || findBlock(s.doc.blocks, target.blockId)?.block !== expected || (expectedImage && (!expectedImage.isConnected || image() !== expectedImage))) {
+    if (!currentSelection() || !target || s.doc.id !== docId || findBlock(s.doc.blocks, target.blockId)?.block !== expected || (expectedImage && (!expectedImage.isConnected || image() !== expectedImage))) {
       s.notify('图片所在模块已变化，请重新选择后调整')
       return
     }
@@ -108,7 +129,7 @@ export function ImageResize() {
     <span className="image-resize-label" aria-live="polite">{width}% · 拖动缩放</span>
     <button ref={handle} style={{ left: handlePosition.left, top: handlePosition.top }} className="image-resize-handle" aria-label="调整图片大小" title="拖动等比缩放；方向键调整，Shift加速，Esc取消" data-testid="image-resize-handle"
       onPointerDown={(e) => {
-        if (e.button !== 0) return
+        if (e.button !== 0 || !currentSelection()) return
         e.preventDefault(); e.stopPropagation()
         const img = image()
         const s = useStore.getState()
