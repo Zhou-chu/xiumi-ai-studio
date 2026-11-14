@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://localhost:5273',
+    baseURL: 'http://127.0.0.1:5273',
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
     trace: 'retain-on-failure',
@@ -24,13 +24,13 @@ export default defineConfig({
       // 每次运行前清空 E2E 数据目录
       command: `node -e "require('fs').rmSync('data-e2e',{recursive:true,force:true})" && npx tsx server/index.ts`,
       env: { API_PORT: '5274', DATA_DIR: 'data-e2e' },
-      port: 5274,
+      url: 'http://127.0.0.1:5274/api/ai/status',
       reuseExistingServer: false,
     },
     {
-      command: 'npx vite --port 5273 --strictPort',
+      command: 'npx vite --host 127.0.0.1 --port 5273 --strictPort',
       env: { API_PORT: '5274', VITE_CACHE_DIR: 'node_modules/.vite-e2e' },
-      port: 5273,
+      url: 'http://127.0.0.1:5273',
       reuseExistingServer: false,
     },
   ],
