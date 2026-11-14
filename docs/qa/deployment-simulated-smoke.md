@@ -37,3 +37,7 @@ Both reports contain `completeSuite=true`. Each run comprises 21 non-smoke cases
 The real deployment state was read only for dynamic SHA-256 comparisons. Its hash was identical before and after each run: FAEDF5B68778BA8FEAE588D23A92E6FED6BE7C1C549025EA2BAF9A16753FC195. This is observation evidence, not a hard-coded fixture expectation; normal CD had changed the deployment state since earlier subset checks. The tests wrote only within their isolated test roots/report directories. LOCALAPPDATA, TEMP, TMP and XIUMI_TEST_SANDBOX process values were restored; worker command-identity restoration checks passed. No recovery or state rewrite was performed.
 
 Local generated report directories: coverage-complete-explicit-ps5 and coverage-complete-explicit-ps7. Generated reports are not committed. No additional test run or production-source change accompanies this documentation update.
+
+## Integration verification on current fork main
+
+Replayed without conflicts onto `c74f4db` in an independent feature branch. Explicit Windows PowerShell5.1.26100.9818 and pwsh7.6.9 each reran the complete isolated22-case suite and passed, retaining211/215 command coverage. Real deployment state hash was checked before, between and after and stayed unchanged; wrapper same-process environment restored in both engines. Four Cloud scope audit cases passed. No production JS/TS, desktop.ps1 or install-desktop.ps1 bytes changed. Remote CI and Cloud analysis must still run for this new feature SHA; no claim that these local results clear remote issues.
