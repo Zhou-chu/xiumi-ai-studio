@@ -82,11 +82,39 @@ class Ctx implements KitCtx {
 
 // ---------- 富文本 ----------
 
-function renderInline(n: RichNode, ctx: Ctx): string {
-  if (n.type === 'hardBreak') return '<br>'
-  if (n.type !== 'text') return (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
-  let html = esc(n.text ?? '').replace(/ +/g, (spaces, offset: number, input: string) =>
-    spaces.length > 1 || offset === 0 || offset + spaces.length === input.length ? '&nbsp;'.repeat(spaces.length) : spaces)
+/** Whitespace belongs to a visual line, not to each differently marked text node. */
+function renderInlines(nodes: RichNode[], ctx: Ctx): string {
+  const leaves: RichNode[] = []
+  const visit = (node: RichNode) => {
+    if (node.type === 'text' || node.type === 'hardBreak') leaves.push(node)
+    else (node.content ?? []).forEach(visit)
+  }
+  nodes.forEach(visit)
+  const hardBreaks = new Set<number>()
+  let position = 0
+  const source = leaves.map(node => {
+    if (node.type === 'hardBreak') { hardBreaks.add(position++); return '\n' }
+    const text = node.text ?? ''
+    position += text.length
+    return text
+  }).join('')
+  let offset = 0
+  return leaves.map(node => {
+    if (node.type === 'hardBreak') { offset++; return '<br>' }
+    const text = node.text ?? ''
+    const preserved = text.replace(/ +/g, (spaces, local: number) => {
+      const start = offset + local, end = start + spaces.length
+      const atEdge = start === 0 || end === source.length || hardBreaks.has(start - 1) || hardBreaks.has(end)
+      const repeated = spaces.length > 1 || source[start - 1] === ' ' || source[end] === ' '
+      return atEdge || repeated ? '\u00a0'.repeat(spaces.length) : spaces
+    })
+    offset += text.length
+    return renderInline(node, ctx, esc(preserved).replaceAll('\u00a0', '&nbsp;'))
+  }).join('')
+}
+
+function renderInline(n: RichNode, ctx: Ctx, textHtml: string): string {
+  let html = textHtml
   let linkHref: string | undefined
   for (const m of n.marks ?? []) {
     switch (m.type) {
@@ -137,16 +165,16 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
     const mb = last ? 0 : gap
     const nodeAlign = n.attrs?.textAlign ?? align
     if (n.type === 'paragraph') {
-      const inner = (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
+      const inner = renderInlines(n.content ?? [], ctx)
       out.push(ctx.p(inner || '<br>', { 'margin-bottom': mb, 'text-align': nodeAlign }))
     } else if (n.type === 'heading') {
-      const inner = (n.content ?? []).map((x) => renderInline(x, ctx)).join('')
+      const inner = renderInlines(n.content ?? [], ctx)
       out.push(ctx.p(inner, { 'margin-bottom': mb, 'text-align': nodeAlign, 'font-weight': 700, 'font-size': ctx.t.h2Size - 1, color: ctx.c.primary }))
     } else if (n.type === 'bulletList' || n.type === 'orderedList') {
       // 微信对 ul/ol 的缩进处理不稳定，统一渲染为带符号的段落
       ;(n.content ?? []).forEach((li, j) => {
         const marker = n.type === 'bulletList' ? '●' : `${j + 1}.`
-        const inner = (li.content ?? []).map((x) => (x.content ?? []).map((y) => renderInline(y, ctx)).join('')).join('<br>')
+        const inner = (li.content ?? []).map((x) => renderInlines(x.content ?? [], ctx)).join('<br>')
         const isLast = j === (n.content?.length ?? 0) - 1
         out.push(
           ctx.p(

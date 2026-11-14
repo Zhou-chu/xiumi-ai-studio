@@ -14,7 +14,8 @@ describe('selected text typography export', () => {
     expect(html).toContain('font-family:Noto Serif SC Variable, Noto Serif SC, SimSun, serif;')
     expect(html).toContain('font-size:24px;')
     expect(html).toContain('color:#123456;')
-    expect(html).toContain('before&nbsp;')
+    expect(html).toContain('before ')
+    expect(html).not.toContain('before&nbsp;')
     expect(html).toContain('font-weight:700;color:#123456;')
   })
   it('rejects untrusted font declarations and unreasonable sizes', () => {

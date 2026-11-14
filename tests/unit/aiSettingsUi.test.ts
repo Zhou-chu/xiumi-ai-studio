@@ -270,6 +270,8 @@ it('adds a preset, fetches matching metadata, and supports switching back', asyn
   await act(async () => fetchButton().click())
   expect(input('ai-context').value).toBe('99000')
   act(() => button('OpenAI 兼容').click())
+  expect(input('ai-context').value).toBe('99000')
+  act(() => button('Anthropic Claude').click())
   expect(input('ai-context').value).toBe('')
 })
 
