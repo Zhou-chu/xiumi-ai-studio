@@ -27,7 +27,7 @@ const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' '
 export function detectSource(doc: Document, url = ''): SourceKind {
   if (/^https?:\/\/mp\.weixin\.qq\.com\//i.test(url) || doc.querySelector('#js_content')) return 'wechat'
   const imgs = Array.from(doc.querySelectorAll('img')).map((i) => i.getAttribute('data-src') || i.getAttribute('src') || '')
-  const bg = Array.from(doc.querySelectorAll('[style*="url("]')).some((e) => /xiumi\.us|xiumius\.cn/i.test(e.getAttribute('style') ?? ''))
+  const bg = Array.from(doc.querySelectorAll('[style]')).filter(el => (el.getAttribute('style') ?? '').includes('url(')).some((e) => /xiumi\.us|xiumius\.cn/i.test(e.getAttribute('style') ?? ''))
   if (bg || imgs.some((u) => isXiumiImage(u.replace(/^\/\//, 'https://')))) return 'xiumi'
   if (imgs.some((u) => /qpic\.cn|qlogo\.cn/i.test(u))) return 'wechat'
   return Array.from(doc.querySelectorAll('[powered-by]')).some((e) => /xiumi/i.test(e.getAttribute('powered-by') ?? '')) ? 'xiumi' : 'other'
