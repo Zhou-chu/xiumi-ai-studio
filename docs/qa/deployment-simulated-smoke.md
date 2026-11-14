@@ -22,3 +22,18 @@ All original path and process assertions remain: exact repository working direct
 An earlier invocation named coverage-smoke-only-ps5 actually used the default PS7 shell and failed; its name is not engine evidence. Likewise the earlier coverage-nonsmoke-explicit-ps5 result cannot establish a PS5 run. The explicit engine versions above are verified. Earlier independently executed PS5 NonSmoke evidence remains separate.
 
 The combined complete suite has not been rerun after this patch. Real application smoke is not authorized by this result. No global Pester installation, Sonar issue state or product deployment state was modified.
+
+## Subsequent explicit-engine complete isolated suite verification
+
+After the subset results above, the approved complete wrapper suite was executed once per explicitly selected engine on the same product/test source (commit 3b80d96858b78966f7cf35947a85aeb18be80bbb):
+
+| Engine | Result | Duration | AST command coverage |
+| --- | --- | --- | --- |
+| Windows PowerShell 5.1.26100.9818 (explicit powershell.exe) | 22 passed, 0 failed/skipped | 6.15 s | 211/215, 98.14% |
+| PowerShell 7.6.9 (resolved pwsh.exe) | 22 passed, 0 failed/skipped | 5.19 s | 211/215, 98.14% |
+
+Both reports contain `completeSuite=true`. Each run comprises 21 non-smoke cases and one Pester-mocked smoke case. This supersedes the earlier statement that the combined suite had not yet run, but does not establish a real application smoke result. Neither run directly invoked an independent real smoke/deployment process. Coverage is Pester's AST command metric for deploy/desktop.ps1 and deploy/install-desktop.ps1 only; it is not branch, function, line, strict-unit-only, or full-repository coverage.
+
+The real deployment state was read only for dynamic SHA-256 comparisons. Its hash was identical before and after each run: FAEDF5B68778BA8FEAE588D23A92E6FED6BE7C1C549025EA2BAF9A16753FC195. This is observation evidence, not a hard-coded fixture expectation; normal CD had changed the deployment state since earlier subset checks. The tests wrote only within their isolated test roots/report directories. LOCALAPPDATA, TEMP, TMP and XIUMI_TEST_SANDBOX process values were restored; worker command-identity restoration checks passed. No recovery or state rewrite was performed.
+
+Local generated report directories: coverage-complete-explicit-ps5 and coverage-complete-explicit-ps7. Generated reports are not committed. No additional test run or production-source change accompanies this documentation update.
