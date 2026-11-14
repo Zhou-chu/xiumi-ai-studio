@@ -22,7 +22,7 @@ test('selected article images collect locally before HTML proposal acceptance an
  await page.getByRole('button',{name:'收集图片到素材库',exact:true}).click()
  const dialog=page.getByRole('dialog');await expect(dialog).toContainText('发现 2 张');expect(imports).toHaveLength(0);expect(edits).toBe(0)
  await dialog.getByRole('button',{name:'确认加入素材库',exact:true}).click();await expect(dialog).toContainText('新增 2 张');expect([...imports].sort()).toEqual(['https://img.xiumi.us/combined-html','https://img.xiumi.us/combined-image'])
- await dialog.getByRole('button',{name:'关闭',exact:true}).click();expect(edits).toBe(0)
+ await dialog.locator('.modal-actions').getByRole('button',{name:'关闭',exact:true}).click();expect(edits).toBe(0)
  expect((await(await page.request.get(`/api/projects/${id}`)).json()).blocks).toEqual(blocks)
  await page.getByLabel('AI 修改指令').fill('所选原文按清华紫重新分章，保留文字和图片')
  await page.getByRole('button',{name:'生成修改建议',exact:true}).click()
