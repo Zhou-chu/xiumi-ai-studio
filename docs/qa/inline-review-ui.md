@@ -30,7 +30,7 @@ Windows full dev, shell and real packaged EXE gates must run on this exact candi
 ## Frozen local gate
 
 - Focused review suites: **15 passed**, including recorded red/green cases above.
-- Complete Vitest mixed suite: **100 files, 1024 passed, 2 Windows-only skipped** (2026-11-15 UTC cloud run). No strict-unit coverage percentage is inferred.
+- Complete Vitest mixed suite: **100 files, 1024 passed, 2 Windows-only skipped** (2026-11-14 UTC cloud run). No strict-unit coverage percentage is inferred.
 - Full ESLint and TypeScript: exit 0. Vite production build: exit 0, with the existing >500KB chunk warning.
 - Playwright discovery: **84 cases / 28 files**, including seven new inline-review cases. This is discovery, not browser execution. No snapshot baseline updated.
 - Display replay additionally strips source-authored `data-review-freeze`, uses per-projection UUID/out-of-band times, rejects invalid or >24-hour preview times, disables looping only in its copy, and reports unsupported SMIL freezing without stopping height measurement. A static code review is not proof of actual Windows tap/loop rendering; the new browser case remains mandatory.
