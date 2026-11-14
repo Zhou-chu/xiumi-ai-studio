@@ -5,8 +5,8 @@
 ## 已合入与待合入
 
 - fork main：`f1b28d5c06f9fd0a6b68539a3a61b50409c2bc3a`，PR #13 已合并。Node 22.19.0 与 24 的完整 CI 均通过：[run 43564252614](https://github.com/Zhou-chu/xiumi-ai-studio/actions/runs/43564252614)。
-- 当前 PR #14：修正 SonarCloud 自动分析的 SOURCE/TEST 分类，保留全部 120 个 JS/TS 生产文件及生产 PowerShell；测试仍参与分析，并非删除。范围审计已加入双 Node CI。尚未合并，PR 合成提交 Node 24 的 E2E 失败正在处理，不能用功能分支 push 的绿灯替代。
-- 原仓库 [PR #4](https://github.com/123huangcan250/xiumi-ai-studio/pull/4) 已更新至 `a56b5589`，保留上游回放/打包/备份并回应十项反馈。587 单测、43 开发 E2E、25 打包验证、43 打包 E2E 为该不同候选的结果，不能替代 fork 验收。远端 CI 尚待读回。
+- 当前 PR #14：修正 SonarCloud 自动分析的 SOURCE/TEST 分类，保留全部 120 个 JS/TS 生产文件及生产 PowerShell；测试仍参与分析，并非删除。范围审计已加入双 Node CI。尚未合并，旧 PR 合成提交 Node 24 因全页 networkidle 等待超时；现已改成精确版本响应完成，并用持续无关请求先红后绿验证，所有原恢复/保存/撤销断言保留。最新候选完整 CI 待读回，不能用旧 push 绿灯替代。
+- 原仓库 [PR #4](https://github.com/123huangcan250/xiumi-ai-studio/pull/4) 已更新至 `a56b5589`，保留上游回放/打包/备份并回应十项反馈。587 单测、43 开发 E2E、25 打包验证、43 打包 E2E 为该不同候选的结果，不能替代 fork 验收。远端 CI [43568192694](https://github.com/Zhou-chu/xiumi-ai-studio/actions/runs/43568192694) 的 Node 22.19/24 已全部通过。
 - 全套新编辑式 UI 向原仓贡献仍需兼容整合，不能把 PR #4 的可靠性更新说成全部 UI 已贡献。
 
 ## 已合入功能和证据
