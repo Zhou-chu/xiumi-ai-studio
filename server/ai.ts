@@ -1,3 +1,4 @@
+import { safeProviderError } from './providerError'
 import { trimTrailingSlashes } from './urlText'
 // AI 提供方抽象：OpenAI 兼容接口（DeepSeek / 通义 / Kimi / 智谱 / MiniMax / MiMo / 豆包 / OpenAI / Gemini / Ollama…）或 Anthropic。
 // 密钥只在服务端读取；所有输出都要求是 JSON，再由调用方校验。
@@ -208,8 +209,8 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
     return generationText(data, wire, p, opts)
   } catch (e: any) {
     if (opts.signal?.aborted) throw opts.signal.reason
-    if (e.name === 'AbortError') throw Object.assign(new Error(`AI 请求超时（${Math.round(timeout / 1000)} 秒）`), { status: 504 })
-    throw e
+    if (e?.name === 'AbortError') throw Object.assign(new Error(`AI 请求超时（${Math.round(timeout / 1000)} 秒）`), { status: 504 })
+    throw safeProviderError(e, p.apiKey)
   } finally {
     clearTimeout(timer)
     opts.signal?.removeEventListener('abort', cancel)
