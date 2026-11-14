@@ -36,3 +36,11 @@ A dedicated workflow matches only `fix/upstream-package-verification-20261114` (
 The old synthetic-key test searched compressed ZIP bytes and could miss a key in compressed entry content. A generated compressed-key case plus malformed archive case failed before the test-only helper change. The verifier now expands its own small synthetic backup and checks names and UTF-8 content. This is not an untrusted upload parser or a general archive memory-budget guarantee. No real key is used.
 
 Final cloud candidate: 87 files / 858 mixed tests passed, two Windows-only skips; ESLint, TypeScript and production build passed (existing chunk-size warning). Workflow YAML parsed and its exact branch trigger/read-only permissions were checked. These results do not execute Windows process cleanup, real EXE or packaged browser assertions; those remain the purpose of the isolated remote job.
+
+## First real Windows run and verifier correction
+
+Exact remote0c2b813 package run43607202847 built the EXE and passed24/25 verifier checks. Only the file-manifest check failed because it assumed `@img/sharp-win32-x64` was flat under app/node_modules; the dependency-preserving packager correctly nested it beneath Sharp. Actual native image upload/variant/crop, CAS, data persistence/recovery and process lifecycle checks passed. Packaged browser tests were not executed after this failed step.
+
+The verifier now resolves the native manifest using Node resolution anchored at the unpacked Sharp manifest, verifies realpath containment and the expected package name, then asserts its existence. It neither flattens production dependencies nor removes the native-file assertion. Four synthetic layout tests: two failed before/two passed; all four pass after, including nested/flat, outside-root junction rejection and missing package rejection. This correction needs a new exact Windows run and is not represented as a retry of a passed EXE suite.
+
+Corrected native-manifest candidate: complete88-file mixed suite862 passed/two Windows-only skips; lint/types/build passed. Independent review checked the Windows native package's official0.35.5 export metadata (`./package`), not merely the Linux counterpart. The previous candidate's ordinary dual-Node CI passed, but its package job remains failed historically; the correction awaits a new Windows job.
