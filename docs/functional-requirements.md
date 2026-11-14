@@ -433,3 +433,11 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 - Node 生成脚本导入时不得读写用户资料；测试只使用临时目录及合成输入。部署测试不得执行真实进程、网络、端口或计划任务操作。
 - 覆盖率分母已扩展到全部 src、server、scripts、templates 的可执行 JS/TS；V8 四指标各 >90。两份完整 PowerShell 产品脚本另用 Pester 原生命令覆盖 >90，分支/函数等工具不支持项明确 N/A，不与 V8 混算。
 - Sonar 全量可维护性 A、安全/可靠性问题核验及真实 Quality Gate 是独立发布条件；旧 main 扫描和仅 new-code Gate 不代表当前候选全量通过。当前证据及未完成项见 `docs/qa/sonar-security-followup.md`。
+
+## 当前交付入口（2026-11-14）
+
+FR-24—FR-30 已随 PR #13 合入 fork main f1b28d5；本文件的“整合中”和 c961c78 低覆盖基线属于历史阶段。最新功能、完整分母、真实/模拟验收、Sonar 两种口径和未完成项统一见 [交付状态](release-status.md)。FR-21—FR-23 原有独立验收状态不可据此自动提升为真机或无障碍全面通过。
+
+### 覆盖口径纠正（2026-11-14）
+
+现有 `tests/unit` / Vitest 集合实际混合纯逻辑单元、DOM 组件以及本机 HTTP 路由等边界测试。其全生产源四指标 >90% 是混合集覆盖结果，不等于严格隔离单元测试独立 >90%。后者尚未完成，须先版本化分类与独立 gate；继续保留全部生产源分母和现有混合、E2E、真实 API 验证，不用分类缩减源范围。历史报告的“unit/单测”标签按此更正理解，原始数值不改写。

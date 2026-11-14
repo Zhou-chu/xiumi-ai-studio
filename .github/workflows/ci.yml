@@ -29,6 +29,8 @@ jobs:
         with:
           version: 11.23.0
       - run: pnpm install --frozen-lockfile
+      - name: Audit Cloud source and test classification
+        run: node --test tests/quality/sonar-scope.test.mjs
       - run: pnpm check
       - run: pnpm test:coverage
       - run: powershell -NoProfile -File tests/deployment/run-coverage.ps1
