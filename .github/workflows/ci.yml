@@ -46,6 +46,7 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            visual-evidence/model-picker/
             test-results-shell/
             visual-evidence/editorial-shell/
           retention-days: 7

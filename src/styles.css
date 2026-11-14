@@ -527,6 +527,19 @@ textarea.code { font-family: Consolas, 'Courier New', monospace; font-size: 12px
 .block > .block-select-toggle { position: relative; z-index: 4; display: block; min-height: 44px; min-width: 64px; margin: 0 0 8px auto; font-size: 14px; line-height: 22px; background: var(--panel); color: var(--text); border: 1px solid currentColor; }
 .block > .block-select-toggle[aria-pressed="true"] { font-weight: 700; border-width: 2px; }
 :root[data-color-mode='dark'] :is(.canvas-wrap > .selection-bar,.block > .block-select-toggle) { background: var(--ui-panel); color: var(--ui-text); }
-:root[data-color-mode='dark'] .canvas-wrap > .selection-bar button { color: var(--ui-text); background: var(--ui-panel); border-color: var(--ui-line); }
+:root[data-color-mode='dark'] .canvas-wrap > .selection-bar button { min-height: 44px; color: var(--ui-text); background: var(--ui-panel); border-color: var(--ui-line); }
 [data-testid='multi-selection-properties'] li { overflow-wrap: anywhere; }
 @media (max-width: 600px) { .canvas-wrap > .selection-bar { gap: 4px 8px; padding: 4px 8px; } .canvas-wrap > .selection-bar button { min-height: 44px; } }
+
+/* Settings chrome only: do not inherit these dimensions into authored content. */
+.modal-body > .ai-settings:not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) {
+  grid-template-columns: minmax(160px, 30%) minmax(0, 1fr); min-width: 0;
+}
+.ai-settings :is(.ai-list, .ai-form, .model-picker):not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { min-width: 0; }
+.ai-settings :is(input, textarea, select, button, .model-picker-option):not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { font-size: 14px; }
+.ai-settings :is(.model-picker-trigger, .model-picker-option):not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { min-height: 44px; }
+.ai-settings .hint:not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .modal-body > .ai-settings:not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { grid-template-columns: minmax(0, 1fr); gap: 16px; min-height: 0; }
+  .ai-settings > .ai-list:not(:where(.block-html *, .html-editor *, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 12px; max-height: 200px; overflow: auto; }
+}

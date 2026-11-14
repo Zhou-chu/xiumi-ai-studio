@@ -43,4 +43,5 @@ jobs:
             release/package-sha256.json
             playwright-report/
             test-results/
+            visual-evidence/model-picker/
           retention-days: 7
