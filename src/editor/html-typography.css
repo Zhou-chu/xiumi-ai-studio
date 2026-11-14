@@ -1,0 +1,10 @@
+.html-typography-toolbar { flex-wrap: wrap; }
+.html-typography-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.html-typography-controls .text-font-control { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; white-space: nowrap; }
+.html-typography-controls select { min-height: 32px; max-width: 160px; padding: 3px 5px; font-size: 14px; }
+.html-typography-controls .text-font-hint { font-size: 14px; color: var(--ui-text-secondary, #666); }
+.html-typography-controls .html-color-control { display: inline-flex; padding: 0; margin: 0; border: 0; min-width: 0; }
+@media (max-width: 600px) {
+  .html-typography-controls select { min-height: 40px; max-width: 138px; }
+  .html-typography-controls .text-font-hint { flex-basis: 100%; }
+}

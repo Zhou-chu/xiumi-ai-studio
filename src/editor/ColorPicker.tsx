@@ -32,13 +32,15 @@ interface Props {
   /** 弹出层靠右展开（按钮在面板右侧时用） */
   alignRight?: boolean
   testId?: string
+  /** Optional explicit reset semantics for contexts that cannot remove inherited color. */
+  resetLabel?: string
 }
 
 /**
  * 文字颜色选择：主题色、常用色、自定义取色，以及“默认颜色”。
  * 按钮在 mousedown 时阻止默认行为，富文本编辑器里的选区不会丢；点击（含键盘）才执行。
  */
-export function ColorPicker({ value, groups = [], onPick, alignRight = false, testId = 'color-picker' }: Props) {
+export function ColorPicker({ value, groups = [], onPick, alignRight = false, testId = 'color-picker', resetLabel = '默认颜色' }: Props) {
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLSpanElement>(null)
   const custom = useRef<HTMLInputElement>(null)
@@ -117,7 +119,7 @@ export function ColorPicker({ value, groups = [], onPick, alignRight = false, te
               自定义
             </label>
             <button type="button" className="link" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(null)} data-testid={`${testId}-reset`}>
-              默认颜色
+              {resetLabel}
             </button>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { blockTextFields } from '../core/blockTextEditing'
 import { BlockTextEditor } from './BlockTextEditor'
+import { HtmlTypographyControls } from './HtmlTypographyControls'
 import { blockLabel, blockMeta } from '../core/blocks'
 import { BOX_GAP, blockGap, compileBlock, rootStyle } from '../core/compiler'
 import { expandPick, fragmentHtml, insertionAnchor, pickElement, placeFragment } from '../core/fragments'
@@ -54,7 +55,7 @@ function mediaFrame(target: Element, editor: Element): Element | null {
 }
 
 /** 原文片段就地编辑：contentEditable，完成时重新清洗后写回；点击图片可选中后删除 */
-function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => void }) {
+function HtmlEditor({ block, onDone, theme }: { block: Block<'html'>; onDone: () => void; theme: Theme }) {
   const ref = useRef<HTMLDivElement>(null)
   const updateProps = useStore((s) => s.updateProps)
   const [picked, setPicked] = useState<Element | null>(null)
@@ -107,7 +108,8 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
   }, [])
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="rich-toolbar">
+      <div className="rich-toolbar html-typography-toolbar">
+        <HtmlTypographyControls rootRef={ref} onCommit={commit} theme={theme} />
         <span className="hint" style={{ margin: '0 6px' }}>直接修改文字（保留原样式）；点击图片可选中，按 Delete 删除；点组件库里的组件会插到光标所在段落后面</span>
         {picked && (
           <button type="button" className="danger" onMouseDown={(e) => (e.preventDefault(), removePicked())} data-testid="delete-picked">
@@ -115,7 +117,7 @@ function HtmlEditor({ block, onDone }: { block: Block<'html'>; onDone: () => voi
           </button>
         )}
         <span className="sep" />
-        <button type="button" className="done" onMouseDown={(e) => (e.preventDefault(), commit(), onDone())}>完成</button>
+        <button type="button" className="done" onMouseDown={(e) => e.preventDefault()} onClick={() => { commit(); onDone() }}>完成</button>
       </div>
       <div
         ref={ref}
@@ -313,7 +315,7 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
 
   let body = block.type === 'box' ? <BoxBody block={block} theme={theme} /> : block.type === 'replay' ? <ReplayCanvasBody block={block} /> : <BlockHtml block={block} theme={theme} inBox={inBox} />
   if (picking && block.type === 'html') body = <FragmentPicker block={block} theme={theme} onDone={() => setPicking(null)} />
-  else if (editing && block.type === 'html') body = <HtmlEditor block={block} onDone={() => setEditing(null)} />
+  else if (editing && block.type === 'html') body = <HtmlEditor theme={theme} block={block} onDone={() => setEditing(null)} />
   else if (editing && canText) {
     body = <>{body}<BlockTextEditor block={block} onChange={(props, field) => updateProps(block.id, props, `${block.id}:${field}`)} onDone={() => setEditing(null)} /></>
   }
