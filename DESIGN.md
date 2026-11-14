@@ -190,3 +190,6 @@ Xiumi 服务于「导入内容 → 编辑图文 → 模板或 AI 排版 → 保�
 - 导入 HTML 的结构重排使用安全的本地 editorial/chapters 转换，保留文字与媒体顺序。复杂表格、SVG、定位等作为原子保留并报告，无法安全拆解时明确拒绝，不声称任意重做。
 
 验收以真实 DOM、浏览器和持久化证据为准。模拟模型响应的 E2E 与真实 API live gate 分开报告；未完成硬件触摸和屏幕阅读器检查时明确列为缺口。
+## Delivery provenance
+
+Current delivery and quality status is tracked in [docs/release-status.md](docs/release-status.md). This design contract does not imply that every platform, physical touch device or screen reader has been verified. Local Sonar overall results, Cloud new-code results and explicit accepted resource risk must remain separate.

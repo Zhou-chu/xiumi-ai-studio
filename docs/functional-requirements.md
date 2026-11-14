@@ -433,3 +433,7 @@ Windows 另外运行 `powershell -NoProfile -File deploy/test-desktop.ps1` 和 `
 - Node 生成脚本导入时不得读写用户资料；测试只使用临时目录及合成输入。部署测试不得执行真实进程、网络、端口或计划任务操作。
 - 覆盖率分母已扩展到全部 src、server、scripts、templates 的可执行 JS/TS；V8 四指标各 >90。两份完整 PowerShell 产品脚本另用 Pester 原生命令覆盖 >90，分支/函数等工具不支持项明确 N/A，不与 V8 混算。
 - Sonar 全量可维护性 A、安全/可靠性问题核验及真实 Quality Gate 是独立发布条件；旧 main 扫描和仅 new-code Gate 不代表当前候选全量通过。当前证据及未完成项见 `docs/qa/sonar-security-followup.md`。
+
+## 当前交付入口（2026-11-14）
+
+FR-24—FR-30 已随 PR #13 合入 fork main f1b28d5；本文件的“整合中”和 c961c78 低覆盖基线属于历史阶段。最新功能、完整分母、真实/模拟验收、Sonar 两种口径和未完成项统一见 [交付状态](release-status.md)。FR-21—FR-23 原有独立验收状态不可据此自动提升为真机或无障碍全面通过。
