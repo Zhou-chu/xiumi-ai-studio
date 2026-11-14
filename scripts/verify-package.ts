@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { zipSync } from 'fflate'
 import sharp from 'sharp'
+import { VerificationLifecycle, closeOwnedChild } from './verificationLifecycle'
+import { archiveContainsText } from './verificationArchive'
 
 const ROOT = join(import.meta.dirname, '..')
 const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
@@ -25,6 +27,9 @@ if (!existsSync(ZIP)) {
 
 // 用 Windows 自带的解压（PowerShell Expand-Archive）解压交付的 zip，和队员的操作一致
 const BASE = mkdtempSync(join(tmpdir(), 'xiumi 验证 '))
+const lifecycle = new VerificationLifecycle(() => rmSync(BASE, { recursive: true, force: true }))
+try {
+await lifecycle.run(async () => {
 execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath $env:XZIP -DestinationPath $env:XDST`], { env: { ...process.env, XZIP: ZIP, XDST: join(BASE, '程序 文件夹') }, stdio: 'inherit' })
 const DIR = join(BASE, '程序 文件夹', NAME)
 const EXE = join(DIR, 'XIUMI AI Studio.exe')
@@ -66,7 +71,17 @@ function launch(exe = EXE, env: NodeJS.ProcessEnv = ENV): Run {
   let out = ''
   proc.stdout!.on('data', (d) => (out += d))
   proc.stderr!.on('data', (d) => (out += d))
-  const exit = new Promise<number | null>((r) => proc.on('exit', (c) => r(c)))
+  const exit = new Promise<number | null>((r) => { proc.once('exit', r); proc.once('error', (error) => { out += `\n${error.message}`; r(null) }) })
+  lifecycle.track(async () => {
+    try {
+      await closeOwnedChild(proc,
+        pid => { execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }) },
+        async () => { await timeout(exit, 10_000, '自有验证进程清理超时') },
+      )
+    } finally {
+      writeFileSync(join(BASE, `process-${proc.pid ?? 'spawn-failed'}.log`), out)
+    }
+  })
   return { proc, out: () => out, exit }
 }
 async function waitFor<T>(fn: () => T | undefined | null | false, ms: number, what: string): Promise<T> {
@@ -122,12 +137,27 @@ function makeDocx(text: string) {
   )
 }
 
+function listen(server: Server, port: number) {
+  return new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, '127.0.0.1', () => { server.removeListener('error', reject); resolve() })
+  })
+}
+function trackServer(server: Server) {
+  lifecycle.track(async () => {
+    if (!server.listening) return
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  })
+}
+
 // 本地模拟的 OpenAI 兼容服务（测试连接用）
 const mock: Server = createServer((_req, res) => {
   res.setHeader('content-type', 'application/json')
   res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ok: true, model: 'mock' }) } }] }))
 })
-await new Promise<void>((r) => mock.listen(MOCK_PORT, '127.0.0.1', r))
+trackServer(mock)
+await listen(mock, MOCK_PORT)
 
 const before = exeProcesses()
 console.log(`程序位置：${DIR}\n数据位置：${DATA}\nPATH 已去掉 Node.js/pnpm：${!PATH.split(delimiter).some((p) => existsSync(join(p, 'node.exe')))}\n`)
@@ -202,7 +232,14 @@ await check('载入验收样例（约 2000 字 + 10 张图）', async () => {
 })
 const doc = { id: 'verify-project', title: '验证项目', author: '', digest: '', themeId: 'tsinghua', blocks: [{ id: 'b1', type: 'paragraph', props: { content: '正文', align: 'left' } }], createdAt: 1, updatedAt: 1 }
 await check('保存项目与历史版本、模板、自定义主题', async () => {
-  assert((await api(a.url, '/api/projects/verify-project', { method: 'PUT', json: doc })).status === 200, '保存项目失败')
+  const created = await api(a.url, '/api/projects/verify-project', { method: 'PUT', json: doc })
+  assert(created.status === 200 && typeof created.data.revision === 'string', '创建项目或返回 revision 失败')
+  const winner = await api(a.url, '/api/projects/verify-project', { method: 'PUT', json: { ...doc, revision: created.data.revision, digest: 'CAS winner' } })
+  assert(winner.status === 200 && winner.data.revision !== created.data.revision, '正确 revision 更新失败')
+  const stale = await api(a.url, '/api/projects/verify-project', { method: 'PUT', json: { ...doc, revision: created.data.revision, title: '不应覆盖' } })
+  assert(stale.status === 409, '过期 revision 未被拒绝')
+  const stored = await api(a.url, '/api/projects/verify-project')
+  assert(stored.status === 200 && stored.data.title === doc.title && stored.data.digest === 'CAS winner' && stored.data.revision === winner.data.revision, '冲突请求覆盖了胜出稿件')
   assert((await api(a.url, '/api/projects/verify-project/versions', { method: 'POST', json: { doc, label: '验证版本' } })).status === 200, '保存版本失败')
   assert((await api(a.url, '/api/templates', { method: 'POST', json: { name: '验证模板', blocks: doc.blocks } })).status === 200, '保存模板失败')
   assert((await api(a.url, '/api/themes', { method: 'POST', json: { id: 'verify-theme', name: '验证主题' } })).status === 200, '保存主题失败')
@@ -228,7 +265,7 @@ await check('备份下载：zip 不含 AI 密钥', async () => {
   const r = await fetch(a.url + '/api/data/backup')
   backupZip = Buffer.from(await r.arrayBuffer())
   assert(r.headers.get('content-type')?.includes('zip') && backupZip.length > 1000, `HTTP ${r.status}`)
-  assert(!backupZip.toString('latin1').includes(FAKE_KEY), '备份中出现了密钥')
+  assert(!archiveContainsText(backupZip, FAKE_KEY), '备份解压条目中出现了密钥')
   return `${(backupZip.length / 1024).toFixed(0)} KB`
 })
 await check('从备份恢复：先预览，同名内容保留本机', async () => {
@@ -290,7 +327,8 @@ await check('强制结束后可以重新启动（残留运行记录不影响）'
 // ---------- 端口冲突 ----------
 await check('端口被其他程序占用时自动换用下一个，不影响占用者', async () => {
   const other = createServer((_q, s) => s.end('other-app'))
-  await new Promise<void>((r) => other.listen(PORT, '127.0.0.1', r))
+  trackServer(other)
+  await listen(other, PORT)
   const c = await start()
   try {
     assert(c.url.endsWith(`:${PORT + 1}`), c.url)
@@ -307,7 +345,8 @@ await check('全部候选端口被占用：中文错误并退出（退出码 1�
   const servers: Server[] = []
   for (let p = PORT; p < PORT + 20; p++) {
     const s = createServer((_q, r) => r.end('busy'))
-    await new Promise<void>((r) => s.listen(p, '127.0.0.1', r))
+    trackServer(s)
+    await listen(s, p)
     servers.push(s)
   }
   try {
@@ -355,6 +394,12 @@ const report = [
   ``,
 ].join('\n')
 writeFileSync(join(ROOT, 'release', 'verify-report.md'), report)
-rmSync(BASE, { recursive: true, force: true })
 console.log(`\n${results.length - failed.length}/${results.length} 通过，报告：release/verify-report.md`)
-process.exit(failed.length ? 1 : 0)
+if (failed.length) throw new Error(`${failed.length} package verification checks failed`)
+})
+} catch (error) {
+  console.error(error)
+  console.error(`验证失败，私有证据保留：${BASE}`)
+  if (lifecycle.cleanupErrors.length) console.error(`资源清理失败：${lifecycle.cleanupErrors.length} 项`)
+  process.exitCode = 1
+}
