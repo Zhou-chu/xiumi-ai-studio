@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Route } from '@playwright/test'
 
 test('cancelled delayed version restoration cannot overwrite later edits; normal restore remains undoable',async({page})=>{
   const id=`late-version-${Date.now()}`
@@ -13,6 +13,12 @@ test('cancelled delayed version restoration cannot overwrite later edits; normal
   expect(await listed.json()).toContainEqual(expect.objectContaining({id:version.id,label:'saved history'}))
   await page.addInitScript(()=>{if(window.top===window)localStorage.setItem('xiumi-color-mode','dark')})
   await page.goto('/')
+  // An unrelated in-flight request must not gate version restoration assertions.
+  // Keep it pending until every save/restore/undo assertion has completed.
+  let backgroundRequest: Route | undefined
+  await page.route('**/__e2e/late-restore-background', route => { backgroundRequest = route })
+  await page.evaluate(() => { void fetch('/__e2e/late-restore-background').catch(() => {}) })
+  await expect.poll(() => Boolean(backgroundRequest)).toBe(true)
   const title=page.getByLabel('文章标题',{exact:true})
   await expect(title).toHaveValue('current manuscript')
   await page.getByTestId('toolbar-more').click()
@@ -26,7 +32,11 @@ test('cancelled delayed version restoration cannot overwrite later edits; normal
   await page.getByRole('dialog').getByRole('button',{name:'关闭',exact:true}).click()
   await title.fill('new edits after cancelling restore')
   const finished=page.waitForResponse(r=>r.url().endsWith(`/versions/${version.id}`))
-  release();await finished;await page.waitForLoadState('networkidle')
+  release()
+  const restoredResponse=await finished
+  expect(restoredResponse.ok()).toBe(true)
+  // Wait for this response body, not unrelated page/network activity.
+  expect(await restoredResponse.finished()).toBeNull()
   await expect(title).toHaveValue('new edits after cancelling restore')
   await expect(page.getByTestId('save-status')).toHaveText('已保存')
   expect((await(await page.request.get(`/api/projects/${id}`)).json()).title).toBe('new edits after cancelling restore')
@@ -38,4 +48,5 @@ test('cancelled delayed version restoration cannot overwrite later edits; normal
   await expect(title).toHaveValue('historical version')
   await page.getByRole('button',{name:'撤销',exact:true}).click()
   await expect(title).toHaveValue('new edits after cancelling restore')
+  await backgroundRequest!.fulfill({ status: 204 })
 })
