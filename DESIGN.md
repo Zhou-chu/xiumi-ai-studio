@@ -193,3 +193,5 @@ Xiumi 服务于「导入内容 → 编辑图文 → 模板或 AI 排版 → 保�
 ## Delivery provenance
 
 Current delivery and quality status is tracked in [docs/release-status.md](docs/release-status.md). This design contract does not imply that every platform, physical touch device or screen reader has been verified. Local Sonar overall results, Cloud new-code results and explicit accepted resource risk must remain separate.
+
+Coverage terminology: the current Vitest gate mixes pure logic, DOM component and local HTTP boundary tests. Its complete-production-source coverage is not an independent strict-unit coverage result. Strict-unit coverage above 90% is still outstanding; preserve the full production denominator and report other test layers separately.

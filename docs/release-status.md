@@ -15,7 +15,7 @@ FR-24—FR-30 的红绿整块审阅、防过期/撤销保护、自然语言图�
 
 共用 `docs/design/shared-ui.md` 与产品 `DESIGN.md` 约束黑白编辑式外壳、本地中文字体、可读字号、黑灰扩散背景和柔和浮层；文稿/导出不继承应用主题。视觉证据位于 `visual-evidence`，含 1440×900、1024×768、390×844 同内容对照及弹窗/失败状态。
 
-fork 已验证：1290 单测、134 E2E；全 120 个生产 JS/TS 源文件（含 scripts/templates）语句 97.05%、分支 92.22%、函数 97.39%、行 98.44%，四项门槛 90.01%。PowerShell 20 项测试，211/215 命令覆盖 98.14%，没有伪造其不支持的指标。真实 DeepSeek 浏览器 live gate 与模拟模型 E2E 分开记录，密钥未写入交付报告。见 `docs/qa/expanded-source-coverage.json`、`docs/qa/resource-final-gate.json` 及 `docs/qa/live/model-gate.json`。
+fork 已验证：1290 项 Vitest 混合测试（包含纯逻辑、DOM 组件和真实本机 HTTP 路由边界测试），另有 134 项 E2E。全 120 个生产 JS/TS 源文件（含 scripts/templates）的混合集覆盖为：语句 97.05%、分支 92.22%、函数 97.39%、行 98.44%，四项混合集门槛 90.01%。这不是严格隔离单元测试的独立覆盖率；用户要求的“单元独立 >90%”仍未完成，需版本化测试分类与独立测量，不缩小生产分母、不拿混合集充数。PowerShell 20 项测试，211/215 命令覆盖 98.14%，没有伪造其不支持的指标。真实 DeepSeek 浏览器 live gate 与模拟模型 E2E 分开记录，密钥未写入交付报告。见 `docs/qa/expanded-source-coverage.json`、`docs/qa/resource-final-gate.json` 及 `docs/qa/live/model-gate.json`。
 
 ## Sonar：本机与云端分开
 
