@@ -1,15 +1,35 @@
-param([string]$Output = "$PSScriptRoot\..\..\coverage-deployment")
+﻿param([string]$Output = "$PSScriptRoot\..\..\coverage-deployment", [switch]$IsolationOnly, [switch]$StateWriteProof, [switch]$NonSmokeOnly, [switch]$BoundaryOnly, [ValidateSet('None','WithoutCoverage','WithCoverage')][string]$ThrowDiagnostic='None')
 $ErrorActionPreference='Stop'
-Import-Module Pester -RequiredVersion 3.4.0
+if($ThrowDiagnostic -ne 'None' -and ($IsolationOnly -or $StateWriteProof -or $NonSmokeOnly -or $BoundaryOnly)) {throw 'Select one test mode'}
+if(($BoundaryOnly -and ($IsolationOnly -or $StateWriteProof -or $NonSmokeOnly)) -or ($IsolationOnly -and $StateWriteProof) -or ($NonSmokeOnly -and ($IsolationOnly -or $StateWriteProof))) {throw 'Select one test mode'}
+. "$PSScriptRoot\TestIsolation.ps1"
 $repo=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$result=Invoke-Pester -Script "$PSScriptRoot\Deployment.Tests.ps1" -CodeCoverage @("$repo\deploy\desktop.ps1","$repo\deploy\install-desktop.ps1") -PassThru
-New-Item -ItemType Directory -Force $Output | Out-Null
-$result.CodeCoverage | ConvertTo-Json -Depth 8 | Set-Content "$Output\coverage.json" -Encoding UTF8
-$files=@($result.CodeCoverage.AnalyzedFiles | ForEach-Object {
- $file=$_;$hit=@($result.CodeCoverage.HitCommands | Where-Object File -eq $file).Count;$miss=@($result.CodeCoverage.MissedCommands | Where-Object File -eq $file).Count
- @{path=$file.Substring($repo.Length+1).Replace('\','/');sha256=(Get-FileHash $file -Algorithm SHA256).Hash.ToLower();commands=@{hit=$hit;total=$hit+$miss;percent=100*$hit/($hit+$miss)}}
-})
-@{framework='Pester 3.4.0';metric='AST command coverage';branchCoverage=$null;functionCoverage=$null;statementCoverage=$null;lineCoverage=$null;passed=$result.PassedCount;failed=$result.FailedCount;files=$files} | ConvertTo-Json -Depth 8 | Set-Content "$Output\summary.json" -Encoding UTF8
-if($result.FailedCount -gt 0){throw "$($result.FailedCount) tests failed"}
-$coverage=$result.CodeCoverage
-if($coverage.NumberOfCommandsAnalyzed -eq 0 -or $coverage.NumberOfCommandsExecuted / $coverage.NumberOfCommandsAnalyzed -le .9){throw 'Full deployment command coverage must exceed 90%'}
+$Output=Assert-XiumiTestPath $Output $repo
+if ([IO.Path]::GetFileName($Output) -notlike 'coverage-*') { throw 'Reports require an isolated coverage-* directory' }
+# A fresh private directory, never the application's deployment directory.
+$sandbox=Join-Path ([IO.Path]::GetTempPath()) ('xiumi-pester-'+[guid]::NewGuid().ToString('N'))
+$null=Assert-XiumiTestPath $sandbox ([IO.Path]::GetTempPath())
+New-Item -ItemType Directory -Path $sandbox -ErrorAction Stop | Out-Null
+New-Item -ItemType Directory -Path "$sandbox\appdata","$sandbox\tmp" | Out-Null
+$before=@{}
+foreach($name in @('LOCALAPPDATA','TEMP','TMP','XIUMI_TEST_SANDBOX')) { $before[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+try {
+ $env:LOCALAPPDATA=Join-Path $sandbox 'appdata'; $env:TEMP=Join-Path $sandbox 'tmp'; $env:TMP=$env:TEMP; $env:XIUMI_TEST_SANDBOX=$sandbox
+ $engine=if($PSVersionTable.PSEdition -eq 'Core') {Join-Path $PSHOME 'pwsh.exe'} else {Join-Path $PSHOME 'powershell.exe'}
+ $workerArgs=@('-NoProfile','-NonInteractive','-File',"$PSScriptRoot\run-coverage-worker.ps1",'-SandboxRoot',$sandbox)
+ if($IsolationOnly) {$workerArgs+='-IsolationOnly'}
+ if($StateWriteProof) {$workerArgs+='-StateWriteProof'}
+ if($NonSmokeOnly) {$workerArgs+='-NonSmokeOnly'}
+ if($BoundaryOnly) {$workerArgs+='-BoundaryOnly'}
+ if($ThrowDiagnostic -ne 'None') {$workerArgs+=@('-ThrowDiagnostic',$ThrowDiagnostic)}
+ & $engine @workerArgs
+ $workerExit=$LASTEXITCODE
+} finally {
+ foreach($name in $before.Keys) { $value=if($null -eq $before[$name]) {[NullString]::Value} else {$before[$name]}; [Environment]::SetEnvironmentVariable($name,$value,'Process') }
+}
+# Retain the sandbox for diagnosis. Never recursively delete a computed path.
+if(Test-Path "$sandbox\reports") {
+ New-Item -ItemType Directory -Force $Output | Out-Null
+ Copy-Item -LiteralPath "$sandbox\reports\coverage.json","$sandbox\reports\summary.json" -Destination $Output
+}
+if($workerExit -ne 0) {throw "Isolated deployment test worker failed: $workerExit; evidence: $sandbox"}
