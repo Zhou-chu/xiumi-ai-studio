@@ -3378,7 +3378,7 @@
         "server/wechat.ts"
       ],
       "rationale": "Twelve actual protocol/cache/error cases use synthetic-only env, virtual local storage/image processing and fake fetch. No real credentials or WeChat request.",
-      "sha256": "d3dd6fb475d34b37d8b341412dcbd456920242e7f9369978ea5d8cf49cd25e32"
+      "sha256": "b0125d0a5f80242d6c18a186d3d0e1a0f84ffc375089e25aa207bdc9383ced29"
     },
     {
       "path": "tests/unit/workspaceIsolated.test.ts",

@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 15
     env:
       XIUMI_SKIP_ENV_FILES: '1'
-      DATA_DIR: ${{ runner.temp }}/xiumi-strict-data
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -28,6 +27,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node tests/quality/test-layer-check.mjs
       - run: pnpm exec vitest run --config vitest.unit.config.ts --coverage
+        env:
+          DATA_DIR: ${{ runner.temp }}/xiumi-strict-data
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

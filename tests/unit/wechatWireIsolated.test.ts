@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(), ready: vi.fn(), fetch: vi.fn() }))
 vi.mock('../../server/store', () => ({ DATA: '/synthetic-wechat', readJson: h.read, writeJson: h.write }))
@@ -46,7 +47,7 @@ it('builds one real multipart body and persists an HTTPS content URL after token
   const file = (init.body as FormData).get('media') as File
   expect(file.name).toBe('synthetic.png'); expect(file.type).toBe('image/png')
   expect([...new Uint8Array(await file.arrayBuffer())]).toEqual([1, 2, 3])
-  expect(h.write).toHaveBeenCalledExactlyOnceWith('/synthetic-wechat/wechat-cache.json', { images: { key: 'https://mmbiz.qpic.cn/new' }, covers: {} })
+  expect(h.write).toHaveBeenCalledExactlyOnceWith(join('/synthetic-wechat', 'wechat-cache.json'), { images: { key: 'https://mmbiz.qpic.cn/new' }, covers: {} })
 })
 it('shares a still-valid token across cover and draft requests and retains exact draft fields', async () => {
   h.fetch.mockResolvedValueOnce(response({ access_token: 'synthetic-token', expires_in: 7200 })).mockResolvedValueOnce(response({ media_id: 'new-cover', url: 'http://fixture.invalid/cover' })).mockResolvedValueOnce(response({ media_id: 'new-draft' }))
