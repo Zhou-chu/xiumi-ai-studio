@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { isPrivateAddress, safeFetch, MAX_PAGE_BYTES } from '../../server/net'
+
+// Only stream adapters provided by each case are allowed; no sockets or system DNS.
+vi.mock('node:dns/promises', () => ({ lookup: () => { throw Error('Unexpected real DNS') } }))
+vi.mock('undici', () => ({
+  Agent: class { destroy() { return Promise.resolve() } },
+  fetch: () => { throw Error('Unexpected real transport') },
+}))
 
 describe('review: translated and protocol-assignment addresses', () => {
   it.each(['192.0.0.0', '192.0.0.9', '192.0.0.255', '64:ff9b::7f00:1', '64:ff9b::a00:1', '2002:7f00:1::', '2002:a00:1::'])('rejects %s', (ip) => {

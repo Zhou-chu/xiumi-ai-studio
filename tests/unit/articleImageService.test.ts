@@ -1,5 +1,22 @@
-import { expect,it,vi } from 'vitest'
+import { afterEach,beforeEach,expect,it,vi } from 'vitest'
+
+const h = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), lstat: vi.fn(), safeFetch: vi.fn(), fetch: vi.fn() }))
+vi.mock('../../server/store', () => ({ DIRS: { assets: 'private-fixture-assets' } }))
+vi.mock('../../server/assets', () => ({ listAssets: h.list, saveAsset: h.save }))
+vi.mock('node:fs/promises', () => ({ lstat: h.lstat }))
+vi.mock('../../server/net', async (original) => {
+ const { IMAGE_HOST } = await original<typeof import('../../server/net')>()
+ return { IMAGE_HOST, safeFetch: h.safeFetch }
+})
 import { createArticleImageImporter } from '../../server/articleImages'
+beforeEach(() => {
+ for (const mock of Object.values(h)) mock.mockReset().mockImplementation(() => { throw Error('Unexpected image service boundary') })
+ vi.stubGlobal('fetch', h.fetch)
+})
+afterEach(() => {
+ vi.unstubAllGlobals()
+ for (const mock of Object.values(h)) expect(mock).not.toHaveBeenCalled()
+})
 function setup(){
  const assets:any[]=[];const fetch=vi.fn(async()=>new Response(new Uint8Array([1,2,3])))
  const save=vi.fn(async(_b:Buffer,_n:string,sourceKey:string)=>{const asset={id:String(assets.length),file:`${assets.length}.png`,sourceKey,name:'image',width:1,height:1,size:3,createdAt:1};assets.push(asset);return asset})

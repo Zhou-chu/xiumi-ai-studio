@@ -31,9 +31,9 @@ export function teeConsoleToFile(dir: string, keepDays = 14): string {
     /* 清理失败不影响启动 */
   }
   const file = () => join(dir, `xiumi-${day()}.log`)
-  const write = (level: string, args: unknown[]) => {
+  const write = (level: string, line: string) => {
     try {
-      appendFileSync(file(), `${new Date().toISOString()} [${level}] ${redact(format(...args))}\n`)
+      appendFileSync(file(), `${new Date().toISOString()} [${level}] ${line}\n`)
     } catch {
       /* 磁盘满等情况下不影响运行 */
     }
@@ -41,8 +41,9 @@ export function teeConsoleToFile(dir: string, keepDays = 14): string {
   for (const level of ['log', 'info', 'warn', 'error'] as const) {
     const orig = console[level].bind(console)
     console[level] = (...args: unknown[]) => {
-      write(level, args)
-      orig(...args.map((a) => (typeof a === 'string' ? redact(a) : a instanceof Error ? redact(a.stack ?? a.message) : a)))
+      const line = redact(format(...args))
+      write(level, line)
+      orig(line)
     }
   }
   return file()

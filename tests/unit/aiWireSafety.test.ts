@@ -1,7 +1,24 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { chatJson, chatText, testConnection } from '../../server/ai'
 import { fetchModels, parseModels, probeEfforts } from '../../server/aiModels'
 import type { AiProfile } from '../../server/settings'
+
+// Profiles are supplied by each case. Do not initialize real paths, dotenv or disk.
+const boundary = vi.hoisted(() => ({
+  read: vi.fn(async () => { throw new Error('Unexpected settings read in provider unit') }),
+  write: vi.fn(async () => { throw new Error('Unexpected settings write in provider unit') }),
+  fetch: vi.fn(async () => { throw new Error('Unexpected transport in provider unit') }),
+}))
+vi.mock('../../server/store', () => ({
+  DATA: 'unused-provider-unit-settings', readJson: boundary.read, writeJson: boundary.write,
+}))
+beforeEach(() => {
+  for (const guard of Object.values(boundary)) guard.mockClear()
+  vi.stubGlobal('fetch', boundary.fetch)
+})
+afterEach(() => {
+  for (const guard of Object.values(boundary)) expect(guard).not.toHaveBeenCalled()
+})
 const p = (over: Partial<AiProfile> = {}): AiProfile => ({ id: 'p', name: 'P', provider: 'openai', baseUrl: 'https://api.example/v1', apiKey: 'test-key', model: 'm', jsonMode: true, ...over })
 afterEach(() => vi.unstubAllGlobals())
 it.each(['openai', 'anthropic'] as const)('blocks redirects and keeps controlled fields authoritative for %s', async (provider) => {

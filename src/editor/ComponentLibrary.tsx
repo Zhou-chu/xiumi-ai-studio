@@ -88,7 +88,12 @@ function ComponentCard({ c, doc, onChanged }: { c: LibraryComponent; doc: Doc; o
             {c.fixedDecor > 0 && <small title="含 PNG、GIF 或纹理图片，这些部分不能改色">{c.fixedDecor} 处图片装饰，不能改色</small>}
           </div>
           <div className="tpl-actions">
-            <button onClick={() => setEditing(true)} data-testid="component-edit">编辑</button>
+            <button onClick={() => {
+              setName(c.name)
+              setTags(c.tags.join(' '))
+              setRole(componentRole(c))
+              setEditing(true)
+            }} data-testid="component-edit">编辑</button>
             <button
               className="danger"
               data-testid="component-delete"
@@ -152,12 +157,29 @@ export function ComponentLibrary({ templates }: { templates: Template[] }) {
   const [kind, setKind] = useState<PartKind | ''>('')
   const [hue, setHue] = useState<HueFamily | ''>('')
   const [role, setRole] = useState<RoleId | ''>('')
-  const refresh = useCallback(() => api.components().then(setList).catch((e) => notify(e.message, 'error')), [notify])
+  const reads = useRef<{ issued: number; applied: number } | null>(null)
+  const refresh = useCallback(async () => {
+    const lifetime = reads.current
+    if (!lifetime) return
+    const seq = ++lifetime.issued
+    try {
+      const items = await api.components()
+      if (reads.current !== lifetime || seq < lifetime.applied) return
+      lifetime.applied = seq
+      setList(items)
+    } catch (e) {
+      if (reads.current === lifetime && seq === lifetime.issued) {
+        notify(e instanceof Error ? e.message : String(e), 'error')
+      }
+    }
+  }, [notify])
   useEffect(() => {
-    refresh()
+    reads.current = { issued: 0, applied: 0 }
+    void refresh()
     window.addEventListener('components-changed', refresh)
     window.addEventListener('assets-changed', refresh)
     return () => {
+      reads.current = null
       window.removeEventListener('components-changed', refresh)
       window.removeEventListener('assets-changed', refresh)
     }

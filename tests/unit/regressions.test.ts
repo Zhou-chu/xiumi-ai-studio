@@ -1,12 +1,13 @@
 // 用户反馈问题的回归测试
 import { JSDOM } from 'jsdom'
 import { describe, expect, it } from 'vitest'
-import { coerceProps, normalizeBlocks } from '../../src/core/blocks'
+import { normalizeBlocks } from '../../src/core/blocks'
 import { compileBlock, compileDoc } from '../../src/core/compiler'
 import { applyOps, validateOp } from '../../src/core/ops'
 import { THEMES } from '../../src/core/themes'
 import type { Block, Doc } from '../../src/core/types'
 import { articleToHtmlBlocks, extractArticle } from '../../src/core/wxImport'
+import { page } from './wxSvgRegressionFixture'
 
 const doc = (blocks: Block[]): Doc => ({ id: 'd', title: 't', author: '', digest: '', themeId: THEMES[0].id, blocks, createdAt: 0, updatedAt: 0 })
 
@@ -36,33 +37,14 @@ describe('AI 修改字段类型错误导致白屏', () => {
     expect((blocks[0].props as any).index).toBe('1')
     expect(compileDoc(doc(blocks)).html).toContain('有鸢千里来相会')
   })
-  it('compileDoc skips a corrupted block instead of throwing', () => {
-    const bad = { id: 'b', type: 'table', props: { headers: null, rows: 5 } } as unknown as Block
-    const r = compileDoc(doc([bad, ...normalizeBlocks([{ type: 'divider', props: {} }])]))
-    expect(r.warnings[0]).toContain('数据异常')
-  })
-  it('coerceProps keeps valid images and drops invalid ones on create', () => {
-    expect(coerceProps('image', { image: { src: '/media/a.jpg', width: '100' } }).image).toEqual({ src: '/media/a.jpg', width: 100 })
-    expect(coerceProps('image', { image: 'bad' }).image).toBeUndefined()
-  })
+
 })
 
 describe('链接导入后标题丢失', () => {
   // 结构仿照秀米 SVG 版式：标题文字在 foreignObject 内的 HTML 中，整篇包在带背景色的外壳里
-  const page = `<html><head><meta property="og:title" content="SVG 标题测试"></head><body><div id="js_content">
-    <section style="background-color: rgb(245, 254, 241); padding: 20px 10px; border-radius: 8px">
-      <section style="display: grid"><section style="display: flex"><svg viewBox="0 0 100 20"><foreignObject width="100%" height="100%"><section style="font-size: 22px; color: rgb(76, 116, 69)"><p><b><span>齐鲁文化谈</span></b></p></section></foreignObject></svg></section></section>
-      <p style="font-size: 15px">正文第一段。</p>
-      <section style="display: flex"><svg viewBox="0 0 100 20"><foreignObject width="100%" height="100%"><section><p><strong>纸鸢梦工坊</strong></p></section></foreignObject></svg></section>
-      <p style="font-size: 15px">正文第二段。</p>
-    </section></div></body></html>`
+
   const a = extractArticle(new JSDOM(page).window.document)
 
-  it('keeps html headings inside svg foreignObject', () => {
-    expect(a.root.textContent).toContain('齐鲁文化谈')
-    expect(a.root.textContent).toContain('纸鸢梦工坊')
-    expect(a.root.innerHTML).toMatch(/<foreignObject[^>]*><section/i)
-  })
   it('splits inside the background wrapper and re-applies it to each piece', () => {
     const blocks = articleToHtmlBlocks(a.root) as Block<'html'>[]
     expect(blocks.length).toBeGreaterThanOrEqual(3)

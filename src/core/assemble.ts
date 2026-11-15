@@ -431,7 +431,7 @@ export function assemble(copy: Copy, kit: Kit, photos: ImageRef[], placements: P
     warnings.add('所选模块里没有「结尾署名」，署名使用普通段落')
   }
 
-  const used = new Set(placements.flatMap((p) => p.photos))
+  const used = new Set(placements.flatMap((p) => p.photos).filter((i) => Number.isInteger(i) && i >= 0 && i < photos.length && photos[i]))
   const firstPhoto = placements.flatMap((p) => p.photos)[0]
   const now = Date.now()
   return {

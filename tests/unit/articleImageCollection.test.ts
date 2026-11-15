@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { expect,it } from 'vitest'
 import { createBlock } from '../../src/core/blocks'
-import { emptyDoc } from '../../src/editor/store'
+import type { Doc } from '../../src/core/types'
 import { collectArticleImages,isImageLibraryRequest } from '../../src/core/articleImages'
+const emptyDoc = (): Doc => ({ id: 'article-fixture', title: '', author: '', digest: '', themeId: 'minimal-magazine', blocks: [], createdAt: 1, updatedAt: 1 })
 const photo=(id:string,src:string)=>({...createBlock('image',{image:{src}}),id})
 it('recognizes an explicit local library command while refusing negated or ordinary edits',()=>{
  for(const text of ['帮我把原文中的图片加入我们自己的素材库','分别把照片保存到图库','收集图片到素材库，不要改正文']) expect(isImageLibraryRequest(text)).toBe(true)

@@ -11,11 +11,17 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFile
 import { createServer, request, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { zipSync } from 'fflate'
 import sharp from 'sharp'
 import { VerificationLifecycle, closeOwnedChild } from './verificationLifecycle'
-import { archiveContainsText } from './verificationArchive'
-import { sharpNativePackage } from './verificationRuntime'
+import { archiveContainsText, makeDocx } from './verificationArchive'
+import {
+  readVerificationReadyUrl,
+  sharpNativePackage,
+  verificationApi as api,
+  verificationEnvironment,
+  verificationUpload as upload,
+  waitForVerification as waitFor,
+} from './verificationRuntime'
 
 const ROOT = join(import.meta.dirname, '..')
 const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
@@ -42,9 +48,7 @@ const FAKE_KEY = 'sk-verify-SHOULD-NOT-APPEAR-123456'
 const MOCK_PORT = 5450
 
 // 去掉 PATH 中带 node.exe / pnpm 的目录，模拟没有安装开发工具
-const PATH = (process.env.PATH ?? '').split(delimiter).filter((p) => p && !['node.exe', 'pnpm.cmd', 'pnpm.exe', 'npm.cmd'].some((f) => existsSync(join(p, f)))).join(delimiter)
-const ENV: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(NODE_|npm_|PNPM|XIUMI_|DATA_DIR|API_PORT|AI_|WECHAT_)/i.test(k) && k.toUpperCase() !== 'PATH'))
-Object.assign(ENV, { Path: PATH, LOCALAPPDATA: LOCAL, XIUMI_NO_BROWSER: '1', XIUMI_NO_PAUSE: '1', XIUMI_PORT: String(PORT) })
+const { searchPath: PATH, env: ENV } = verificationEnvironment(process.env, LOCAL, PORT, existsSync)
 
 const results: { name: string; ok: boolean; detail?: string }[] = []
 async function check(name: string, fn: () => Promise<string | void> | string | void) {
@@ -85,58 +89,14 @@ function launch(exe = EXE, env: NodeJS.ProcessEnv = ENV): Run {
   })
   return { proc, out: () => out, exit }
 }
-async function waitFor<T>(fn: () => T | undefined | null | false, ms: number, what: string): Promise<T> {
-  const end = Date.now() + ms
-  for (;;) {
-    const v = fn()
-    if (v) return v
-    if (Date.now() > end) throw new Error(`等待超时：${what}`)
-    await new Promise((r) => setTimeout(r, 200))
-  }
-}
 async function start(env = ENV) {
   const run = launch(EXE, env)
-  const url = await waitFor(() => run.out().match(/已启动：(http:\/\/127\.0\.0\.1:\d+)\//)?.[1], 30_000, `启动（输出：${run.out().slice(-300)}）`)
+  const url = await waitFor(() => readVerificationReadyUrl(run.out()), 30_000, `启动（输出：${run.out().slice(-300)}）`)
   return { ...run, url }
 }
 const timeout = <T>(p: Promise<T>, ms: number, what: string) => Promise.race([p, new Promise<never>((_, j) => setTimeout(() => j(new Error(`超时：${what}`)), ms))])
 const portOpen = (port: number) => fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(800) }).then(() => true, () => false)
 const exeProcesses = () => execFileSync('tasklist', ['/FI', 'IMAGENAME eq XIUMI AI Studio.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8' }).split('\n').filter((l) => l.includes('XIUMI AI Studio.exe')).length
-
-async function api(url: string, path: string, init: RequestInit & { json?: unknown } = {}) {
-  const headers: Record<string, string> = { origin: url, ...(init.headers as Record<string, string>) }
-  let body = init.body
-  if (init.json !== undefined) {
-    headers['content-type'] = 'application/json'
-    body = JSON.stringify(init.json)
-  }
-  const r = await fetch(url + path, { ...init, headers, body })
-  const text = await r.text()
-  let data: any = text
-  try {
-    data = JSON.parse(text)
-  } catch {
-    /* 非 JSON */
-  }
-  return { status: r.status, data, type: r.headers.get('content-type') ?? '' }
-}
-const upload = (url: string, path: string, field: string, name: string, data: Buffer | string, type: string) => {
-  const fd = new FormData()
-  fd.append(field, new Blob([typeof data === 'string' ? data : new Uint8Array(data)], { type }), name)
-  return api(url, path, { method: 'POST', body: fd })
-}
-
-/** 最小的 docx（mammoth 可读） */
-function makeDocx(text: string) {
-  const enc = (s: string) => new TextEncoder().encode(s)
-  return Buffer.from(
-    zipSync({
-      '[Content_Types].xml': enc('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'),
-      '_rels/.rels': enc('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
-      'word/document.xml': enc(`<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`),
-    }),
-  )
-}
 
 function listen(server: Server, port: number) {
   return new Promise<void>((resolve, reject) => {

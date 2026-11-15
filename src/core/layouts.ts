@@ -104,7 +104,8 @@ const cards: LayoutRecipe = {
     o.sections.forEach((s, i) => {
       blocks.push(createBlock('heading', { index: idx(i), title: s.heading, subtitle: '', variant: 'auto' }))
       const [first, ...others] = s.paragraphs
-      const img = pool.one(s.imageRefs)
+      // Reserve an image only when the paired paragraph can actually render it.
+      const img = first ? pool.one(s.imageRefs) : undefined
       if (first && img) {
         // 长段落拆开：分栏里放前一部分，剩余作为正文
         const cut = first.length > 120 ? first.slice(0, first.indexOf('。', 60) + 1 || 120) : first

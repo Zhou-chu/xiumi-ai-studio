@@ -53,6 +53,13 @@ export function richToMarkdown(rich: RichText | undefined): string {
     switch (n.type) {
       case 'paragraph':
         return (n.content ?? []).map(inline).join('')
+      case 'heading': {
+        const text = (n.content ?? []).map(inline).join('')
+        if (!text.trim()) return ''
+        const level: unknown = n.attrs?.level
+        const depth = typeof level === 'number' && Number.isInteger(level) && level >= 1 && level <= 6 ? level : 3
+        return `${'#'.repeat(depth)} ${text}`
+      }
       case 'bulletList':
         return (n.content ?? []).map((li) => '- ' + (li.content ?? []).map(block).join(' ')).join('\n')
       case 'orderedList':

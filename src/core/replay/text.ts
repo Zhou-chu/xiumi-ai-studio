@@ -66,7 +66,7 @@ const NO_START = /^[，。、！？；：）》」』】,.!?;:)\]}%’”]/
 
 /** 切成断行单位：中日韩字符逐字，拉丁字母和数字按词 */
 function tokens(text: string): string[] {
-  return text.match(/[A-Za-z0-9][A-Za-z0-9'’\-.%/]*|\s+|[\s\S]/g) ?? []
+  return text.match(/[A-Za-z0-9][A-Za-z0-9'’\-.%/]*|\s+|[\s\S]/gu) ?? []
 }
 
 /** 按宽度断行；保留原文换行 */
@@ -76,7 +76,9 @@ export function wrapText(text: string, font: FontSpec, maxWidth: number, measure
     let line = ''
     for (const tok of tokens(para)) {
       const next = line + tok
-      if (!line || measure(next.trimEnd(), font) <= maxWidth) {
+      // An oversized word at the start of a line still needs the same
+      // character split used for words that follow existing text.
+      if ((!line && !/^[A-Za-z0-9]/.test(tok)) || measure(next.trimEnd(), font) <= maxWidth) {
         line = next
         continue
       }

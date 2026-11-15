@@ -2,7 +2,7 @@
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { ITEM_LABEL, ITEM_TYPES, makeItem, makeScene, PRESET_LABEL, PRESETS, sampleReplay, DEFAULT_PRESET } from '../core/replay'
 import type { CursorAction, ReplayDoc, ReplayItem, ReplayScene, ReplayStyle } from '../core/replay'
 import type { Block, ImageRef } from '../core/types'
@@ -48,17 +48,37 @@ function Num({ label, value, onChange, step = 1, placeholder }: { label: string;
 function AssetPick({ value, onPick }: { value?: ImageRef; onPick: (ref?: ImageRef) => void }) {
   const [open, setOpen] = useState(false)
   const [assets, setAssets] = useState<Asset[] | null>(null)
-  useEffect(() => {
-    if (open && !assets) api.assets().then(setAssets, () => setAssets([]))
-  }, [open, assets])
+  const [failed, setFailed] = useState(false)
+  const mounted = useRef(false)
+  const load = useRef<'idle' | 'pending' | 'loaded'>('idle')
+  useLayoutEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+  const loadAssets = async () => {
+    if (load.current !== 'idle') return
+    load.current = 'pending'
+    setFailed(false)
+    try {
+      const result = await api.assets()
+      if (!mounted.current) return
+      load.current = 'loaded'
+      setAssets(result)
+    } catch {
+      if (!mounted.current) return
+      load.current = 'idle'
+      setFailed(true)
+    }
+  }
   return (
     <div className="rp-asset">
       {value ? <img src={value.src.startsWith('/media/') ? `${value.src.split('?')[0]}?fit=1:1&w=120` : value.src} alt="" /> : <span className="pic-empty">未选图</span>}
-      <button type="button" onClick={() => setOpen(!open)} data-testid="rp-pick-image">{open ? '收起' : '从素材选择'}</button>
+      <button type="button" onClick={() => { setOpen(!open); if (!open) void loadAssets() }} data-testid="rp-pick-image">{open ? '收起' : '从素材选择'}</button>
       {value && <button type="button" onClick={() => onPick(undefined)}>移除</button>}
       {open && (
         <div className="rp-asset-grid">
-          {assets === null && <p className="hint">加载中…</p>}
+          {failed && <p className="hint" role="status">加载素材失败，请收起后重试</p>}
+          {!failed && assets === null && <p className="hint">加载中…</p>}
           {assets?.length === 0 && <p className="hint">素材库是空的，先在左侧「素材」上传图片</p>}
           {assets?.map((a) => (
             <img

@@ -1,7 +1,24 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adjustWire, chatText } from '../../server/ai'
 import { fetchModels, parseModels, probeEfforts } from '../../server/aiModels'
 import type { AiProfile } from '../../server/settings'
+
+// Profiles are supplied by each case. Do not initialize real paths, dotenv or disk.
+const boundary = vi.hoisted(() => ({
+  read: vi.fn(async () => { throw new Error('Unexpected settings read in provider unit') }),
+  write: vi.fn(async () => { throw new Error('Unexpected settings write in provider unit') }),
+  fetch: vi.fn(async () => { throw new Error('Unexpected transport in provider unit') }),
+}))
+vi.mock('../../server/store', () => ({
+  DATA: 'unused-provider-unit-settings', readJson: boundary.read, writeJson: boundary.write,
+}))
+beforeEach(() => {
+  for (const guard of Object.values(boundary)) guard.mockClear()
+  vi.stubGlobal('fetch', boundary.fetch)
+})
+afterEach(() => {
+  for (const guard of Object.values(boundary)) expect(guard).not.toHaveBeenCalled()
+})
 
 const profile = (over: Partial<AiProfile> = {}): AiProfile => ({ id: 'p', name: 'P', provider: 'openai', baseUrl: 'https://api.example.com/v1', apiKey: 'sk-test', model: 'm1', jsonMode: true, ...over })
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })

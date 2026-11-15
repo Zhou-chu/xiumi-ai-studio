@@ -113,7 +113,8 @@ export async function getProfile(id?: string): Promise<AiProfile | null> {
   return list.find((p) => p.id === (id || s.ai.activeId)) ?? list[0] ?? null
 }
 
-const maskKey = (k: string) => (k ? `${k.slice(0, 3)}${MASK}${k.slice(-4)}` : '')
+// Prefix and suffix previews must never reveal every character of a short credential.
+const maskKey = (k: string) => (!k ? '' : k.length <= 7 ? MASK : `${k.slice(0, 3)}${MASK}${k.slice(-4)}`)
 
 export async function publicAiSettings() {
   const s = await load()

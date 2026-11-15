@@ -74,15 +74,18 @@ const edge = () => `<p style="${css({ 'font-size': 0, 'line-height': 0, margin: 
  */
 export async function copyRichText(htmlPromise: Promise<string>): Promise<'clipboard-api' | 'exec-command'> {
   const full = htmlPromise.then((h) => edge() + h + edge())
-  const plain = full.then((f) => new DOMParser().parseFromString(f, 'text/html').body.textContent ?? '')
   if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    const htmlBlob = full.then((f) => new Blob([f], { type: 'text/html' }))
+    const textBlob = full.then((f) => {
+      const text = new DOMParser().parseFromString(f, 'text/html').body.textContent ?? ''
+      return new Blob([text], { type: 'text/plain' })
+    })
+    // The native API can refuse a write before consuming these data promises.
+    // Observe their rejection without replacing the promises sent to ClipboardItem.
+    void htmlBlob.catch(() => {})
+    void textBlob.catch(() => {})
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/html': full.then((f) => new Blob([f], { type: 'text/html' })),
-          'text/plain': plain.then((p) => new Blob([p], { type: 'text/plain' })),
-        }),
-      ])
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })])
       return 'clipboard-api'
     } catch {
       /* 继续使用兜底方案 */
@@ -96,15 +99,18 @@ function execCopy(full: string): 'exec-command' {
   box.innerHTML = full
   Object.assign(box.style, { position: 'fixed', left: '-9999px', top: '0', opacity: '0' })
   document.body.appendChild(box)
-  const sel = window.getSelection()!
-  const range = document.createRange()
-  range.selectNodeContents(box)
-  sel.removeAllRanges()
-  sel.addRange(range)
-  const ok = document.execCommand('copy')
-  sel.removeAllRanges()
-  box.remove()
-  if (!ok) throw new Error('浏览器拒绝写入剪贴板')
+  const sel = window.getSelection()
+  try {
+    if (!sel) throw new Error('浏览器拒绝写入剪贴板')
+    const range = document.createRange()
+    range.selectNodeContents(box)
+    sel.removeAllRanges()
+    sel.addRange(range)
+    if (!document.execCommand('copy')) throw new Error('浏览器拒绝写入剪贴板')
+  } finally {
+    sel?.removeAllRanges()
+    box.remove()
+  }
   return 'exec-command'
 }
 

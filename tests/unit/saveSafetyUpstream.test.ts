@@ -2,8 +2,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../../src/editor/api'
 import { emptyDoc, flushSave, saveNow, useStore } from '../../src/editor/store'
-beforeEach(() => { vi.useFakeTimers(); useStore.getState().load(emptyDoc()) })
-afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks() })
+const boundary=vi.hoisted(()=>{const deny=()=>{throw Error('Unexpected save unit IO')};return {save:vi.fn(deny),themes:vi.fn(deny),fetch:vi.fn(deny)}})
+vi.mock('../../src/editor/api',()=>({api:{saveProject:boundary.save,themes:boundary.themes}}))
+beforeEach(() => { for(const mock of Object.values(boundary))mock.mockReset();vi.stubGlobal('fetch',boundary.fetch);vi.useFakeTimers(); useStore.getState().load(emptyDoc()) })
+afterEach(() => { try {expect(boundary.fetch).not.toHaveBeenCalled();expect(boundary.themes).not.toHaveBeenCalled()} finally {vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks();vi.unstubAllGlobals()} })
 it('reports failure without discarding the current draft', async () => {
   useStore.getState().setDocFields({ title: 'unsaved draft' })
   const before = useStore.getState().doc

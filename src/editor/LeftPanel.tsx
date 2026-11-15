@@ -1,7 +1,7 @@
 import { loadIfUnchanged } from './documentNavigation'
 import { UiIcon } from './UiIcon'
 import { useDraggable } from '@dnd-kit/core'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { BLOCK_TYPES, blockMeta, cloneBlock, createBlock } from '../core/blocks'
 import { addPicTo } from '../core/photos'
 import type { BlockType } from '../core/types'
@@ -92,6 +92,8 @@ export function LeftPanel() {
   const [busy, setBusy] = useState(false)
   const { notify, insertBlocks, load } = useStore.getState()
   const docId = useStore((s) => s.doc.id)
+  const projectOpen = useRef(0)
+  useLayoutEffect(() => () => { projectOpen.current += 1 }, [])
 
   const refreshAssets = useCallback(() => api.assets().then(setAssets).catch(() => {}), [])
   const refreshTemplates = useCallback(() => api.templates().then(setTemplates).catch(() => {}), [])
@@ -132,7 +134,10 @@ export function LeftPanel() {
     <aside className="panel left">
       <nav className="tabs">
         {(['blocks', 'components', 'assets', 'templates', 'projects'] as Tab[]).map((t) => (
-          <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)} data-testid={`tab-${t}`}>
+          <button key={t} className={tab === t ? 'on' : ''} onClick={() => {
+            if (t !== 'projects') projectOpen.current += 1
+            setTab(t)
+          }} data-testid={`tab-${t}`}>
             {{ blocks: '模块', components: '组件', assets: '素材', templates: '模板', projects: '项目' }[t]}
           </button>
         ))}
@@ -283,10 +288,15 @@ export function LeftPanel() {
                 <button
                   className="grow"
                   onClick={async () => {
-                    if (!await saveBeforeLeave()) return
-                    const expected = useStore.getState().doc
-                    const next = await api.project(p.id)
-                    loadIfUnchanged(next, expected)
+                    const ticket = ++projectOpen.current
+                    try {
+                      if (!await saveBeforeLeave() || ticket !== projectOpen.current) return
+                      const expected = useStore.getState().doc
+                      const next = await api.project(p.id)
+                      if (ticket === projectOpen.current) loadIfUnchanged(next, expected)
+                    } catch (error) {
+                      if (ticket === projectOpen.current) notify(error instanceof Error ? error.message : String(error), 'error')
+                    }
                   }}
                 >
                   <b>{p.title || '未命名'}</b>

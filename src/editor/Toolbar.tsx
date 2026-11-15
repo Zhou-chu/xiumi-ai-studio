@@ -239,26 +239,50 @@ function DraftModal({ onClose }: { onClose: () => void }) {
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState('')
   const [result, setResult] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const phase = useRef<'ready' | 'closed' | 'sent' | symbol>('ready')
+  useEffect(() => {
+    phase.current = 'ready'
+    return () => { phase.current = 'closed' }
+  }, [])
+  const close = () => {
+    phase.current = 'closed'
+    onClose()
+  }
   const cover = doc.cover?.src
   const issues = [!doc.title.trim() && '缺少标题', !cover && '缺少封面（在「文章」面板设计或设置封面）', doc.digest.length > 120 && '摘要超过 120 字'].filter(Boolean) as string[]
   const push = async () => {
+    if (!confirmed || issues.length || phase.current !== 'ready') return
+    const ticket = Symbol()
+    phase.current = ticket
+    const current = () => phase.current === ticket
+    const progress = (message: string) => { if (current()) setBusy(message) }
     try {
       setBusy('上传图片…')
-      const r = assertReplayOk(await compileForWechat(doc, 'wechat', setBusy))
+      const r = assertReplayOk(await compileForWechat(doc, 'wechat', progress))
+      if (!current()) return
       if (r.charCount >= 20000) throw new Error(`正文 HTML ${r.charCount} 字符，超过接口 20,000 字符上限。请精简模块，或使用“复制到公众号后台”。`)
       setBusy('创建草稿…')
       const res = await api.wechatDraft({ title: doc.title, author: doc.author, digest: doc.digest, html: r.html, cover: cover!, confirm: true })
+      if (!current()) return
+      phase.current = 'sent'
+      setSubmitted(true)
+      setBusy('')
       setResult(`草稿已创建，media_id：${res.media_id}。请到公众号后台「草稿箱」中检查后再手动发布。`)
       notify('已推送到草稿箱')
     } catch (e: any) {
+      if (!current()) return
       notify(e.message, 'error')
       setResult(`失败：${e.message}`)
     } finally {
-      setBusy('')
+      if (current()) {
+        phase.current = 'ready'
+        setBusy('')
+      }
     }
   }
   return (
-    <Modal title="确认推送到公众号草稿箱" onClose={onClose}>
+    <Modal title="确认推送到公众号草稿箱" onClose={close}>
       <dl className="kv">
         <dt>标题</dt><dd>{doc.title}</dd>
         <dt>作者</dt><dd>{doc.author || '（空）'}</dd>
@@ -271,9 +295,10 @@ function DraftModal({ onClose }: { onClose: () => void }) {
         我确认将以上内容和图片上传到我的公众号，并创建一篇草稿（不会群发）
       </label>
       {result && <p className="report">{result}</p>}
+      {busy && <p className="hint">关闭后不会继续发起新的草稿请求，但不能撤回已上传的图片或已发出的请求。</p>}
       <div className="modal-actions">
-        <button onClick={onClose}>取消</button>
-        <button className="primary" disabled={!confirmed || issues.length > 0 || !!busy} onClick={push}>{busy || '确认推送'}</button>
+        <button onClick={close}>{submitted ? '关闭' : '取消'}</button>
+        <button className="primary" disabled={submitted || !confirmed || issues.length > 0 || !!busy} onClick={push}>{submitted ? '草稿已创建' : busy || '确认推送'}</button>
       </div>
     </Modal>
   )

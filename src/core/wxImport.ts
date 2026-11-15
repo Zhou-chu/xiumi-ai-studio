@@ -131,6 +131,8 @@ export function contentLayer(root: Element): { layer: Element; wrappers: Element
     const only = kids[0]
     const st = only.getAttribute('style') ?? ''
     if (!['section', 'p', 'span', 'div'].includes(only.tagName.toLowerCase()) || !only.children.length || LAYOUT.test(st)) break
+    // Do not bypass the same shell checks used for a card alongside other blocks.
+    if (['section', 'div'].includes(only.tagName.toLowerCase()) && !shellOk(only)) break
     if (BOXY.test(st)) wrappers.push(only)
     cur = only
   }
@@ -427,6 +429,22 @@ function splitLayer(layer: Element, maxPlainRun: number, depth = 0, force = fals
   return blocks
 }
 
+function markdownList(list: Element, indent = ''): string[] {
+  const ordered = list.tagName.toLowerCase() === 'ol'
+  const raw = list.getAttribute('start') ?? ''
+  const items = Array.from(list.children).filter((node) => node.tagName.toLowerCase() === 'li')
+  const number = /^-?\d+$/.test(raw) ? Number(raw) : Number.NaN
+  const start = Number.isSafeInteger(number) ? BigInt(number) : 1n
+  return items.flatMap((item, index) => {
+    const content = item.cloneNode(true) as Element
+    content.querySelectorAll('ul, ol').forEach((nested) => nested.remove())
+    const prefix = ordered ? `${start + BigInt(index)}. ` : '- '
+    // Wrappers inside an item do not change ownership; deeper items render their own lists.
+    const nested = Array.from(item.querySelectorAll('ul, ol')).filter((child) => child.closest('li') === item)
+    return [indent + prefix + text(content), ...nested.flatMap((child) => markdownList(child, indent + ' '.repeat(prefix.length)))]
+  })
+}
+
 /** 转为 Markdown：标题按字号/加粗/长度推断，图片保留地址，供重新设计 */
 export function articleToMarkdown(a: ImportedArticle): { markdown: string; images: string[] } {
   const lines: string[] = [`# ${a.title || '未命名推文'}`]
@@ -453,6 +471,12 @@ export function articleToMarkdown(a: ImportedArticle): { markdown: string; image
       }
       return
     }
+    if (tag === 'ul' || tag === 'ol') {
+      lines.push(markdownList(el).join('\n'))
+      el.querySelectorAll('img').forEach((img) => leaf(img))
+      seen.add(el)
+      return
+    }
     if (tag === 'table') {
       const rows = Array.from(el.querySelectorAll('tr')).map((tr) => Array.from(tr.children).map((c) => text(c).replace(/\|/g, '/')))
       if (rows.length) lines.push([`| ${rows[0].join(' | ')} |`, `| ${rows[0].map(() => '---').join(' | ')} |`, ...rows.slice(1).map((r) => `| ${r.join(' | ')} |`)].join('\n'))
@@ -460,7 +484,11 @@ export function articleToMarkdown(a: ImportedArticle): { markdown: string; image
       return
     }
     const blockKids = Array.from(el.children).filter((c) => /^(p|section|h[1-6]|blockquote|ul|ol|table|figure|img)$/i.test(c.tagName) || c.querySelector('img'))
-    if (blockKids.length && !/^h[1-6]$/.test(tag)) {
+    // An inline image does not turn a paragraph into a container. Walking
+    // Element.children here would drop the text nodes beside those images.
+    const inlineImageParagraph = tag === 'p' && blockKids.length > 0 &&
+      el.querySelector('img') && !el.querySelector('p, section, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, table, figure')
+    if (blockKids.length && !inlineImageParagraph && !/^h[1-6]$/.test(tag)) {
       for (const c of Array.from(el.children)) leaf(c)
       return
     }
@@ -473,7 +501,11 @@ export function articleToMarkdown(a: ImportedArticle): { markdown: string; image
     else if (tag === 'li') lines.push(`- ${t}`)
     else lines.push(heading ? `## ${t}` : t)
   }
-  for (const c of Array.from(contentLayer(a.root).layer.children)) leaf(c)
+  const { layer } = contentLayer(a.root)
+  const paragraph = layer.closest('p')
+  // Wrapper peeling may land inside the article's only paragraph.
+  if (paragraph && a.root.contains(paragraph) && paragraph.querySelector('img')) leaf(paragraph)
+  else for (const c of Array.from(layer.children)) leaf(c)
   // 单独一行的章节序号（“01”）并入后面的标题；与文章标题重复的标题去掉
   const merged = lines.filter((l, i) => {
     if (/^## \d{1,2}$/.test(l)) return false

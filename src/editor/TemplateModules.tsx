@@ -1,5 +1,5 @@
 // 查看模板的模块：每个模块配预览和标准名称（自动识别，可以改），保存后套用模板时按名称取模块。
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { normalizeBlocks } from '../core/blocks'
 import { guessTemplateRoles, roleDef, type RoleId } from '../core/roles'
 import type { Block } from '../core/types'
@@ -18,32 +18,51 @@ export function templateRoles(t: Template, blocks: Block[] = normalizeBlocks(t.b
   return { roles: blocks.map((b, i) => t.roles?.[b.id] ?? guessed[i]), confirmed: blocks.map((b) => !!t.roles?.[b.id]) }
 }
 
-export function TemplateModules({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved?: (t: Template) => void }) {
+type ModuleEditorProps = { template: Template; onClose: () => void; onSaved?: (t: Template) => void }
+
+export function TemplateModules(props: ModuleEditorProps) {
+  return <TemplateRoleEditor key={props.template.id} {...props} />
+}
+
+function TemplateRoleEditor({ template, onClose, onSaved }: ModuleEditorProps) {
   const notify = useStore((s) => s.notify)
   const blocks = useMemo(() => normalizeBlocks(template.blocks), [template])
   const initial = useMemo(() => templateRoles(template, blocks), [template, blocks])
   const [roles, setRoles] = useState<RoleId[]>(initial.roles)
   const [busy, setBusy] = useState(false)
+  const lifetime = useRef<symbol | null>(null)
+  useLayoutEffect(() => {
+    lifetime.current = Symbol()
+    return () => { lifetime.current = null }
+  }, [])
+  const dismiss = () => {
+    lifetime.current = null
+    onClose()
+  }
   const count = (r: RoleId) => roles.filter((x) => x === r).length
   const dirty = roles.some((r, i) => r !== initial.roles[i]) || initial.confirmed.some((c) => !c)
 
   const save = async () => {
+    const startedIn = lifetime.current
+    if (!startedIn) return
+    const isCurrent = () => lifetime.current === startedIn
     setBusy(true)
     try {
       const t = await api.updateTemplate(template.id, { roles: Object.fromEntries(blocks.map((b, i) => [b.id, roles[i]])) })
       window.dispatchEvent(new Event('templates-changed'))
+      if (!isCurrent()) return
       notify('已保存模块的标准名称')
       onSaved?.(t)
-      onClose()
+      if (isCurrent()) onClose()
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (isCurrent()) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      if (isCurrent()) setBusy(false)
     }
   }
 
   return (
-    <Modal title={`模板模块 · ${template.name}`} onClose={onClose} width={1080}>
+    <Modal title={`模板模块 · ${template.name}`} onClose={dismiss} width={1080}>
       <p className="hint">
         每个模块都归到一个标准名称下，套用时按名称取用：标题按级别用对应的标题模块，几张照片放在一起就用对应张数的图片版式。名称是自动识别的，不对就改。
         同名的模块有多个时，套用前在「本次使用的模块」里选一个；设为「其他」的模块不会被使用。
@@ -64,7 +83,7 @@ export function TemplateModules({ template, onClose, onSaved }: { template: Temp
         ))}
       </div>
       <div className="modal-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={dismiss}>取消</button>
         <button className="primary" disabled={busy || !dirty} onClick={save} data-testid="save-module-roles">保存标准名称</button>
       </div>
     </Modal>

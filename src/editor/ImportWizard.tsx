@@ -77,12 +77,28 @@ const HINTS = ['清华风格，庄重典雅', '科技感，冷静理性', '温�
 export function ImportWizard({ onClose, initialText, initialImages, initialTemplates }: { onClose: () => void; initialText?: string; initialImages?: Asset[]; initialTemplates?: string[] }) {
   const themes = useStore((s) => s.themes)
   const { notify } = useStore.getState()
-  const [text, setText] = useState(initialText ?? '')
+  const [text, setTextState] = useState(initialText ?? '')
+  const textRevision = useRef(0)
+  const setText = (next: string) => {
+    textRevision.current++
+    setTextState(next)
+  }
   const [images, setImages] = useState<Asset[]>(initialImages ?? [])
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [useAi, setUseAi] = useState(true)
   const [hint, setHint] = useState('')
   const [busy, setBusy] = useState('')
+  const active = useRef(true)
+  const running = useRef<symbol | null>(null)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false; running.current = null }
+  }, [])
+  const closeWizard = () => {
+    active.current = false
+    running.current = null
+    onClose()
+  }
   const [outline, setOutline] = useState<Outline | null>(null)
   const [aiDocs, setAiDocs] = useState<Variant[]>([])
   const [themeFor, setThemeFor] = useState<string[]>(RECIPES.map((r) => r.defaultTheme))
@@ -105,7 +121,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
   /** 按照片补充文案：已就哪组照片描述问过（是/否都算），正在询问，改写结果待确认 */
   const [enrichAsked, setEnrichAsked] = useState('')
   const [enrichAsk, setEnrichAsk] = useState(false)
-  const [enriched, setEnriched] = useState<{ before: string; changes: string[]; check: EnrichCheck } | null>(null)
+  const [enriched, setEnriched] = useState<{ before: string; revision: number; changes: string[]; check: EnrichCheck } | null>(null)
   const noteOf = (a: Asset) => (notes[a.id] ?? '').trim()
 
   const refreshTemplates = () => api.templates().then(setTemplates).catch(() => {})
@@ -136,15 +152,46 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     return RECIPES.map((r, i) => ({ key: r.id, name: r.name, description: r.description, doc: buildDoc(outline, refs, r, themeFor[i]), ai: false, recipe: i }))
   }, [outline, images, themeFor])
 
-  const run = async (fn: () => Promise<void>, msg: string) => {
+  const run = async (fn: (isCurrent: () => boolean) => Promise<void>, msg: string) => {
+    if (!active.current || running.current) return
+    const ticket = Symbol()
+    running.current = ticket
+    const isCurrent = () => active.current && running.current === ticket
     setBusy(msg)
     try {
-      await fn()
+      await fn(isCurrent)
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (isCurrent()) notify(e.message, 'error')
     } finally {
-      setBusy('')
+      if (isCurrent()) {
+        running.current = null
+        setBusy('')
+      }
     }
+  }
+
+  const applyImportReceipt = (
+    receipt: { text: string; assets: Asset[] },
+    expectedRevision: number,
+    isCurrent: () => boolean,
+    replaceImages: boolean,
+  ) => {
+    if (isCurrent()) {
+      if (textRevision.current !== expectedRevision) {
+        notify('导入已完成，当前输入已保留，可从素材库选择图片')
+      } else {
+        setText(receipt.text)
+        if (replaceImages) {
+          setImages(receipt.assets)
+          setGroups([])
+          setAnchors({})
+        } else if (receipt.assets.length) {
+          setImages((images) => [...images, ...receipt.assets])
+        }
+      }
+    }
+    // The server might already have saved assets even if this wizard was closed.
+    window.dispatchEvent(new Event('assets-changed'))
   }
 
   const designWithAi = async (o: Outline) => {
@@ -206,13 +253,22 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
 
   /** 是：AI 综合原文案和照片描述改写，结果先给用户看 */
   const enrich = () =>
-    run(async () => {
+    run(async (isCurrent) => {
+      const expectedRevision = textRevision.current
       const keep = keepSentences(text, anchors)
       const r = await api.aiEnrichCopy({ text, photos: enrichList, keep })
+      if (!isCurrent()) return
+      if (textRevision.current !== expectedRevision) {
+        notify('当前文案已变化，未应用 AI 补充结果')
+        setEnrichAsk(false)
+        return
+      }
       const md = enrichedText(r, text)
       if (!md) throw new Error('模型没有返回文案')
-      setEnriched({ before: text, changes: enrichChanges(r), check: checkEnriched(text, md, keep) })
+      const changes = enrichChanges(r)
+      const check = checkEnriched(text, md, keep)
       setText(md)
+      setEnriched({ before: text, revision: textRevision.current, changes, check })
       setEnrichAsked(enrichKey)
       setEnrichAsk(false)
     }, `${ai?.name ?? 'AI'} 正在根据照片补充文案…`)
@@ -268,9 +324,15 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     setText(copyToMarkdown(limitLevels(copy, kitLevels(kit))))
   }
   const aiFlatten = () =>
-    run(async () => {
+    run(async (isCurrent) => {
+      const expectedRevision = textRevision.current
       const n = kitLevels(kit)
       const r = await api.aiCopywrite({ brief: '（见上一版文案）', style: '保持上一版的文风', length: '与上一版相同', levels: n, extra: '', previous: text, revise: `只调整标题结构：改成 ${n} 级标题，把多出的下级标题并入正文或上级标题，正文内容尽量不变` })
+      if (!isCurrent()) return
+      if (textRevision.current !== expectedRevision) {
+        notify('当前文案已变化，未应用 AI 标题改写')
+        return
+      }
       const md = normalizeCopyText(r)
       if (!md) throw new Error('模型没有返回文案')
       setText(md)
@@ -279,9 +341,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     }, 'AI 改写中…')
 
   const choosing = useRef(false)
-  const active = useRef(true)
   const persisted = useRef(new Map<string, { signature: string; doc: Doc }>())
-  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
   const persistVariant = async (doc: Doc): Promise<Doc> => {
     const signature = JSON.stringify({ ...doc, revision: undefined })
     const previous = persisted.current.get(doc.id)
@@ -306,7 +366,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
       const saved = await persistVariant(doc)
       if (!active.current || !loadIfUnchanged(saved, expected)) return
       notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已打开所选方案')
-      onClose()
+      closeWizard()
     } catch (error) {
       if (active.current) notify((error as Error).message, 'error')
     } finally { choosing.current = false; if (active.current) setBusy('') }
@@ -334,7 +394,7 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
   const live = useMemo(() => (reviewing && kitMode ? checkPlan(parseCopy(text), kit, units) : null), [reviewing, kitMode, text, kit, units])
 
   return (
-    <Modal title="AI 一键排版" onClose={onClose} width={outline ? 1180 : 1120}>
+    <Modal title="AI 一键排版" onClose={closeWizard} width={outline ? 1180 : 1120}>
       {!outline ? (
         <div className="import-step">
           <div className="import-layout">
@@ -350,11 +410,10 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
                     hidden
                     onChange={(e) =>
                       e.target.files?.[0] &&
-                      run(async () => {
+                      run(async (isCurrent) => {
+                        const expectedRevision = textRevision.current
                         const r = await api.importFile(e.target.files![0])
-                        setText(r.text)
-                        if (r.assets.length) setImages((x) => [...x, ...r.assets])
-                        window.dispatchEvent(new Event('assets-changed'))
+                        applyImportReceipt(r, expectedRevision, isCurrent, false)
                       }, '导入文稿…')
                     }
                     data-testid="import-file"
@@ -381,13 +440,10 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
                 </label>
                 <button
                   onClick={() =>
-                    run(async () => {
+                    run(async (isCurrent) => {
+                      const expectedRevision = textRevision.current
                       const r = await api.loadSample()
-                      setText(r.text)
-                      setImages(r.assets)
-                      setGroups([])
-                      setAnchors({})
-                      window.dispatchEvent(new Event('assets-changed'))
+                      applyImportReceipt(r, expectedRevision, isCurrent, true)
                     }, '载入样例…')
                   }
                   data-testid="load-sample"
@@ -468,15 +524,24 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
               {enriched.check.headingsChanged && <p className="warn">⚠ 标题有改动，请在文本框里核对标题级别。</p>}
               {enriched.check.lostAnchors.length > 0 && <p className="warn">⚠ 这些指定照片位置的句子被改了，对应照片可能放不到原位置：{enriched.check.lostAnchors.map((a) => `「${a}」`).join('')}</p>}
               <p className="hint">文本框里已经是修改后的文案，可以直接再改。补充的内容应只来自你的照片描述，发布前仍请核对事实。</p>
+              {textRevision.current !== enriched.revision && <p className="hint">文案已再次修改，不能撤销这次 AI 补充，以免覆盖新内容。</p>}
               <div className="row gap">
-                <button disabled={!!busy} onClick={() => (setText(enriched.before), setEnriched(null))} data-testid="enrich-undo">撤销修改</button>
+                <button
+                  disabled={!!busy || textRevision.current !== enriched.revision}
+                  onClick={() => {
+                    if (textRevision.current !== enriched.revision) return
+                    setText(enriched.before)
+                    setEnriched(null)
+                  }}
+                  data-testid="enrich-undo"
+                >撤销修改</button>
                 <button className="primary" disabled={!!busy} onClick={() => generate({ skipEnrich: true })} data-testid="enrich-continue">继续排版</button>
               </div>
             </div>
           )}
           {!live && !enrichAsk && !enriched && (
             <div className="modal-actions">
-              <button onClick={onClose}>取消</button>
+              <button onClick={closeWizard}>取消</button>
               <button className="primary" disabled={!text.trim() || !!busy} onClick={() => generate()} data-testid="generate">
                 {busy || (kitMode ? '套用模板生成' : aiOn ? 'AI 设计三套方案' : '生成三套排版')}
               </button>

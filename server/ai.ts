@@ -14,10 +14,18 @@ export interface AiStatus {
   profileId: string
 }
 
+function isLocalModelEndpoint(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+  } catch { return false }
+}
+
 export async function aiStatus(profileId?: string): Promise<AiStatus> {
   const p = await getProfile(profileId)
   // 本地模型（Ollama 等）可以不填密钥
-  const usable = Boolean(p && p.baseUrl && p.model && (p.apiKey || /localhost|127\.0\.0\.1/.test(p.baseUrl)))
+  const usable = Boolean(p && p.baseUrl && p.model && (p.apiKey || isLocalModelEndpoint(p.baseUrl)))
   return { enabled: usable, provider: p?.provider ?? '', model: p?.model ?? '', name: p?.name ?? '', profileId: p?.id ?? '' }
 }
 

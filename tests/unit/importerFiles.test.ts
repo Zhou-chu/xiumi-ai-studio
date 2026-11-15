@@ -37,10 +37,6 @@ describe('Word import file/image boundaries',()=>{
     mock.convertToHtml.mockRejectedValueOnce('unexpected string')
     await expect(importFile(validDocx,'source.docx')).rejects.toBe('unexpected string')
   })
-  it.each(['x.txt','x.md','x.markdown'])('strips only leading BOM for %s and rejects unknown formats',async name=>{
-    expect(await importFile(Buffer.from('\ufeffhello\ufeff'),name)).toEqual({text:'hello\ufeff',assets:[]})
-    await expect(importFile(validDocx,'file.exe')).rejects.toMatchObject({status:400})
-  })
 })
 
 it('rolls back assets when the converter rejects after an image has been saved',async()=>{

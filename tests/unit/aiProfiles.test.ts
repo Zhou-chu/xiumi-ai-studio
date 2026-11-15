@@ -1,6 +1,23 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { chatJson, discoverModels, testConnection } from '../../server/ai'
 import type { AiProfile } from '../../server/settings'
+const boundary = vi.hoisted(() => ({
+  read: vi.fn(async () => { throw new Error('Unexpected real settings read in isolated provider test') }),
+  write: vi.fn(async () => { throw new Error('Unexpected settings write in isolated provider test') }),
+  fetch: vi.fn(async () => { throw new Error('Unexpected transport in isolated provider test') }),
+}))
+vi.mock('../../server/store', () => ({
+  DATA: 'unused-mocked-settings',
+  readJson: boundary.read,
+  writeJson: boundary.write,
+}))
+beforeEach(() => {
+  for (const guard of Object.values(boundary)) guard.mockClear()
+  vi.stubGlobal('fetch', boundary.fetch)
+})
+afterEach(() => {
+  for (const guard of Object.values(boundary)) expect(guard).not.toHaveBeenCalled()
+})
 const profile: AiProfile = { id: 'a', name: 'custom', provider: 'openai', baseUrl: 'https://example.com/v1', apiKey: 'test-key', model: 'custom-model', jsonMode: true }
 afterEach(() => vi.unstubAllGlobals())
 describe('model discovery and reasoning', () => {

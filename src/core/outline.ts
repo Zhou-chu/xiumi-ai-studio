@@ -40,6 +40,11 @@ function looksLikeHeading(line: string): boolean {
   return line.length >= 2 && line.length <= 16 && !/[，。！？；,.!?;：:]$/.test(line) && !/[，。]/.test(line)
 }
 
+/** A numbered-heading match also includes the first title character. Keep that character. */
+function headingTitle(line: string): string {
+  return line.replace(HEADING_RE, marker => /^\d/.test(marker) ? marker.replace(/^\d{1,2}[.、．]\s*/, '') : '').trim() || line
+}
+
 /** 规范化 AI 返回的大纲：补齐缺失字段、裁剪类型，保证排版配方可直接使用 */
 export function normalizeOutline(raw: any, fallback: Outline): Outline {
   const str = (v: unknown, d = '') => (typeof v === 'string' ? v.trim() : d)
@@ -146,7 +151,7 @@ function parsePlain(text: string): Outline {
       continue
     }
     if (looksLikeHeading(line) && !TIME_RE.test(line) && !CREDIT_RE.test(line)) {
-      cur = emptySection(line.replace(HEADING_RE, (m) => (/^\d/.test(m) ? m.replace(/^\d{1,2}[.、．]\s*/, '') : '')).trim() || line)
+      cur = emptySection(headingTitle(line))
       o.sections.push(cur)
     } else if (cur) cur.paragraphs.push(line)
     else o.intro.push(line)
@@ -163,7 +168,7 @@ function parseMarkdown(text: string): Outline {
     if (tk.type === 'heading') {
       if (tk.depth === 1 && !o.title) o.title = tk.text
       else {
-        cur = emptySection(tk.text.replace(HEADING_RE, '').trim() || tk.text)
+        cur = emptySection(headingTitle(tk.text))
         o.sections.push(cur)
       }
     } else if (tk.type === 'paragraph') {

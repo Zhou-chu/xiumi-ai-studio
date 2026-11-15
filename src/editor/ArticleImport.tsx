@@ -21,10 +21,28 @@ const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html
 export function ArticleImportModal({ onClose }: { onClose: () => void }) {
   const active = useRef(true)
   const importing = useRef(false)
-  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
+  const fetching = useRef<symbol | null>(null)
+  const inputRevision = useRef(0)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false; fetching.current = null }
+  }, [])
+  const close = () => {
+    active.current = false
+    fetching.current = null
+    onClose()
+  }
   const { notify, refreshThemes } = useStore.getState()
-  const [tab, setTab] = useState<'url' | 'paste'>('url')
-  const [url, setUrl] = useState('')
+  const [tab, setTabState] = useState<'url' | 'paste'>('url')
+  const [url, setUrlState] = useState('')
+  const changeTab = (next: typeof tab) => {
+    if (next !== tab) inputRevision.current++
+    setTabState(next)
+  }
+  const changeUrl = (next: string) => {
+    inputRevision.current++
+    setUrlState(next)
+  }
   const [article, setArticle] = useState<ImportedArticle | null>(null)
   const [title, setTitle] = useState('')
   const [mode, setMode] = useState<'keep' | 'relayout'>('keep')
@@ -48,6 +66,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
   const accept = (a: ImportedArticle) => {
     if (!a.root.textContent?.trim() && !a.root.querySelector('img')) throw new Error('没有识别到正文内容')
     setArticle(a)
+    setAuthorized(false)
     setTitle(a.title)
     setSourceKind(a.source.kind)
     setTemplateName(a.title.slice(0, 20) || '导入的推文模板')
@@ -64,20 +83,37 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const fetchUrl = () =>
-    run(async () => {
-      const { html } = await api.fetchArticle(url.trim())
+  const fetchUrl = async () => {
+    const requestedUrl = url.trim()
+    if (!requestedUrl || !active.current || fetching.current) return
+    const ticket = Symbol()
+    const revision = inputRevision.current
+    fetching.current = ticket
+    const current = () => active.current && fetching.current === ticket && inputRevision.current === revision
+    setBusy('抓取中…')
+    try {
+      const { html } = await api.fetchArticle(requestedUrl)
+      if (!current()) return
       const doc = parse(html)
       if (!doc.querySelector('#js_content') && /环境异常|请在微信客户端打开|verify/i.test(html)) {
         throw new Error('公众号返回了验证页面，无法直接抓取。请在浏览器打开文章，全选复制正文后用「粘贴富文本」导入。')
       }
-      accept(extractArticle(doc, url.trim()))
-    }, '抓取中…')
+      accept(extractArticle(doc, requestedUrl))
+    } catch (error) {
+      if (current()) notify((error as Error).message, 'error')
+    } finally {
+      if (fetching.current === ticket) {
+        fetching.current = null
+        if (active.current) setBusy('')
+      }
+    }
+  }
 
   const onPaste = (e: React.ClipboardEvent) => {
     const html = e.clipboardData.getData('text/html')
     if (!html) return // 纯文本交给默认行为
     e.preventDefault()
+    inputRevision.current++
     try {
       const a = extractArticle(parse(html))
       // 复制出来的尺寸是来源页面宽度下的像素值，换回百分比才能适应画布和手机
@@ -125,6 +161,10 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
         for (let i = 0; i < urls.length; i += 60) {
           const got = await api.fetchAssets(urls.slice(i, i + 60)).catch(() => ({}) as Record<string, Asset>)
           for (const [u, a] of Object.entries(got)) map[u] = `/media/${a.file}`
+          if (!current()) {
+            if (Object.keys(map).length) window.dispatchEvent(new Event('assets-changed'))
+            return
+          }
         }
         rehostFailed = urls.length - Object.keys(map).length
         kept = kept.map((b) => (b.type === 'html' ? { ...b, props: { ...b.props, html: rewriteImages(b.props.html, map, parse) } } : b))
@@ -186,16 +226,16 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
   if (wizard) return <ImportWizard onClose={onClose} initialText={wizard.text} initialImages={wizard.images} />
 
   return (
-    <Modal title="导入公众号推文" onClose={onClose} width={article ? 980 : 640}>
+    <Modal title="导入公众号推文" onClose={close} width={article ? 980 : 640}>
       {!article ? (
         <>
           <nav className="seg" style={{ marginBottom: 12 }}>
-            <button className={tab === 'url' ? 'on' : ''} onClick={() => setTab('url')}>文章链接</button>
-            <button className={tab === 'paste' ? 'on' : ''} onClick={() => setTab('paste')}>粘贴富文本（公众号 / 秀米）</button>
+            <button className={tab === 'url' ? 'on' : ''} onClick={() => changeTab('url')}>文章链接</button>
+            <button className={tab === 'paste' ? 'on' : ''} onClick={() => changeTab('paste')}>粘贴富文本（公众号 / 秀米）</button>
           </nav>
           {tab === 'url' ? (
             <div className="row gap">
-              <input className="grow" value={url} placeholder="https://mp.weixin.qq.com/s/……" onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url && fetchUrl()} data-testid="article-url" />
+              <input className="grow" value={url} placeholder="https://mp.weixin.qq.com/s/……" onChange={(e) => changeUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void fetchUrl() }} data-testid="article-url" />
               <button className="primary" disabled={!url.trim() || !!busy} onClick={fetchUrl}>{busy || '抓取'}</button>
             </div>
           ) : (
@@ -256,7 +296,7 @@ export function ArticleImportModal({ onClose }: { onClose: () => void }) {
               我确认对该文章拥有使用权或已获授权，并自行承担版权责任
             </label>
             <div className="modal-actions">
-              <button onClick={onClose}>取消</button>
+              <button onClick={close}>取消</button>
               <button className="primary" disabled={!authorized || !!busy} onClick={doImport} data-testid="article-import">{busy || (mode === 'keep' ? '导入为新项目' : '下一步：重新排版')}</button>
             </div>
           </div>

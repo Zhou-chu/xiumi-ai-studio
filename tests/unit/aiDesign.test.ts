@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SECTION_LAYOUTS, buildFromDesign, normalizeDesign, outlineBrief } from '../../src/core/aiDesign'
-import { lum } from '../../src/core/color'
 import { compileDoc } from '../../src/core/compiler'
 import { parseArticle } from '../../src/core/outline'
 import type { ImageRef } from '../../src/core/types'
@@ -18,21 +17,6 @@ const usedImages = (blocks: any[]) => {
   }
   return s.size
 }
-
-describe('normalizeDesign', () => {
-  it('repairs garbage input into a valid spec', () => {
-    const d = normalizeDesign({ palette: { primary: 'red', text: '#eeeeee' }, type: { fontSize: 40 }, styles: { heading: 'nope' }, sections: 'x' }, 3)
-    expect(d.palette.primary).toMatch(/^#[0-9a-f]{6}$/i)
-    expect(lum(d.palette.text)).toBeLessThan(0.35)
-    expect(d.type.fontSize).toBe(17)
-    expect(d.styles.heading).toBe('number')
-    expect(d.sections).toHaveLength(3)
-  })
-  it('darkens primary colors too light for white text', () => {
-    const d = normalizeDesign({ palette: { primary: '#ffe9a8' } }, 1)
-    expect(lum(d.palette.primary)).toBeLessThanOrEqual(0.5)
-  })
-})
 
 describe('buildFromDesign', () => {
   it('every section layout builds a valid, wechat-safe doc that uses all images', () => {

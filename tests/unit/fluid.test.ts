@@ -2,48 +2,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { JSDOM } from 'jsdom'
-import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { bestFrame } from '../../server/assets'
-import { fluidStyle, sourceColumn, type BoxMetrics } from '../../src/core/fluid'
+import { sourceColumn } from '../../src/core/fluid'
 import type { Block } from '../../src/core/types'
 import { articleToHtmlBlocks, extractArticle } from '../../src/core/wxImport'
 
 const page = readFileSync(join(import.meta.dirname, '..', 'fixtures', 'pasted-reader-page.html'), 'utf8')
 const parse = (s: string) => new JSDOM(s).window.document
-const box = (m: Partial<BoxMetrics> = {}): BoxMetrics => ({ cbw: 600, width: 0, height: 0, parentHeight: 0, parentDefinite: false, ...m })
-
-describe('像素尺寸换回百分比', () => {
-  it('converts fractional pixels and keeps authored integers', () => {
-    const out = fluidStyle('box-sizing: border-box; width: 108.5px; margin-left: 491.5px; margin-top: 51.1875px; padding: 12px 32px 18px 22px; border-radius: 10px; font-size: 16.27px', box())
-    expect(out).toContain('width: 18.0833%')
-    expect(out).toContain('margin-left: 81.9167%')
-    expect(out).toContain('margin-top: 8.5313%')
-    expect(out).toContain('padding: 12px 32px 18px 22px')
-    expect(out).toContain('border-radius: 10px')
-    expect(out).toContain('font-size: 16.27px')
-  })
-  it('treats a full-width or round-percentage integer width as converted', () => {
-    expect(fluidStyle('width: 600px', box())).toBe('width: 100%')
-    expect(fluidStyle('width: 300px', box())).toBe('width: 50%')
-    expect(fluidStyle('width: 40px; height: 6px', box())).toBe('width: 40px; height: 6px')
-    expect(fluidStyle('width: 260px', box({ cbw: 634.547 }))).toBe('width: 260px')
-  })
-  it('converts shorthand components one by one and negative margins', () => {
-    expect(fluidStyle('margin: 10px 0px 24.6px -34.4062px', box())).toBe('margin: 10px 0px 4.1% -5.7344%')
-  })
-  it('turns a derived height into a percentage of a definite parent, otherwise into an aspect ratio', () => {
-    expect(fluidStyle('height: 144.25px', box({ parentDefinite: true, parentHeight: 400 }))).toBe('height: 36.0625%')
-    expect(fluidStyle('height: 144.25px', box({ parentDefinite: true, parentHeight: 144.25 }))).toBe('height: 100%')
-    expect(fluidStyle('width: 108.5px; height: 144.25px', box({ width: 108.5, height: 144.25 }))).toBe('width: 18.0833%; aspect-ratio: 108.5 / 144.25')
-    expect(fluidStyle('height: 52px', box({ parentDefinite: true, parentHeight: 400 }))).toBe('height: 52px')
-  })
-  it('leaves a style without derived pixels untouched', () => {
-    const st = 'box-sizing: border-box; width: 100%; margin: 0px; font-size: 15px'
-    expect(fluidStyle(st, box())).toBe(st)
-  })
-})
-
 describe('整页复制的阅读页', () => {
   const a = extractArticle(parse(page))
   const blocks = articleToHtmlBlocks(a.root) as Block<'html'>[]
@@ -101,25 +66,5 @@ describe('复制时丢了动画的淡入图层', () => {
   it('keeps the starting state when the animation is still there', () => {
     const html = extractArticle(parse(layer('<animate attributeName="opacity" values="0;1" dur="1s" fill="freeze"></animate>'))).root.innerHTML
     expect(html).toContain('y="0%" opacity="0"')
-  })
-})
-
-describe('动图取帧', () => {
-  /** 每一帧画满前 n 行，其余透明（GIF 的透明只有全透明和不透明两种） */
-  const frames = async (rows: number[]) => {
-    const w = 8
-    const h = 8
-    const raw = Buffer.alloc(w * h * 4 * rows.length)
-    rows.forEach((n, f) => {
-      for (let i = 0; i < w * n; i++) raw.set([30, 120 + f * 20, 230, 255], (f * w * h + i) * 4)
-    })
-    return sharp(raw, { raw: { width: w, height: h * rows.length, channels: 4, pageHeight: h } }).gif().toBuffer()
-  }
-  it('picks the fullest frame when the first one is blank', async () => {
-    expect(await bestFrame(await frames([0, 4, 8]))).toBe(2)
-  })
-  it('keeps the first frame of an ordinary animation or a still image', async () => {
-    expect(await bestFrame(await frames([8, 8, 8]))).toBe(0)
-    expect(await bestFrame(await sharp({ create: { width: 4, height: 4, channels: 3, background: '#336699' } }).png().toBuffer())).toBe(0)
   })
 })

@@ -207,10 +207,24 @@ export function layoutOptions(kit: Kit): RoleId[] {
 export function useComponents() {
   const [comps, setComps] = useState<LibraryComponent[]>([])
   useEffect(() => {
-    const load = () => api.components().then(setComps).catch(() => {})
+    let active = true
+    let issued = 0
+    let latestSuccess = 0
+    const load = () => {
+      const ticket = ++issued
+      void api.components().then((next) => {
+        // A failed newer request must not erase a usable in-flight result.
+        if (!active || ticket < latestSuccess) return
+        latestSuccess = ticket
+        setComps(next)
+      }).catch(() => {})
+    }
     load()
     window.addEventListener('components-changed', load)
-    return () => window.removeEventListener('components-changed', load)
+    return () => {
+      active = false
+      window.removeEventListener('components-changed', load)
+    }
   }, [])
   return comps
 }

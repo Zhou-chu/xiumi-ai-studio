@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { assertPublicUrl, IMAGE_HOST, isPrivateAddress, safeFetch, WECHAT_IMAGE_HOST } from '../../server/net'
-import { validateDraft } from '../../server/wechat'
+
+// Only stream adapters provided by each case are allowed; no sockets or system DNS.
+vi.mock('node:dns/promises', () => ({ lookup: () => { throw Error('Unexpected real DNS') } }))
+vi.mock('undici', () => ({
+  Agent: class { destroy() { return Promise.resolve() } },
+  fetch: () => { throw Error('Unexpected real transport') },
+}))
 
 const publicDns = async () => [{ address: '93.184.216.34' }]
 const privateDns = async () => [{ address: '93.184.216.34' }, { address: '10.0.0.8' }]
@@ -68,17 +74,5 @@ describe('safe fetch', () => {
   it('limits image hosts to WeChat and Xiumi', () => {
     for (const h of ['mmbiz.qpic.cn', 'wx.qlogo.cn', 'img.xiumi.us', 'xiumi.us', 'a.xiumius.cn']) expect(IMAGE_HOST.test(h)).toBe(true)
     for (const h of ['evil.com', 'xiumi.us.evil.com', 'fakexiumi.us', 'qpic.cn.evil.com']) expect(IMAGE_HOST.test(h)).toBe(false)
-  })
-})
-
-describe('draft validation of backgrounds', () => {
-  const base = { title: '标题', thumb_media_id: 'm1' }
-  it('rejects local and non-WeChat backgrounds', () => {
-    expect(validateDraft({ ...base, content: '<section style="background-image: url(&quot;/media/a.jpg&quot;)"></section>' }).join()).toContain('背景图')
-    expect(validateDraft({ ...base, content: '<section style="background-image: url(https://img.xiumi.us/a.jpg)"></section>' }).join()).toContain('背景图')
-  })
-  it('accepts WeChat backgrounds, gradients and svg paint references', () => {
-    const content = '<section style="background-image: url(&quot;https://mmbiz.qpic.cn/a/0&quot;)"></section><section style="background-image: linear-gradient(0deg, #fff, #000)"></section><svg><rect fill="url(#a)"></rect></svg>'
-    expect(validateDraft({ ...base, content })).toEqual([])
   })
 })

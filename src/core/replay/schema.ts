@@ -73,7 +73,8 @@ const color = (v: unknown, d: string) => (typeof v === 'string' && COLOR_RE.test
 
 function imageRef(v: unknown): ImageRef | undefined {
   if (!isObj(v) || typeof v.src !== 'string' || !v.src) return undefined
-  return { src: v.src, ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(Number(v.width) > 0 && { width: Number(v.width) }), ...(Number(v.height) > 0 && { height: Number(v.height) }) }
+  const width = Number(v.width), height = Number(v.height)
+  return { src: v.src, ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(Number.isFinite(width) && width > 0 && { width }), ...(Number.isFinite(height) && height > 0 && { height }) }
 }
 
 function style(v: unknown): Partial<ReplayStyle> | undefined {

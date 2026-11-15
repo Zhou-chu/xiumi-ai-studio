@@ -32,6 +32,7 @@ const isGrid = (el: Element) => /display:\s*(inline-)?grid/i.test(el.getAttribut
  * 网格拼贴（秀米的拼图标题）的碎片单独取出来没有意义，按整个网格算。
  */
 export function pickElement(target: Element, root: Element): Element | null {
+  if (target === root || !root.contains(target)) return null
   let el = target
   for (let s = el.closest('svg'); s && root.contains(s); s = s.parentElement?.closest('svg') ?? null) el = s
   while (el !== root && INLINE.has(tagOf(el))) el = el.parentElement!

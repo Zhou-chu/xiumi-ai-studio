@@ -1,5 +1,5 @@
 // 一键生成文案：输入活动描述、选文风和篇幅，AI 写出带标题级别的完整文案；可以直接改、按意见重写，或导入到正文。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { checkCopy, copyToMarkdown, LEVEL_NAMES, limitLevels, normalizeCopyText, parseCopy } from '../core/copy'
 import { api } from './api'
 import { Modal } from './Modal'
@@ -31,32 +31,69 @@ export function Copywriter({ onClose, onImport, levels: kitLevels, hasText }: { 
   const [result, setResult] = useState('')
   const [revise, setRevise] = useState('')
   const [busy, setBusy] = useState(false)
+  const active = useRef(false)
+  const pending = useRef<symbol | null>(null)
+  const editVersion = useRef(0)
+  const reviseVersion = useRef(0)
+  useEffect(() => {
+    active.current = true
+    return () => {
+      active.current = false
+      pending.current = null
+    }
+  }, [])
   const check = useMemo(() => (result ? checkCopy(result, levels) : null), [result, levels])
 
+  const editResult = (text: string) => {
+    editVersion.current += 1
+    setResult(text)
+  }
+
   const write = async (again: boolean) => {
+    if (!active.current || pending.current || !brief.trim()) return
+    const request = Symbol()
+    pending.current = request
+    const startedVersion = editVersion.current
+    const startedReviseVersion = reviseVersion.current
+    const isCurrent = () => active.current && pending.current === request
     setBusy(true)
     try {
       const styleText = customStyle.trim() || `${style}：${STYLES.find((s) => s.name === style)?.desc ?? ''}`
       const r = await api.aiCopywrite({ brief, style: styleText, length, levels, extra, ...(again && result && { previous: result, revise }) })
+      if (!isCurrent()) return
+      if (editVersion.current !== startedVersion) {
+        notify('已保留你在等待期间修改的文案')
+        return
+      }
       const md = normalizeCopyText(r)
       if (!md) throw new Error('模型没有返回文案')
       setResult(md)
-      setRevise('')
+      if (reviseVersion.current === startedReviseVersion) setRevise('')
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (isCurrent()) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      if (isCurrent()) {
+        pending.current = null
+        setBusy(false)
+      }
     }
+  }
+
+  const close = () => {
+    // Client lifecycle only: an already dispatched request may finish on the server.
+    onClose()
+    active.current = false
+    pending.current = null
   }
 
   const importText = () => {
     if (hasText && !confirm('用生成的文案替换正文框里现有的内容？')) return
     onImport(result)
-    onClose()
+    close()
   }
 
   return (
-    <Modal title="AI 生成文案" onClose={onClose} width={1100}>
+    <Modal title="AI 生成文案" onClose={close} width={1100}>
       <div className="copywriter">
         <div className="cw-form">
           <label className="field">
@@ -97,14 +134,14 @@ export function Copywriter({ onClose, onImport, levels: kitLevels, hasText }: { 
             {LEVEL_NAMES.slice(0, levels).map((n, i) => <span key={n}>{'#'.repeat(i + 2)} {n}</span>)}
             <span>&gt; 引语 —— 说话人</span>
           </div>
-          <textarea className="cw-text" value={result} onChange={(e) => setResult(e.target.value)} placeholder="生成的文案会出现在这里，可以直接修改" data-testid="cw-result" />
+          <textarea className="cw-text" value={result} onChange={(e) => editResult(e.target.value)} placeholder="生成的文案会出现在这里，可以直接修改" data-testid="cw-result" />
           {check && (
             <div className="cw-check" data-testid="cw-check">
               <span>正文约 {check.chars} 字</span>
               {check.counts.map((c, i) => (c ? <span key={i}>{LEVEL_NAMES[i]} {c} 个</span> : null))}
               {check.problems.map((p) => <p key={p} className="warn">{p}</p>)}
               {check.problems.some((p) => p.includes('超过')) && (
-                <button onClick={() => setResult(copyToMarkdown(limitLevels(parseCopy(result), levels)))}>把多出的标题改为加粗正文</button>
+                <button onClick={() => editResult(copyToMarkdown(limitLevels(parseCopy(result), levels)))}>把多出的标题改为加粗正文</button>
               )}
               {check.robot.length > 0 && <p className="warn">有套话，建议改掉：{check.robot.join('、')}</p>}
               {check.todo > 0 && <p className="warn">有 {check.todo} 处【待补充】，是活动描述里没有的信息，请补上真实内容后再排版</p>}
@@ -113,11 +150,11 @@ export function Copywriter({ onClose, onImport, levels: kitLevels, hasText }: { 
           {result && (
             <>
               <div className="row gap">
-                <input className="grow" value={revise} onChange={(e) => setRevise(e.target.value)} placeholder="修改意见（可选），例如：开头再短一点；第二节多写嘉宾的观点" data-testid="cw-revise" />
+                <input className="grow" value={revise} onChange={(e) => { reviseVersion.current += 1; setRevise(e.target.value) }} placeholder="修改意见（可选），例如：开头再短一点；第二节多写嘉宾的观点" data-testid="cw-revise" />
                 <button disabled={busy} onClick={() => write(true)} data-testid="cw-rewrite">{busy ? '改写中…' : '按意见重写'}</button>
               </div>
               <div className="modal-actions">
-                <button onClick={onClose}>取消</button>
+                <button onClick={close}>取消</button>
                 <button className="primary" onClick={importText} data-testid="cw-import">导入到正文</button>
               </div>
             </>

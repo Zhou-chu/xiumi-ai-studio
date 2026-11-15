@@ -61,7 +61,7 @@ export function Workspace({ children }: { children: ReactNode }) {
   const [widths, setWidths] = useState<Widths>(load)
   const [dragging, setDragging] = useState<Side | null>(null)
   // 拖动开始时的指针位置和侧栏宽度：按指针移动的距离改宽度，开始拖动时不会跳一下
-  const start = useRef({ x: 0, w: 0 })
+  const drag = useRef<{ side: Side; id: number; x: number; w: number; previous: number | undefined } | null>(null)
   const current = (side: Side) => {
     const el = ref.current
     if (!el) return PANEL_LIMITS[side][0]
@@ -98,6 +98,19 @@ export function Workspace({ children }: { children: ReactNode }) {
     return () => document.body.classList.remove('resizing')
   }, [dragging])
 
+  const cancel = (side: Side, id: number) => {
+    const active = drag.current
+    if (active?.side !== side || active.id !== id) return
+    drag.current = null
+    setDragging(null)
+    setWidths((w) => {
+      const next = { ...w }
+      if (active.previous === undefined) delete next[side]
+      else next[side] = active.previous
+      return next
+    })
+  }
+
   const handle = (side: Side) => (
     <div
       key={side}
@@ -109,25 +122,33 @@ export function Workspace({ children }: { children: ReactNode }) {
       tabIndex={0}
       data-testid={`resizer-${side}`}
       onPointerDown={(e) => {
+        if (drag.current || e.button !== 0 || !e.isPrimary) return
         e.preventDefault()
         e.currentTarget.setPointerCapture(e.pointerId)
-        start.current = { x: e.clientX, w: current(side) }
+        drag.current = { side, id: e.pointerId, x: e.clientX, w: current(side), previous: widths[side] }
         setDragging(side)
       }}
       onPointerMove={(e) => {
-        if (dragging !== side) return
-        const moved = e.clientX - start.current.x
-        set(side, start.current.w + (side === 'left' ? moved : -moved), false)
+        const active = drag.current
+        if (active?.side !== side || active.id !== e.pointerId) return
+        const moved = e.clientX - active.x
+        set(side, active.w + (side === 'left' ? moved : -moved), false)
       }}
       onPointerUp={(e) => {
+        const active = drag.current
+        if (active?.side !== side || active.id !== e.pointerId) return
+        drag.current = null
         e.currentTarget.releasePointerCapture(e.pointerId)
         setDragging(null)
         setWidths((w) => (save(w), w))
       }}
-      onDoubleClick={() => set(side, null)}
+      onPointerCancel={(e) => cancel(side, e.pointerId)}
+      onLostPointerCapture={(e) => cancel(side, e.pointerId)}
+      onDoubleClick={() => { if (!drag.current) set(side, null) }}
       onKeyDown={(e) => {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
         e.preventDefault()
+        if (drag.current) return
         const grow = (e.key === 'ArrowRight') === (side === 'left') ? 1 : -1
         set(side, current(side) + grow * (e.shiftKey ? 48 : 16))
       }}

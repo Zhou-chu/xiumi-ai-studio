@@ -1,0 +1,3506 @@
+{
+  "schemaVersion": 1,
+  "hashMethod": "sha256-utf8-normalized-crlf-to-lf",
+  "baseline": "2b57e2ded2ea76ad1e917d95bf9ed68525d89d5b",
+  "reviewStatus": "review-complete-batch-38-unit-coverage-pending-release-gate",
+  "productionFiles": [
+    "scripts/fsutil.ts",
+    "scripts/make-sample.ts",
+    "scripts/make-xiumi-probe.ts",
+    "scripts/package-win.ts",
+    "scripts/runtimeDependencies.ts",
+    "scripts/verificationArchive.ts",
+    "scripts/verificationLifecycle.ts",
+    "scripts/verificationRuntime.ts",
+    "scripts/verify-package.ts",
+    "server/ai.ts",
+    "server/aiEdit.ts",
+    "server/aiModels.ts",
+    "server/aiSuggestion.ts",
+    "server/app.ts",
+    "server/articleImages.ts",
+    "server/assets.ts",
+    "server/components.ts",
+    "server/dataTools.ts",
+    "server/docxBudget.ts",
+    "server/imageBudget.ts",
+    "server/importer.ts",
+    "server/index.ts",
+    "server/launcher.ts",
+    "server/log.ts",
+    "server/net.ts",
+    "server/paths.ts",
+    "server/projectStore.ts",
+    "server/providerError.ts",
+    "server/settings.ts",
+    "server/store.ts",
+    "server/uploadGate.ts",
+    "server/uploadStorage.ts",
+    "server/wechat.ts",
+    "src/App.tsx",
+    "src/core/aiDesign.ts",
+    "src/core/aiParameters.ts",
+    "src/core/articleImages.ts",
+    "src/core/assemble.ts",
+    "src/core/blockTextEditing.ts",
+    "src/core/blocks.ts",
+    "src/core/color.ts",
+    "src/core/compiler.ts",
+    "src/core/components.ts",
+    "src/core/copy.ts",
+    "src/core/cssImageUrls.ts",
+    "src/core/enrich.ts",
+    "src/core/exporters.ts",
+    "src/core/fluid.ts",
+    "src/core/fragments.ts",
+    "src/core/htmlGuard.ts",
+    "src/core/htmlLayout.ts",
+    "src/core/htmlTheme.ts",
+    "src/core/htmlUpdateValidation.ts",
+    "src/core/imageResize.ts",
+    "src/core/images.ts",
+    "src/core/kit.ts",
+    "src/core/layouts.ts",
+    "src/core/ops.ts",
+    "src/core/outline.ts",
+    "src/core/photoPlan.ts",
+    "src/core/photos.ts",
+    "src/core/quickActions.ts",
+    "src/core/recolor.ts",
+    "src/core/replay/cursors.ts",
+    "src/core/replay/draw.ts",
+    "src/core/replay/index.ts",
+    "src/core/replay/layout.ts",
+    "src/core/replay/lint.ts",
+    "src/core/replay/pace.ts",
+    "src/core/replay/presets.ts",
+    "src/core/replay/render.ts",
+    "src/core/replay/sample.ts",
+    "src/core/replay/schedule.ts",
+    "src/core/replay/schema.ts",
+    "src/core/replay/smil.ts",
+    "src/core/replay/text.ts",
+    "src/core/replay/types.ts",
+    "src/core/richtext.ts",
+    "src/core/roles.ts",
+    "src/core/sanitize.ts",
+    "src/core/slots.ts",
+    "src/core/style.ts",
+    "src/core/styleExtract.ts",
+    "src/core/templateFill.ts",
+    "src/core/textTypography.ts",
+    "src/core/themes.ts",
+    "src/core/tree.ts",
+    "src/core/types.ts",
+    "src/core/wxImport.ts",
+    "src/core/xiumiExport.ts",
+    "src/editor/AiSettingsModal.tsx",
+    "src/editor/ArticleImageImport.tsx",
+    "src/editor/ArticleImport.tsx",
+    "src/editor/BlockTextEditor.tsx",
+    "src/editor/Canvas.tsx",
+    "src/editor/CollectModal.tsx",
+    "src/editor/ColorModeControl.tsx",
+    "src/editor/ColorPicker.tsx",
+    "src/editor/ComponentLibrary.tsx",
+    "src/editor/Copywriter.tsx",
+    "src/editor/CoverDesigner.tsx",
+    "src/editor/CoverTitleAlignment.tsx",
+    "src/editor/CropModal.tsx",
+    "src/editor/DataModal.tsx",
+    "src/editor/ErrorBoundary.tsx",
+    "src/editor/Help.tsx",
+    "src/editor/HtmlTypographyControls.tsx",
+    "src/editor/ImageResize.tsx",
+    "src/editor/ImportWizard.tsx",
+    "src/editor/InlineReview.tsx",
+    "src/editor/KitPicker.tsx",
+    "src/editor/LeftPanel.tsx",
+    "src/editor/Modal.tsx",
+    "src/editor/ModelPicker.tsx",
+    "src/editor/PhotoPlanner.tsx",
+    "src/editor/PlanIssues.tsx",
+    "src/editor/PropsForm.tsx",
+    "src/editor/ReplayPanel.tsx",
+    "src/editor/ReplayPreview.tsx",
+    "src/editor/RichEditor.tsx",
+    "src/editor/RightPanel.tsx",
+    "src/editor/RoleSelect.tsx",
+    "src/editor/SuggestionInput.tsx",
+    "src/editor/TemplateModules.tsx",
+    "src/editor/Toolbar.tsx",
+    "src/editor/ToolbarMenu.tsx",
+    "src/editor/UiIcon.tsx",
+    "src/editor/Workspace.tsx",
+    "src/editor/aiPresets.ts",
+    "src/editor/api.ts",
+    "src/editor/colorMode.ts",
+    "src/editor/componentActions.ts",
+    "src/editor/documentNavigation.ts",
+    "src/editor/fluidize.ts",
+    "src/editor/imageResizeTarget.ts",
+    "src/editor/kitItems.ts",
+    "src/editor/proposalSafety.ts",
+    "src/editor/reviewDisplay.ts",
+    "src/editor/selectedTextStyle.ts",
+    "src/editor/store.ts",
+    "src/editor/suggestionContext.ts",
+    "src/editor/suggestionPreference.ts",
+    "src/editor/suggestionQueue.ts",
+    "src/editor/useSelectionScope.ts",
+    "src/editor/wechatOutput.ts",
+    "src/editor/zoom.ts",
+    "src/main.tsx",
+    "templates/eea-germany/build.mjs"
+  ],
+  "sourceHashes": {
+    "scripts/fsutil.ts": "a875235f38aff467232f32e51c194baac8e8690f80c3fc54416451b14a2a6bc9",
+    "scripts/make-sample.ts": "adfc51f8bf8b324eb2af7617cad76a9397c75cb2662d6971fb0456d51d758b6a",
+    "scripts/make-xiumi-probe.ts": "536e98932bff60c6263efba71d141e60e45f70f7131183aeff57938143d87ad7",
+    "scripts/package-win.ts": "31d165909b709fe25ac839f7d28bacee608b4a827c083b1f60f664ee724b9b9b",
+    "scripts/runtimeDependencies.ts": "e11cc251f74372ec071267e65ed3bf5cb99b3f11220e3fca55a57784634a02de",
+    "scripts/verificationArchive.ts": "4dc1145fb870495526ecb9f63a3e37862f20cb5d99e159b5e3ee611cad523fa9",
+    "scripts/verificationLifecycle.ts": "6effea4a69b1e7f5571cf9f289bbfd4c8922e856129b2ca4ab1a95502bdfcfb6",
+    "scripts/verificationRuntime.ts": "d647559a0013d03f902c525f3a761660d9b275d5ea4ac4462153ec0a1847a066",
+    "scripts/verify-package.ts": "1d68c348da61047f9bb799b0cfcbecbbb396d45ef77fef8c4f01a7fb302df641",
+    "server/ai.ts": "59657176f6fc24f2f08c027815c125db3d0fbfbfd1a89bc4c808605ce3737089",
+    "server/aiEdit.ts": "ac1a2c73554b9b5d0a66db22313a1cf24f1ea18ccea37107c93d6f6cdbe72306",
+    "server/aiModels.ts": "c073c33c2e1ee217d8cf32db522c8ff97186e066fbbfb834a62994213651b1be",
+    "server/aiSuggestion.ts": "0e1261a92e61f4daf69f39f9264c62b81b8c59dc5c3ae50cff427d8f90ece409",
+    "server/app.ts": "c73b58ac970e4845ea350e36bc9e232baa6e49ef965f33b579ea1db172e720ed",
+    "server/articleImages.ts": "c376f0b19a106fa4c287ac4a6230abcdc7bdd133b7f3f7ed351d028e937531d4",
+    "server/assets.ts": "7e54ea3fa21c9beabaa68573258eb37913b442ab0f47ee84e80c72044e2b700b",
+    "server/components.ts": "16a277aa382b09aee21bf64035b6ef00c9cff3e89d7b9c47d1f108dab674c980",
+    "server/dataTools.ts": "d9b57e587309dcfb90959e16b89336472e11dee6450893fbf2bd42f3bcbdd637",
+    "server/docxBudget.ts": "fbf682d63fabc1ebef22bb388250e1cbdaf45819bfa207b50b9053fc9b10d0dd",
+    "server/imageBudget.ts": "2ef760601582fb04ae74f0a3e110f0ffad11c9c39273e1274b523eba68b301ea",
+    "server/importer.ts": "70b930d698b5b7c67ddd33d68ed8cf797041c09ae1a1d5c7bb57379e3abce2b6",
+    "server/index.ts": "c2975aae37175dacd0540e016107ef8e796a53c8dc7356ec60468fd7227a6733",
+    "server/launcher.ts": "b4ea01dd444a22a9968b83fa79beecb0eecd386ae09e4afda18f88bd8540a429",
+    "server/log.ts": "cd86fe74d651ea32964229c2d0128251656da3100469b11047c21176b5fb5ca0",
+    "server/net.ts": "e9c930fb998bbe7be8838efbcdc2a742c0aad4ee74be449826748f10862f0352",
+    "server/paths.ts": "04e9496d1c8bdacc7516a9708ea284ad210fab6c9a7d5db81e51c626feafa97f",
+    "server/projectStore.ts": "974d610d45420308d42d7a875823bd21d76c5b6d0ad7d9a8fe42fa2f7beb668e",
+    "server/providerError.ts": "87cddbf6b16bbdc75bc0097b17fe81842a8a01059c44ba5fba50d7f3797c8593",
+    "server/settings.ts": "066914202edf45ec4467bd767250de7c879a52040f6591e4a8155c7edf253411",
+    "server/store.ts": "9bdb75e52e6708e1544c57d5898ae19ae960006662038c3846984efcba797b0f",
+    "server/uploadGate.ts": "2e88fc16608d2de02e318cc2854fba06a5bd8e0c5389911e2f5a6dc7622a2a96",
+    "server/uploadStorage.ts": "46bda163c03cd6c31bda15f828eb7e8d49fde0910e0cba8213cde45e9d46bf35",
+    "server/wechat.ts": "e07b8098755d7c49559ff6cc75fd29e14fed030aef89897b1ce3eb1f074a7fbf",
+    "src/App.tsx": "b393e70c515b16247acbf242e802b2a69d36d9a516e3be1e48da53dc1c3315e2",
+    "src/core/aiDesign.ts": "b3be3eb2cc5b247486ba15096983bf5440638e747009f6068f0e792de70ac76b",
+    "src/core/aiParameters.ts": "ba75bdb81f411707cca41b272ed927b24ab955e9b7a0de56da66e14f7645a21c",
+    "src/core/articleImages.ts": "5ca3da089a1aa7d6965570fac0598a9239106b49225f05f04ecc5aaf37296469",
+    "src/core/assemble.ts": "38c6796f4dc6c648527efb089f0253c8bf0634d7f44f1db7b97c1e4a9cd01869",
+    "src/core/blockTextEditing.ts": "dc5c2dcf8f20fdf09a1ed6c7bb60dac96c0182c06ec15c2c641a1d1aa6919d23",
+    "src/core/blocks.ts": "4d8ab684fec96813a82fea2ff458208d102b7961c4eedc1793bebffa0bc1f9b8",
+    "src/core/color.ts": "4020b17980612d1c9940388228c52b1e61d87b7fcf1080212df365e1e87fab16",
+    "src/core/compiler.ts": "eaf597ec789c266aa44f05e0275b3856efd2b345a28111c362c10fe181785bce",
+    "src/core/components.ts": "41c5e48072053f9721f12d80865cd067827bfb9323d5c803fd701d262dfe7253",
+    "src/core/copy.ts": "b4629ee2470332f1eebf2b681da7cba67ae1b6e919e8faf91e25b66ff11fdd1b",
+    "src/core/cssImageUrls.ts": "96f86ec9f04b5d13e098d63ca647008fd8f5ab7fb6de9eb347ad9ec964a3b93f",
+    "src/core/enrich.ts": "6e70e103738aa0a518f8be5786046423c67e715ad6deafc0353a4cb732b0d7eb",
+    "src/core/exporters.ts": "9e1470c369a2a4e5f20e921b60a7b3d960e8f7daad786f8e7c553fdc2b49676f",
+    "src/core/fluid.ts": "788b0c159aba038b39a67a6381aee0e6ea7c66f76acfd027cbe1da09ae4aaf8b",
+    "src/core/fragments.ts": "e070bd0c5c0158503744297d52f903dc7cce7abe37481c21b44a9950c49149e9",
+    "src/core/htmlGuard.ts": "f2867f539197bc218452d5744fd90c7a0576b41f4884da50fd00d414b55b8196",
+    "src/core/htmlLayout.ts": "6279570c4ba96d28bee25d3e9a08eabd5c497742d1acaa111f8b3bd974280645",
+    "src/core/htmlTheme.ts": "bda31318ab6f6ddd24ef1f26cbcf19978abc0534c477ba7031e987904a0542d1",
+    "src/core/htmlUpdateValidation.ts": "c86171fa0554fedbed6550775787f0bd65697a4e1cd1998b29bb52c2bdc11bff",
+    "src/core/imageResize.ts": "e1423866279a62e5a546c24affe7b6be65412abd7d0394c645455151826317f9",
+    "src/core/images.ts": "b67d35c5860a08fe81e4615c665df6c969e3e8ea199b9e5bc668cdc3bcba82d0",
+    "src/core/kit.ts": "9acd9a36cdc8cc416a689e798564371db927e854417e192dd067823bf781f27c",
+    "src/core/layouts.ts": "5630bc3e8734a18cd84766d2a8fe3eb2c1ca7b7e6e6fbec0d00018d53fd6790d",
+    "src/core/ops.ts": "9f62e3b268095931f05cf4b1440a437a21b5ed01ffd131f5a0d91ae0d89d20f6",
+    "src/core/outline.ts": "95fb43e142912e027c3e74588eac8caaabd2825a34321e736ff2b3fc6f8ed775",
+    "src/core/photoPlan.ts": "c236adef954db3d63f407c344612e1c466bcc5e9f9565d021e37e4d2d91acfef",
+    "src/core/photos.ts": "3da8631c315a827b311758147dfc135fd0b4b2097bd37f74f090b42d7228074b",
+    "src/core/quickActions.ts": "30826a85e3762379db8c67120329a92a29ce0706ea9d3be7d4b7f76a6f99a996",
+    "src/core/recolor.ts": "eea70cdfe28517b16c9824919ce0c8724a8f116f32c7b8470b5f15d3c2c3e36b",
+    "src/core/replay/cursors.ts": "78269f366e139c7db163047679016f63c8647969b9843db0df623686230e1afc",
+    "src/core/replay/draw.ts": "05c959ae3467f7fa183a35bcb9edf2a29c59304e3daf2faaa99c6f4cee46ea64",
+    "src/core/replay/index.ts": "8d9bae0b1c94614a790302341a5743a5cf9e0771f87d8783d35a69d6860dcb65",
+    "src/core/replay/layout.ts": "410dbd4d0966742f1170c2e23a2491c98bc5f90e5f6859d94d2428b4aa713770",
+    "src/core/replay/lint.ts": "c368a088029376bd470067dba85320c3dfee6dba57fd06e6c17f12d32ba4f670",
+    "src/core/replay/pace.ts": "e1d156cc4ff6bd672ba028da24904698833ad988f070205f1d2765210442953b",
+    "src/core/replay/presets.ts": "e3fd342d2ff1bb847a5d82badaec1a3d923abb6f1902aea8e0a1b422857bc640",
+    "src/core/replay/render.ts": "68927d4ef087bccb0e1af69f65b792ae502643638093cc92fcd2ed0d33ab806c",
+    "src/core/replay/sample.ts": "a7bea1006a720f928c7ce89f404fea43f0ce876d4158c0986d40f897ca92660f",
+    "src/core/replay/schedule.ts": "0afc8f508128e85ac8398fc48b192a089de5aee641b4e87b81f2e7139f1dfd3b",
+    "src/core/replay/schema.ts": "7c32595153cda9118b6fcb34c1331d616cedb8489b89c8e4427868ebe6dbe348",
+    "src/core/replay/smil.ts": "c5101667bc132e454ef698073545bdceb112bd300ab68eedb497606964e9d214",
+    "src/core/replay/text.ts": "fdbddbab7433ffce00b898a3213e375f67864ea1bdb1925c1e5957c8709bf4b5",
+    "src/core/replay/types.ts": "aa6fc9959980d01c10d5d347226ca3328434e747a0bc7e0e9f564815006e6cf8",
+    "src/core/richtext.ts": "85a759b0df69d7867dc213ce3ddc8fc424ad431a1d6966705d788f7416714f4e",
+    "src/core/roles.ts": "7fbcb9345ce3ddd111d7c287eef034e2654138a38ec493dfad6e84fd4072ca5f",
+    "src/core/sanitize.ts": "132904dc090d266e7bbdbe6e36c5b1d0a6c6489515ebaa97c398639aff601b50",
+    "src/core/slots.ts": "dc735b82a7f9c7b6ae0da695ca9aaf32c3ad972dbe75464308ddae36027931ed",
+    "src/core/style.ts": "db817d4c60382be98c8366a4d6dbdc4093b8376ee9c281724cca211ca32fc98f",
+    "src/core/styleExtract.ts": "7ffdc57e2364490f118b4baa41fc189912727294315ba8e41394e27869ae8d24",
+    "src/core/templateFill.ts": "6e3c45517be8bbf7c04d3ecdf3fd3420b49dc9ef72372a9fead804b693058b3d",
+    "src/core/textTypography.ts": "20b6ca4d98891bec658431392f42d703e346dfb057acf469e419d47547fdc98a",
+    "src/core/themes.ts": "cc117f0c60b813481f66bd89264eb802159556ef369fa7175c084141658c847b",
+    "src/core/tree.ts": "93416fd5824689d23d5120e78a2f1dbba77c72aa08dcdae1ab7c4904871013ae",
+    "src/core/types.ts": "4ab97a32e72303684461138bce47f3a7409859dbffcab7348f3508784319fcb5",
+    "src/core/wxImport.ts": "74538bb2a33f20f3834c5e45306eb30566eb76819104ff21cbcb9a46945ead47",
+    "src/core/xiumiExport.ts": "4b50f3547705d9f6d5fd865879755f4daf076b176d706eba195df880fe228122",
+    "src/editor/AiSettingsModal.tsx": "57551a673ad9d5f8f7df33c9da9bc9fc5fcaca92763bac0cd05597e7d3df8343",
+    "src/editor/ArticleImageImport.tsx": "dea0bd67ced63808ac511f7ba9341aaa22646163fb46b2aecc7e34aeaec5808a",
+    "src/editor/ArticleImport.tsx": "f6cade4350d28d5707f0619ffb77909289aab193df58db44eb0570441d8513dc",
+    "src/editor/BlockTextEditor.tsx": "e55b47156d543e3484d34a615221ce8bf89988ecf323c236c33b4e64fc1331b1",
+    "src/editor/Canvas.tsx": "441174a6c4dae51ba97651474e5cedab78805447e66a5704595d90b5e941635e",
+    "src/editor/CollectModal.tsx": "ff8091f382e6c63a1b7992b5e9c15776cee553308c12d7da6bbe2e578d30264b",
+    "src/editor/ColorModeControl.tsx": "674feca66487cccb25277cee14fd0dedb386765fcf1be44650d462ef94d0e56e",
+    "src/editor/ColorPicker.tsx": "cad08fcab2dec167454e222be28699b6f2372d97a42457d24e80d32594e3b5e5",
+    "src/editor/ComponentLibrary.tsx": "9c794c81676f98522a9cde2945905de6bccae84efc42735e883b97d434d0ba7a",
+    "src/editor/Copywriter.tsx": "4c0d357f1ca227124525485cc819555c33f96308dc643951bf532f24dd77a4f6",
+    "src/editor/CoverDesigner.tsx": "a0c426006fe49034795ef1746c7b3ed585ac1be85c1b680fa10d555c066514cf",
+    "src/editor/CoverTitleAlignment.tsx": "9c06e5164c0a54b5d076f7cf0f680a263115146be2be831b0478da37bdbf4559",
+    "src/editor/CropModal.tsx": "c8826f923a8254fb5f1a759215b58bdd3f0547374d0c235641e76915aac86bdb",
+    "src/editor/DataModal.tsx": "239673daf13cf312eeb51b305697c532b701b7bbc6cc568a647079f208b3148c",
+    "src/editor/ErrorBoundary.tsx": "f5cda769a53d700cc54a15184272bebe5584a22e03a54515736c9b697c521596",
+    "src/editor/Help.tsx": "589e9e3bac5d75e2a96cb4928ae954c6d08615684336edf1011e6adc71bd9074",
+    "src/editor/HtmlTypographyControls.tsx": "1c25ccf7eb6b6f2f28a1f5b02d4753f5b08bead4674aa53d22f1665e291c61e9",
+    "src/editor/ImageResize.tsx": "6cf44de629dea790cf340dabe033dcfe0568dcf8604b7301a13408281da00efb",
+    "src/editor/ImportWizard.tsx": "865d3b47cc7f41bde2b61e98fd942d96f4662fdb7b94ccd2bedcee8ce284f8fe",
+    "src/editor/InlineReview.tsx": "11192c28e510e880c0fb5cd5ce32246570197f0faa436be18e94f014bfc48b11",
+    "src/editor/KitPicker.tsx": "4577080e8bf814172ffe8d17088361ee9b683466def35e7c2acdaa667bd9836b",
+    "src/editor/LeftPanel.tsx": "17fd44ce8cd6b9d36c263ee5a6cb8788544ec71109e73d20c3ca07d41fdfb44d",
+    "src/editor/Modal.tsx": "7d3d22e21ff64a5c2a52c5fcaeeeaa98cbfcf47acdba29875ff7246efb7a3efd",
+    "src/editor/ModelPicker.tsx": "e9004ead1ebab650cbe62a0fffa0f4b96eb90b006f2021c823aa1aa4ac4587f4",
+    "src/editor/PhotoPlanner.tsx": "09984264304eb49bb5b2cb85478cff47f9bd4850743ff9d49cb241a89a6022b4",
+    "src/editor/PlanIssues.tsx": "22777e4ffbec2e645a35d6183cd3887da4b0ffe998c7414e9c1edc74b2bbbcc1",
+    "src/editor/PropsForm.tsx": "e5a490502f3c9ac07cc4a9f6a526bb8033a563068f5d325fc2a294e6d50dcc58",
+    "src/editor/ReplayPanel.tsx": "9f1c0b6631f7a636df57ef2a82efaf5372e3eabb5ab6530c6877a00db4bc8db8",
+    "src/editor/ReplayPreview.tsx": "b13677d059c1f30b18567d4029d6b8ab742b3a77b311932fa17f13ae482407a6",
+    "src/editor/RichEditor.tsx": "a02044076452809a08bdb1db9d870eebf2c30afd0bbf60266efcfea046962e7b",
+    "src/editor/RightPanel.tsx": "673ebe885c3d316e14e799cb788da4af3b0d19710cb8736a4f27f9d1866a6478",
+    "src/editor/RoleSelect.tsx": "b6c4c71d02eb85fddfb7cad9aa316377752afe9b74b2a5f9e022c79e56320fd9",
+    "src/editor/SuggestionInput.tsx": "3f503b0f84e680f6ef122f8a571799cefeecdd40fb5867f1de6bf97ed171d608",
+    "src/editor/TemplateModules.tsx": "bbdb5b98f8c69b7fc5706cfccf74effe9bcdc8257bf8ce99127aa76da1de0b0c",
+    "src/editor/Toolbar.tsx": "2a78a6ddbfb5a03850019bde1ea6611853b49d1ff0b22ecc3e205da824de7db5",
+    "src/editor/ToolbarMenu.tsx": "94f362003743a2757b84f7a5c9e5e2c425b0298a9c784fb4674e22899127de1c",
+    "src/editor/UiIcon.tsx": "c9da1882040f8df24957b1afda30160dfa52f90f1b9f5a6c4ab8ea5654909d98",
+    "src/editor/Workspace.tsx": "2d5a9bb1eda9d23bd34b5a73b0f45f52640eb09908c43959265bbe2db8fda35f",
+    "src/editor/aiPresets.ts": "2a236927049e5bd38373607d34ceeefd357eff8d0492bf1b4fbd05768f2a8037",
+    "src/editor/api.ts": "4d60ee54343d215797b27aa86a9e8fcd4d658701951957f390aa182cbb9169c5",
+    "src/editor/colorMode.ts": "bd7eea61b1178c35340914c11d4d35cae6b629899dfc026d55edbe921d0b515c",
+    "src/editor/componentActions.ts": "a3eba5c483bbec98588dff199266ce5137dfa9d6168def67a3440e79c968ba56",
+    "src/editor/documentNavigation.ts": "75b34f966ca1dc4400c2038e116a74c44bc74afa481eb4660072ea90d2edb53c",
+    "src/editor/fluidize.ts": "e128c87b3b6064b62442f70b7213d25a52263eb29a72e571b731dbc76ac2c056",
+    "src/editor/imageResizeTarget.ts": "fe5d23922bb71a0d0c4d1b70285692cc01755d669287195f65e4f032abdcdcef",
+    "src/editor/kitItems.ts": "22de95d5b9914376ace472f838ed374ade771929098b357fef8bc7be3654d549",
+    "src/editor/proposalSafety.ts": "f5c958ddc531d6ce1769c2bb10fbb6faabcc486e0fe3c9369fb662583ee589bf",
+    "src/editor/reviewDisplay.ts": "3a9912a972d1b7129c1f6ae70192b48ef7afefbdb40a18568255623c36efc00f",
+    "src/editor/selectedTextStyle.ts": "11d0b667c2bd5912b7a15b80c5f7a7a02de189d159babbad072f75c29c03f72a",
+    "src/editor/store.ts": "c87e4f986c1c0bac5fa77c86f2080cdd2d7f4a43a776adf7f4c2f63221cdf1b5",
+    "src/editor/suggestionContext.ts": "4d13fa2594cb94b6679452b29c6a152b03dc1f442b44904cf75ccb01d70aa22f",
+    "src/editor/suggestionPreference.ts": "89b81917f068992b45395002bdc29447fa4f6475950d08ee4484b4231e436e9f",
+    "src/editor/suggestionQueue.ts": "59f8ac74e631bb692748e02fedad0138e012c4468299c926a7fc075193c6ae1e",
+    "src/editor/useSelectionScope.ts": "01400a74c255e62f152c80c5c68052b95b34668756950813913f51cdee75c937",
+    "src/editor/wechatOutput.ts": "b670eea1853d0f137b633c0b91e956ed1c7b305b2223768d120223ef855aba74",
+    "src/editor/zoom.ts": "f1c057b6220b2beb27b75e3481b9b7fa10d2fd0675e9b990a66def42f24b9a8b",
+    "src/main.tsx": "fb7ac03aa7e82300bbccbef5b79e2dc88c1a88ba70f284e6ffc9a51e3ff3ccb7",
+    "templates/eea-germany/build.mjs": "82923636523adb408c25e4fc9daadac89ee5554a594bec25c066a0d8b361dc57"
+  },
+  "tests": [
+    {
+      "path": "tests/e2e/acceptance.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ImportWizard.tsx",
+        "src/editor/Toolbar.tsx",
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Real browser imports the local sample, verifies ten rendered images, editing and persistent reload, then reads downloaded Markdown/JSON/HTML and browser ClipboardItem.",
+      "sha256": "86587fae7320abe50f52dc07f0796bdec9a8e9a8b1ca290f1408a649ed85bb41"
+    },
+    {
+      "path": "tests/e2e/ai-issues.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/AiSettingsModal.tsx",
+        "src/editor/RightPanel.tsx"
+      ],
+      "rationale": "Real browser model discovery/settings persistence and document-selection scope. Provider routes are synthetic; local settings API is restored in finally. Not a live provider test.",
+      "sha256": "127e1aa0af2814ffa8c0e9417104e06b85062b2e1132667c2b4642ffedc9deff"
+    },
+    {
+      "path": "tests/e2e/article-image-library.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ArticleImageImport.tsx",
+        "src/editor/RightPanel.tsx"
+      ],
+      "rationale": "Real browser selection/confirmation and persisted document; image collection/model mocked with controlled in-flight close, not live import proof.",
+      "sha256": "2f378c3cd92eb9f04fe877749da7233c5bd99b88d41bf7e24b4050489f0c946f"
+    },
+    {
+      "path": "tests/e2e/block-text-editing.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/BlockTextEditor.tsx"
+      ],
+      "rationale": "Actual sample image filesystem/upload/API, nested editing, undo/Escape and persisted browser reload.",
+      "sha256": "6f05a192a52575e54f7dafbaadbf0d4adfc5c0dafe8e8daa65f17c725ca9ad74"
+    },
+    {
+      "path": "tests/e2e/collection-html-combination.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ArticleImageImport.tsx",
+        "src/editor/InlineReview.tsx",
+        "src/core/htmlLayout.ts"
+      ],
+      "rationale": "Real selection, dialogs, review iframe, persistence and reload; collection, provider and remote images synthesized, not real CDN/model proof.",
+      "sha256": "2edb34ef54d5fd8179e2dae92046b214f6eafcbf3de1ae74b660c55df4372fcb"
+    },
+    {
+      "path": "tests/e2e/components.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ComponentLibrary.tsx",
+        "src/editor/CollectModal.tsx",
+        "src/editor/ArticleImport.tsx",
+        "src/editor/Toolbar.tsx"
+      ],
+      "rationale": "Serial multi-surface component workflow, project/asset APIs, browser clipboard and ZIP downloads. The WeChat upload route is substituted; fixture/template deletion acts in the local environment.",
+      "sha256": "004c9533b96f2701c6abd90b4684fd4df3c34e38075280b063ccc08ffdd31bbe"
+    },
+    {
+      "path": "tests/e2e/cover-alignment.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/PropsForm.tsx",
+        "src/editor/RightPanel.tsx"
+      ],
+      "rationale": "Real text editor/style, undo, AI review and saved reload; provider synthesized, not real model.",
+      "sha256": "104267631c1d96de4afa03e3c3c4298aa3ea2708e7a1f4f2269351aefdbc18ec"
+    },
+    {
+      "path": "tests/e2e/data.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/DataModal.tsx",
+        "src/editor/Toolbar.tsx",
+        "src/editor/store.ts",
+        "server/dataTools.ts"
+      ],
+      "rationale": "Browser versions/backup/restore/legacy migration and actual fixture files/ZIP, pending local save ordering and simulated quit. No actual OS quit is represented.",
+      "sha256": "e2f466b344dbc3aa997325658d29c3aa32997dd0fdafd2231a9fd37545a60bc4"
+    },
+    {
+      "path": "tests/e2e/editing-ux.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/PropsForm.tsx",
+        "src/editor/Modal.tsx",
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Uses the running browser editor and local persisted state for whitespace, alignment, modal shortcuts, focus return and nested Escape. WeChat configuration is mocked; no external draft is sent.",
+      "sha256": "11925e7c63e94a290893f9193696f5d649f0e2776e05e93e930073bbe43f14ac"
+    },
+    {
+      "path": "tests/e2e/enrich.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ImportWizard.tsx",
+        "src/editor/PhotoPlanner.tsx"
+      ],
+      "rationale": "Browser photo-description consent, synthetic AI enrichment, keep-location warnings, undo and continuation through actual wizard and layout screens. Not isolated unit.",
+      "sha256": "531e89d8e18ff07eff2831d21329a9c0dd6149ffc29fbef1917d8b3c6d50afff"
+    },
+    {
+      "path": "tests/e2e/features.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ImportWizard.tsx",
+        "src/editor/AiSettingsModal.tsx",
+        "src/editor/ArticleImport.tsx",
+        "src/editor/PhotoPlanner.tsx"
+      ],
+      "rationale": "Browser settings/discovery, article clipboard from disk fixtures, native viewport geometry, writing/template design and image placement. A separate real localhost mock provider implements synthetic AI responses.",
+      "sha256": "8ec2f7cd10cbbe21f6235c703dbed436f722add8d0adcb825d6f2be555743db2"
+    },
+    {
+      "path": "tests/e2e/html-guard.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/core/sanitize.ts",
+        "src/core/compiler.ts",
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Bundles the browser sanitizer export and evaluates real browser SVG SMIL/CSS; also stores an article via local API and reopens it. Browser DOM/script effects are not a strict unit.",
+      "sha256": "8213af0eaa129cdae27bc035733d585150cd75bacbd2ad765c0d6d092f6993b3"
+    },
+    {
+      "path": "tests/e2e/html-typography.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/HtmlTypographyControls.tsx",
+        "src/editor/Canvas.tsx",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Drives actual editable selections, typography, native undo, table/stale-selection boundaries, phone viewport and persisted exports through page plus local API. No external model used.",
+      "sha256": "f90438d350f90ab6b1656dd6efd72d1fdb155dd15de7d3324190cdc902f3b87d"
+    },
+    {
+      "path": "tests/e2e/image-resize.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ImageResize.tsx",
+        "src/editor/Canvas.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Runs actual pointer/keyboard geometry, zoom/scroll, drag-and-drop, undo and local API persistence. Image bytes are intercepted fixtures; the phone case is explicitly conditional on responsive-combination configuration.",
+      "sha256": "b69d98fa7ab68b0c5ed2ce8e8b110af419cdac211ea6e3641393c5048a7078f6"
+    },
+    {
+      "path": "tests/e2e/import-errors.spec.ts",
+      "runner": "playwright",
+      "layer": "api-integration",
+      "target": [
+        "server/app.ts",
+        "server/importer.ts"
+      ],
+      "rationale": "Playwright APIRequestContext only: real multipart import HTTP route and malformed DOCX/recovery Markdown responses; no page is opened. API integration, excluded from strict-unit selection.",
+      "sha256": "f328b6454c231aa5e95e11423d345849a910d510b42fafb22d4acc47e28b2f49"
+    },
+    {
+      "path": "tests/e2e/imported-html-layout.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/InlineReview.tsx",
+        "src/core/htmlLayout.ts",
+        "src/editor/Toolbar.tsx"
+      ],
+      "rationale": "Actual page/iframe accept/reject/undo and saved reload/export download; provider synthesized, downloaded bytes read from filesystem.",
+      "sha256": "f1ccc3a5905d12a8302ea04817aa7549e3c4cd420d87dcd2d8b232536f08fdfa"
+    },
+    {
+      "path": "tests/e2e/initialization-response.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/App.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Real initialization/reload, injected response-body failure and actual project HTTP persistence.",
+      "sha256": "28d8f3c08c2aa60229f5e3e97b2882b9a70523f7f13c606193636ebfb7b6bf3b"
+    },
+    {
+      "path": "tests/e2e/inline-review.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/InlineReview.tsx",
+        "src/editor/reviewDisplay.ts",
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Browser native selection, SVG/iframe layout, delayed image response, editing, screenshots and persisted document ownership under synthetic AI routes.",
+      "sha256": "0cba08f2792bd07391b07ad8a93ee809e5d3b0bf216c5183011dadd7a9df28c9"
+    },
+    {
+      "path": "tests/e2e/input-suggestions.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/RightPanel.tsx",
+        "src/editor/useSelectionScope.ts"
+      ],
+      "rationale": "Browser opt-in, focus/key ghost text, cache invalidation and selection context; all AI endpoints are synthetic routes, not real provider execution.",
+      "sha256": "f64218e380a1a843293a5e3d95b0b67a142e4d25731021ffe630fef7d9771c4d"
+    },
+    {
+      "path": "tests/e2e/kit.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/LeftPanel.tsx",
+        "src/editor/PropsForm.tsx"
+      ],
+      "rationale": "Browser drag/drop, image upload through real local API, nested modules, undo and saved reload. Includes actual sample file bytes and pointer geometry.",
+      "sha256": "ab50d30fc5502c9a4261d3324052655a28f825077c3e4a68f9cfb31daffb7f96"
+    },
+    {
+      "path": "tests/e2e/late-document-operations.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Toolbar.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Browser plus real local project/version API, delayed response and unrelated pending request exercise cancellation, persistence and undo. Cannot be counted as unit.",
+      "sha256": "e5b90ba170ebfef3d8b853adb33c67f215a08fca6e84d75a6a6db66ea8d231a6"
+    },
+    {
+      "path": "tests/e2e/model-picker.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/AiSettingsModal.tsx",
+        "src/editor/ModelPicker.tsx"
+      ],
+      "rationale": "Browser layout screenshots at six theme/viewport combinations, scrolling and key behavior with entirely synthetic model discovery/failure. No live model connection.",
+      "sha256": "b13e6c38022e605db6b307164f39830667a70ae502760130dd70fe0d9283fa36"
+    },
+    {
+      "path": "tests/e2e/multi-selection.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/RightPanel.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Browser Ctrl/Meta/touch-style/keyboard membership, delete/history/persistence, synthetic AI union scope and delayed ABA rejection; viewport screenshot is browser evidence only if executed.",
+      "sha256": "523235674ac870ef22013d945f9ef7bd5af5c1d5154d245d336a17dae96d192a"
+    },
+    {
+      "path": "tests/e2e/proposal-safety.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/RightPanel.tsx",
+        "src/editor/store.ts",
+        "src/editor/InlineReview.tsx"
+      ],
+      "rationale": "Actual browser editor/selection/save history with synthetic proposal route and delayed responses, including manual edits and undo/redo.",
+      "sha256": "89028bb47269794ed447bebf9184435aca3c0d32d45c8083cb855dcf67bf17c2"
+    },
+    {
+      "path": "tests/e2e/replay-canvas-final.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/ReplayPreview.tsx"
+      ],
+      "rationale": "Real page SVG/SMIL layout and opacity, API-seeded document and persisted playback; not isolated unit.",
+      "sha256": "db01509a9e6c9bb32d0d89a7c17321da99b2c805b49e7b4d77e87299bfdc2ba5"
+    },
+    {
+      "path": "tests/e2e/replay.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ReplayPanel.tsx",
+        "src/editor/ReplayPreview.tsx",
+        "src/core/replay/render.ts"
+      ],
+      "rationale": "Actual rendered replay SVG/SMIL, timeline controls, screenshot comparison and clipboard export; physical performance and WeChat animation are not implied.",
+      "sha256": "b4e7825b1436f08471e9cfdef4fe8cf4bcce7ce835af4af2a397d6c8b553ce26"
+    },
+    {
+      "path": "tests/e2e/rich-typography.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/RichEditor.tsx",
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Browser selection ranges and keyboard typography, persistence through local API, direct compile of saved result, reload and phone-width color compatibility.",
+      "sha256": "6d3d14a29e67be59b32aee096a686c7cd93d2a871158cd51abcd72bb784a6fab"
+    },
+    {
+      "path": "tests/e2e/save-flow-retries.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ImportWizard.tsx",
+        "src/editor/ArticleImport.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Browser, local save APIs and held/failing routes exercise partial-save retry and late import receipts. Does not replace standalone store or component units.",
+      "sha256": "bd7a820a9884e5395123da9ee3e14a74436a79b29b74031af40d25597a6b12b6"
+    },
+    {
+      "path": "tests/e2e/selection-scope-sync.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/RightPanel.tsx",
+        "src/editor/useSelectionScope.ts"
+      ],
+      "rationale": "Actual browser selection, panels, history and delayed mocked AI response across A-B-A selection. Full editor integration, not a unit.",
+      "sha256": "fd6502b1fb79aa7c5c43b5dfd0107e14882b09cc1d5974a5cca9442e153a4ef4"
+    },
+    {
+      "path": "tests/e2e/startup-invalid-response.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/App.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Real startup page and persistence; browser fetch body failure injected after live HTTP headers.",
+      "sha256": "488bb532822345ad4e66bd2c7c2a495e8d734dbbad0b2875a56541435ef64d32"
+    },
+    {
+      "path": "tests/e2e/startup-save-ownership.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/App.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Browser boot plus local project REST/normalization and delayed startup response verifies ownership while typing. Observed network counts are actual local browser integration.",
+      "sha256": "7fbfa88c1c2926268e6ec439a88843e7f21a32c78ff483413a2eb7a622cee99d"
+    },
+    {
+      "path": "tests/e2e/text-color.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/RichEditor.tsx",
+        "src/editor/PropsForm.tsx"
+      ],
+      "rationale": "Browser native editor selection/color controls, custom/reset color and per-line imported HTML styling with undo and local save flows.",
+      "sha256": "318073e9d33de56674ed5456a8b6adfbc950e7e71478b37af182446133f9eb49"
+    },
+    {
+      "path": "tests/e2e/workspace.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Workspace.tsx",
+        "src/editor/PropsForm.tsx",
+        "src/editor/AiSettingsModal.tsx",
+        "src/editor/RightPanel.tsx"
+      ],
+      "rationale": "Browser drag/zoom/resize/reload, text alignment, synthetic provider settings/edit routing plus real shared scope evaluator.",
+      "sha256": "eb0a8b80c3ccd2975e245dd3dad80f9c04c3decc25b7bb0333697a80bb337266"
+    },
+    {
+      "path": "tests/e2e/xiumi-limits.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Toolbar.tsx",
+        "src/core/xiumiExport.ts"
+      ],
+      "rationale": "Real export UI, document API, confirmation cancellation and upload/download observation; upload endpoint synthesized, not real publishing.",
+      "sha256": "713ae5342bb05b8d3eb4105631c28e14e99138b70e413565b36fe613a5d2c0c2"
+    },
+    {
+      "path": "tests/quality/test-layer-check.test.mjs",
+      "runner": "node-test",
+      "layer": "tool",
+      "target": [
+        "tests/quality/test-layer-check.mjs",
+        "vitest.unit.config.ts"
+      ],
+      "rationale": "Boundary fixtures exercise the real Git index, Vitest loader and V8 matcher. Quality tool contract, not a product unit.",
+      "sha256": "8186ebdd490d6d3b29160f8aa581cc1b7d28d4a68a641b2d18345c327e847b83"
+    },
+    {
+      "path": "tests/shell/editorial-shell.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Workspace.tsx",
+        "src/editor/Toolbar.tsx",
+        "src/editor/ColorModeControl.tsx",
+        "src/editor/DataModal.tsx"
+      ],
+      "rationale": "Actual browser viewport/screenshots/font/CDP evidence, real project fixtures/backend ZIP, computed CSS and keyboard/contrast; quit API is simulated.",
+      "sha256": "4d29adf045ec78926a16c5f41556fc91d620d7e1da040bc8b92917112cbd3a55"
+    },
+    {
+      "path": "tests/shell/initialization-response.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/App.tsx",
+        "src/editor/api.ts",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Browser page fetch wraps one actual local response to simulate body cancellation, then validates no save and persisted seed after reload.",
+      "sha256": "28d8f3c08c2aa60229f5e3e97b2882b9a70523f7f13c606193636ebfb7b6bf3b"
+    },
+    {
+      "path": "tests/shell/upstream-text-color.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/RichEditor.tsx",
+        "src/editor/PropsForm.tsx",
+        "src/editor/ColorPicker.tsx"
+      ],
+      "rationale": "Actual browser dark-theme selection, native editor color picker/reset, local seed persistence and imported text-color undo.",
+      "sha256": "d117216fbada1b88cc5900b13bf7c599d78316f29348b681c7fb6ef0f5568c5c"
+    },
+    {
+      "path": "tests/unit/aiCancellation.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts"
+      ],
+      "rationale": "Direct provider request cancellation/timeout and reasoning handling. Fail-closed store/unplanned-fetch stubs with controlled responses and abort.",
+      "sha256": "c002c316bb04c5824dd42a336fa7c8f380b92e81318d60c99d469211db58dbd5"
+    },
+    {
+      "path": "tests/unit/aiCancellationClient.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/api.ts",
+        "src/editor/suggestionQueue.ts"
+      ],
+      "rationale": "Independent direct API client serialization/signal contract and isolated queue behavior; each fetch and queued request is a test double.",
+      "sha256": "f1b00adf4cc92cb1d08730d19586ca540d5ce979a38b762039563b7a5ed8409d"
+    },
+    {
+      "path": "tests/unit/aiClientModels.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/api.ts"
+      ],
+      "rationale": "Direct client metadata and malformed envelope checks with global fetch stubbed and restored in all expanded cases. API module runtime has no server imports: ArticleImageResult and others are type imports.",
+      "sha256": "8f7fe0527bc0c6f7b72d3fc48d5a3d326ac92dce021233a3db3deaa516415310"
+    },
+    {
+      "path": "tests/unit/aiDesign.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/aiDesign.ts",
+        "src/core/outline.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Two original cases: real sample fixture read and parse followed by construction/compile or summary.",
+      "sha256": "c92c5a2b6ce93ec299d8c6cd8cd241c766ade44386b5ebd5683fdc00fbb22911"
+    },
+    {
+      "path": "tests/unit/aiDesignMaterialDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/aiDesign.ts"
+      ],
+      "rationale": "Actual pure design assembly and normalization with prepared memory inputs, and pure output observers; no model, pipeline or application store.",
+      "sha256": "fdf41bf78f207d42d6044d059b11dd019135e0097a55981b0d7d01989043a3aa"
+    },
+    {
+      "path": "tests/unit/aiDesignNormalizationDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/aiDesign.ts"
+      ],
+      "rationale": "Two unchanged direct normalization cases moved from file-driven test without its I/O fixtures.",
+      "sha256": "7074008ffef0322295a0e785d983f95abb6dc1fffa8ae3f2a1c0f3dcb8db5cdc"
+    },
+    {
+      "path": "tests/unit/aiModels.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts",
+        "server/aiModels.ts"
+      ],
+      "rationale": "Original provider adapter protocol cases preserved with fake transport and complete store/paths side-effect guard, no HTTP or filesystem.",
+      "sha256": "73add268a39a02f2f4da4ad36957de0769ccf934df8faa04cb37802361dbce75"
+    },
+    {
+      "path": "tests/unit/aiProfiles.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts",
+        "server/aiModels.ts"
+      ],
+      "rationale": "Direct model discovery/generation/connection probes with explicit profile and response doubles. Fail-closed store/unplanned-fetch stubs avoid import-time mkdir and accidental network.",
+      "sha256": "483ecdc43817e9289a205299667f34c365e3f9e77abeedbd6c302c129c3f4cc7"
+    },
+    {
+      "path": "tests/unit/aiResponseBoundariesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts"
+      ],
+      "rationale": "Actual AI status, wire and response/adaptation decisions over substituted profile storage, model discovery and fetch. No provider or saved credentials.",
+      "sha256": "c3ecda348bc34d6b9131c98013dcc58eeedb8f53860d52e3e055eb7606e7de5e"
+    },
+    {
+      "path": "tests/unit/aiSelection.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/aiEdit.ts"
+      ],
+      "rationale": "Direct request selection validation, prompt serialization and result scoping from in-memory records. Environment selection is stubbed and restored. No real HTTP, model or store.",
+      "sha256": "956102875b40c0e185a5b5bdc126acc430b400204a96c2e32959bfdc3f46943b"
+    },
+    {
+      "path": "tests/unit/aiSelectionStore.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/store.ts",
+        "src/core/ops.ts"
+      ],
+      "rationale": "Actual store proposal/acceptance workflow compared with independent actual applyOps output, including out-of-order insert and anchor mutation; original complete file kept outside unit.",
+      "sha256": "edb74387201e4dcd98959a3ef8d5c8a4a040c029eca1b3ffd422ec8063b63956"
+    },
+    {
+      "path": "tests/unit/aiSettingsModalIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/AiSettingsModal.tsx"
+      ],
+      "rationale": "Actual modal logic with API, storage, picker/child dialog and transports substituted; no real model or network.",
+      "sha256": "c38b4598e8a5d3c0adf0b8ef84d8e46c9be3b8d5a52e4bd660a35ea6ca415dfc"
+    },
+    {
+      "path": "tests/unit/aiSettingsUi.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/AiSettingsModal.tsx",
+        "src/editor/ModelPicker.tsx",
+        "src/editor/Modal.tsx"
+      ],
+      "rationale": "Real settings UI, picker keyboard navigation and modal handoff with API replies substituted; keeps mixed product component lifecycles together outside strict units.",
+      "sha256": "a339f5a4181d5484d143f99256fa89eb38169bf642958dd1d86b318e79fb604a"
+    },
+    {
+      "path": "tests/unit/aiSuggestion.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/aiSuggestion.ts"
+      ],
+      "rationale": "Direct prompt generation and response validation. Internal prepareEdit is local, pure context scoping; no provider invocation or request handler.",
+      "sha256": "8c8a187050a9c716d593dbcbc99b03caf5adaa3c82dea0f21430690fac67b3a3"
+    },
+    {
+      "path": "tests/unit/aiWireSafety.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts",
+        "server/aiModels.ts"
+      ],
+      "rationale": "Original provider adapter protocol cases preserved with fake transport and complete store/paths side-effect guard, no HTTP or filesystem.",
+      "sha256": "7c5c00956fe5bf8620ba4799d623606e5c39f1abdc1c12e118e342fa77bbf2a6"
+    },
+    {
+      "path": "tests/unit/alignmentCompilerDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Two original direct paragraph-compiler contracts with simple block fixtures and inert DOM output observation.",
+      "sha256": "c81a3dc3669ae7cce9afb8a9a6cc48479f16847e1fc29b25e064613dc93622c9"
+    },
+    {
+      "path": "tests/unit/apiResponseBoundary.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/api.ts"
+      ],
+      "rationale": "Direct client response adapter checks, each with restored fetch double. Synthetic body refusal, bodyless response handling, and structured HTTP status normalization; never calls a real endpoint.",
+      "sha256": "f15de57078a7542041cb9434e87bb4de571475add0471caa65e7122d4375a556"
+    },
+    {
+      "path": "tests/unit/apiWireContracts.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/api.ts"
+      ],
+      "rationale": "Fifty direct serialization and receipt contracts exercise real request helpers and in-memory FormData and signals behind a replaced fetch; no server, credentials or network.",
+      "sha256": "c54b72b166f832917374b807b2c244dd9e33b1bf5a83266d04290c40b97c3423"
+    },
+    {
+      "path": "tests/unit/appInitializationBoundary.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/App.tsx",
+        "src/editor/store.ts",
+        "src/editor/api.ts"
+      ],
+      "rationale": "App and actual store/save sequencing run with real response parsing and synthetic transport, including keyboard/history behavior rather than a single isolated App handler.",
+      "sha256": "bc4cd67676f1cd6ca060d1f9900989c15120eafd86ad9700639ec761b76676c2"
+    },
+    {
+      "path": "tests/unit/appIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/App.tsx"
+      ],
+      "rationale": "Real App JSDOM startup, keyboard, unload, DnD routing with store, API, render/geometry and navigation fail-closed substitutes.",
+      "sha256": "90c27593afcd41f3dbd25bb5a6e4fb789d04e79e787878ff868a9ec7fba0dfa3"
+    },
+    {
+      "path": "tests/unit/appRoutesReview.test.ts",
+      "runner": "vitest",
+      "layer": "api-integration",
+      "target": [
+        "server/app.ts",
+        "server/aiEdit.ts",
+        "server/articleImages.ts"
+      ],
+      "rationale": "Actual Express loopback endpoints and middleware with private resource fixtures; provider and remote fetch are stubbed.",
+      "sha256": "51c0a54f13c9b8c6159d83ad0e0f9190a25971b768a65fcecf39d47c1f856632"
+    },
+    {
+      "path": "tests/unit/articleImageCollection.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/articleImages.ts"
+      ],
+      "rationale": "Ten preserved direct selection/intent/image-reference cases use explicit in-memory Doc and DOM parser; no editor store, external service or route.",
+      "sha256": "0eea0c9c11d6cb1b812604a5b00de8b1892accd6f03db4dba74fab6a8ce526c4"
+    },
+    {
+      "path": "tests/unit/articleImageImportIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ArticleImageImport.tsx"
+      ],
+      "rationale": "Direct ArticleImageImport interaction and stale scope callbacks with collector, API, and nested modal replaced. No real transfer, persistence or image loading.",
+      "sha256": "2630bc9c303d9ac4264e486e80bf95fdc0969e1afa31a9d144b4b3d47f3aa59a"
+    },
+    {
+      "path": "tests/unit/articleImagePanel.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/RightPanel.tsx",
+        "src/editor/ArticleImageImport.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Actual editor/store selection lifecycle, confirmation modal, collection/asset ordering and suggestion cancellation are assembled around synthetic transport.",
+      "sha256": "6204fb214d738add69488a05cfcc8529974d13a0643637793bed79010f9e0f96"
+    },
+    {
+      "path": "tests/unit/articleImageService.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/articleImages.ts"
+      ],
+      "rationale": "Eleven original injected-service cases retain their exact test statements; default store, file, network and assets paths are fail-closed and not invoked.",
+      "sha256": "86ebc463cb5419689fce68bc37236835b8f9414716e42e05b436679d1aebcc20"
+    },
+    {
+      "path": "tests/unit/articleImportIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ArticleImport.tsx"
+      ],
+      "rationale": "Actual article dialog controls over synthetic articles and virtual storage/navigation/fetch boundaries, no actual import pipeline or networking.",
+      "sha256": "5c099eabfa07ca5e2c1143b9f7177829881c8dee0cd359feb4076e344fbae011"
+    },
+    {
+      "path": "tests/unit/assemble.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/roles.ts",
+        "src/core/copy.ts",
+        "src/core/assemble.ts",
+        "src/core/photoPlan.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Preserved assembly-to-compiler workflow and staged photo request-to-normalized-placement contract.",
+      "sha256": "285f08c7f81ab90f25bbce5a2e6eba5c4c266e1f5fa239794e5534aa9ec72652"
+    },
+    {
+      "path": "tests/unit/assembleBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/assemble.ts"
+      ],
+      "rationale": "Direct assemble, layout, capacity and template-slot behavior over explicit copy, kit, image and parser fixtures. Internal pure helper composition; no upstream workflow, compiler or persistence as a separate stage.",
+      "sha256": "31ee62575237f2be1bcfa8ffaec3649bc4dd8c9a5502225c321099aa1dd6d7fb"
+    },
+    {
+      "path": "tests/unit/assembleDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/roles.ts",
+        "src/core/copy.ts",
+        "src/core/photoPlan.ts"
+      ],
+      "rationale": "Independent logical role, copy and photo-plan transformations with in-memory parser/explicit fixtures; no assembly-to-render workflow.",
+      "sha256": "721c5ece5e05f5cedcc89023f60eaa6bbabd5be6c1fe8e8ff62438b117e7c21c"
+    },
+    {
+      "path": "tests/unit/assemblePhotoWarnings.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/assemble.ts"
+      ],
+      "rationale": "Direct assembly allocation warning and duplicate/index validation with synthetic photo and kit fixtures, no browser, data, transport or inference workflow.",
+      "sha256": "07c098428111eb41766a7b482c90d1a0b32579bb061cff2004d550ccfeeff323"
+    },
+    {
+      "path": "tests/unit/assetFrameCodecIntegration.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/assets.ts"
+      ],
+      "rationale": "Two original actual Sharp image encoder/decoder cases; store import uses private data during regression, not part of strict units.",
+      "sha256": "d4d05a6b86fc488258d1d69ee582812e4084eabf9b40f9e52c890da38397a139"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/assetsVariants.test.ts",
+      "layer": "resource-integration",
+      "target": [
+        "server/assets.ts",
+        "server/store.ts"
+      ],
+      "rationale": "Real temporary files, JSON index mutation and cache publication are retained; Sharp is substituted but filesystem and storage assembly are real.",
+      "sha256": "7cbed21d5ccd323b2d19fad501298844b309f422fb82ea8bc635accd0be8e846"
+    },
+    {
+      "path": "tests/unit/blockNormalizationBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/blocks.ts"
+      ],
+      "rationale": "Direct isolated block construction, normalization and clone contracts over synthetic records, not storage or component workflows.",
+      "sha256": "60161fb829bed58aadfc6dd8e153b5bf7e6b53965a96e8aa1cd71be1f50f702d"
+    },
+    {
+      "path": "tests/unit/blockTextEditing.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/blockTextEditing.ts"
+      ],
+      "rationale": "Direct whitelisted exposure and text patch transformations; createBlock contributes only deterministic in-memory fixtures, no state store or external I/O.",
+      "sha256": "2530c268e66c53452fed34a69f242d5996a33ef9c57164588131afdc545ac00a"
+    },
+    {
+      "path": "tests/unit/blockTextEditorDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/BlockTextEditor.tsx"
+      ],
+      "rationale": "Four actual standalone inline field tests drive text whitelisting/alignment/keyboard and retain image/layout from in-memory props; no editor persistence.",
+      "sha256": "8d057e23c780d3347203a9c7f0a34e5b45eaa9753b4a0781e78f8d98d6835a2a"
+    },
+    {
+      "path": "tests/unit/canvasIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Actual Canvas collection and photo drag decisions using isolated store/API, synthetic transfer, geometry and browser DOM. No native drag, service or persisted state.",
+      "sha256": "266b659b25d189d8368ccb77d27ebea3c445647d53ebf168e930b1e90849fd4b"
+    },
+    {
+      "path": "tests/unit/collectModalIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/CollectModal.tsx"
+      ],
+      "rationale": "Eleven real host/dialog workflow cases with pure internal draft/fragment helpers, mocked API/store/compiler and dialog adapter; no real consent or persistence.",
+      "sha256": "c163ee86d907c98b1e85d2426d7fbc73824b20c98e239a648e8b2f9ffb288a77"
+    },
+    {
+      "path": "tests/unit/colorMode.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/colorMode.ts",
+        "src/editor/ColorModeControl.tsx"
+      ],
+      "rationale": "Eleven original full Provider/Control workflows drive local storage, clock, window events and remounts; direct helper cases moved separately without losing assertions.",
+      "sha256": "b5be5dacb759a3585e8c5340386b5ad97a1c5a0a9e2533aa43ac6058fc0d49ea"
+    },
+    {
+      "path": "tests/unit/colorModeControlIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ColorModeControl.tsx"
+      ],
+      "rationale": "Direct provider/control with opaque Help and persistence adapters, fake clock and DOM, no composed app workflow.",
+      "sha256": "c3fd667257b8f5b675e2dd7d3899a59629ff03506a11255ca2e08afa7d1bec45"
+    },
+    {
+      "path": "tests/unit/colorModeDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/colorMode.ts"
+      ],
+      "rationale": "Eleven direct helper contracts cover explicit local clock and in-memory browser storage policies, including newly observed error branches; no provider UI.",
+      "sha256": "a8031b9700f4d2386ad4f595ffd921a688ef2b8f781df90d57e4e4daef974423"
+    },
+    {
+      "path": "tests/unit/colorPickerDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ColorPicker.tsx"
+      ],
+      "rationale": "Six real standalone picker tests drive gestures, native change and cleanup with only in-memory DOM and callback props; no actual editor or browser.",
+      "sha256": "c64350944fdd7518fb9f7f6af454b10453bf2f6ec4474087c63dba0c70d5240a"
+    },
+    {
+      "path": "tests/unit/compilerBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Direct compiler renderer and document-dispatch outputs over explicit in-memory fixtures and pure renderer/schema helpers; no import/render workflow, browser, store or I/O.",
+      "sha256": "4793a2db78b6bc43e162c46449041d941bae4510e4b09936f3229cf76af090ac"
+    },
+    {
+      "path": "tests/unit/compilerInlineWhitespace.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Direct compileBlock rendering from in-memory rich nodes or raw HTML; jsdom parses its returned text. No image mapper, upload, export coordination or browser interaction.",
+      "sha256": "00c5360b26f1975df0de3e213bceda41a40a19a9f154ac6d16c916bd37241d80"
+    },
+    {
+      "path": "tests/unit/componentActionsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/componentActions.ts"
+      ],
+      "rationale": "Actual command coordination over virtual store, palette/compiler/cleanup adapters plus memory DOM events.",
+      "sha256": "f2f882c68f8dc15e0a2e1297f45284e49538999ca4e58b7fa4e6d2341334e84c"
+    },
+    {
+      "path": "tests/unit/componentLibraryIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ComponentLibrary.tsx"
+      ],
+      "rationale": "Seventeen isolated real React card/browser-DOM state contracts behind mocked transport, store, compiler, template catalog, editor actions and drag adapter; only semantic pure search and role logic retained.",
+      "sha256": "0ea76b853a43afd42355b73e21fbcb45bf20a310e55620c96ce384523f7471c6"
+    },
+    {
+      "path": "tests/unit/components.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/components.ts",
+        "src/core/images.ts",
+        "src/core/xiumiExport.ts",
+        "src/core/recolor.ts"
+      ],
+      "rationale": "Retained original integration/test-workflow groups including real private component storage and export/transformation workflows; not scheduled in strict units.",
+      "sha256": "819662d2ecff1d635c6c4ff95b00066a80a7d7cba73b25e4da18701fd8b547a7"
+    },
+    {
+      "path": "tests/unit/copyParsingBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/copy.ts"
+      ],
+      "rationale": "Direct isolated text transform, heading normalization, parse and serialization assertions over deterministic text inputs.",
+      "sha256": "70e8d92fb88f77276f1202d68a356ac75252a3ab65a4bfbb513591f483208ec0"
+    },
+    {
+      "path": "tests/unit/copywriterConcurrency.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Copywriter.tsx"
+      ],
+      "rationale": "Isolated Copywriter request lifecycle: controlled promises, component collaborators replaced; synchronous duplicate guard, edit ABA, close and unmount do not touch external boundaries. Separately tracks newer revision-input intent, keeping accepted draft while preserving edited instructions.",
+      "sha256": "078fd81d6ac11e45d560c2da66c9276be6d28f7f9c715ebd630b458d55e5cae5"
+    },
+    {
+      "path": "tests/unit/copywriterIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Copywriter.tsx"
+      ],
+      "rationale": "Stable direct Copywriter modal behaviors with provider, store and modal collaborators replaced; deterministic copy helpers retained. Excludes independently observed concurrency defects.",
+      "sha256": "cacbd3f63be14f58a9bc1b18873c1bcf063c66c51c5d364724957a368005aa14"
+    },
+    {
+      "path": "tests/unit/core.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/outline.ts",
+        "src/core/layouts.ts",
+        "src/core/ops.ts",
+        "src/core/exporters.ts",
+        "src/core/styleExtract.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Eight preserved real-sample parsing and cross-module composition scenarios; excluded from strict units.",
+      "sha256": "55f71631bca83a17b2d0f5960852edf4857fea7fb9d3036c4888255d84230ae8"
+    },
+    {
+      "path": "tests/unit/coreCompilerDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Five original direct compiler and lint cases using constructed block/theme fixtures with no sample I/O or parser/assembly workflow.",
+      "sha256": "6f91337c1a0f5faf56c238f37a17ad1ecd6d187b8f6b60d65bac35e9066cad9b"
+    },
+    {
+      "path": "tests/unit/coreOpsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/ops.ts"
+      ],
+      "rationale": "Eleven direct pure operations with explicit document/block fixtures, no proposal workflow, persistence or UI.",
+      "sha256": "8b14c00a955be3f0425e2aee7fe4da415c432a5992242cbdb3bdb04ea2ccb59c"
+    },
+    {
+      "path": "tests/unit/coverAlignment.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "src/core/blocks.ts",
+        "src/core/compiler.ts",
+        "server/ai.ts"
+      ],
+      "rationale": "Cross-layer coercion/normalization→compiler→DOM assertions plus schema/prompt compatibility. Unmocked ai import transitively loads settings→store, which mkdirSyncs at module initialization; run only with private data root even for targeted checks.",
+      "sha256": "9e8f90f31da8a44db3446d774c5a8ce74bb9780b98f3227ad6f7a5acec0c35f8"
+    },
+    {
+      "path": "tests/unit/coverDesignerIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/CoverDesigner.tsx"
+      ],
+      "rationale": "Twelve actual cover designer checks use controlled Canvas/Image/Blob, API and editor store replacements; no camera, real file, encoding engine, upload or document write.",
+      "sha256": "72bc381f84e7ee1e5371a76c965fc7b3447311db4a4ad5e89e6e8cd9278b265c"
+    },
+    {
+      "path": "tests/unit/cropModalIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/CropModal.tsx"
+      ],
+      "rationale": "Real crop session with cropper, modal, API and store substituted; in-memory ownership and geometry receipts, no image decode or HTTP.",
+      "sha256": "513b8add764147217fca643e85471c278c063f44337d6acb837e56b9b003783f"
+    },
+    {
+      "path": "tests/unit/cssImageUrlsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/cssImageUrls.ts"
+      ],
+      "rationale": "Ten direct literal CSS reference capture contracts, no network, browser execution or sanitization claim.",
+      "sha256": "87c6ad54ec4508c692af800063a12a40f3b2cd82a8553865ef344072d6db0f6b"
+    },
+    {
+      "path": "tests/unit/dataModalIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/DataModal.tsx"
+      ],
+      "rationale": "Twelve actual preview/confirmation/save-barrier and lifecycle contracts with synthetic API, files, host path and navigation; no real backup/recovery, credentials, or data path.",
+      "sha256": "f84028ffa972545e0151ce6c8baf0746e8557ad8ab5e5877a52a32f154c56bb6"
+    },
+    {
+      "path": "tests/unit/dataToolsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/dataTools.ts"
+      ],
+      "rationale": "Direct planning, merge dispatch and backup adapter contracts against scripted filesystem, store and ZIP replacements, not real I/O or transactional recovery.",
+      "sha256": "be8f12e34e06d9ef259854f6698a906ba129ae8b49be12baec6da4f391a6f33a"
+    },
+    {
+      "path": "tests/unit/docxBudgetLifecycle.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/docxBudget.ts"
+      ],
+      "rationale": "Direct lifecycle adapter: mocked yauzl.fromBuffer, synthetic EventEmitter and PassThrough; no archive decompression, disk or HTTP. Both cases assert close/destroy and late-event handling.",
+      "sha256": "7163c934930f3cb95c715aeea5f6c059788ec246d45e0de5e7ead77ef4431165"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/docxExternalBoundary.test.ts",
+      "layer": "resource-integration",
+      "target": [
+        "server/importer.ts",
+        "server/docxBudget.ts"
+      ],
+      "rationale": "Real Mammoth/ZIP conversion and private external-file sentinel establish codec and file-access integration. Only asset output is substituted; this is not isolated converter logic.",
+      "sha256": "327ab578a4710402b4a93f4fe3ed17f852f1918e04da910e9c476bddf232749b"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/docxResourceBoundary.test.ts",
+      "layer": "resource-integration",
+      "target": [
+        "server/docxBudget.ts",
+        "server/importer.ts"
+      ],
+      "rationale": "Real compressed archives, native decompression streams and Mammoth import establish archive resource integration. Budget syntax assertions share the file but cannot make whole-file strict unit.",
+      "sha256": "26fc97783229082e9b9c7045d74d6aef97bc4835463a9cfcf81846a7ed40fd5b"
+    },
+    {
+      "path": "tests/unit/editing-ux.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Modal.tsx"
+      ],
+      "rationale": "Two original direct Modal focus/layer cases using synthetic same-component children and JSDOM.",
+      "sha256": "6f305931225b2d69ab679fe0fd38189d5de90a0d5d5f02fa08b5e56bd4f456f7"
+    },
+    {
+      "path": "tests/unit/editorStoreSaveIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/store.ts"
+      ],
+      "rationale": "Direct in-memory editor save coordinator, fail-closed module-level API replacement, fake time and explicit deferred receipts.",
+      "sha256": "2628578ce9ae1ca844a57977e496c404ca6b9ec47b14d0b4a2ffb5581a5c6857"
+    },
+    {
+      "path": "tests/unit/editorStoreStructureIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/store.ts"
+      ],
+      "rationale": "Direct store logic with document fixtures and fail-closed API/fetch; real pure tree helpers, no persistence or editor workflow.",
+      "sha256": "7c7ec76742caeb89c7a0812f96e245b866b652d2bb2becd795869aeeae87bff2"
+    },
+    {
+      "path": "tests/unit/editorialShellConfig.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "playwright.config.ts",
+        "playwright.shell.config.ts"
+      ],
+      "rationale": "Reads actual CI workflow from disk and imports real dev/packaged shell test configs; it verifies build/test orchestration, not product functions. Does not launch Playwright browser.",
+      "sha256": "c8b81a76e329adaed26f939de45d9a2d9c3983234d5965cc4948e15a02545a80"
+    },
+    {
+      "path": "tests/unit/eeaTemplateGeneratorIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "templates/eea-germany/build.mjs"
+      ],
+      "rationale": "Single deterministic code generator with write/log intercepted; JSDOM inert markup observer; no CLI write, clipboard or resource execution.",
+      "sha256": "fde98d53f0536700816eb26ff91c8f390f310f7f0c971f392fb8c0e9b8694a80"
+    },
+    {
+      "path": "tests/unit/enrich.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/enrich.ts"
+      ],
+      "rationale": "Direct deterministic note/anchor/response transformations. Real copy parsing and marked fallback are pure string helpers; no model or article workflow executes.",
+      "sha256": "d3e1d1ad145cb5195d4aa8382895759512f167931cccd18aa816e53bbbc630a8"
+    },
+    {
+      "path": "tests/unit/fetchBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Actual Undici transport, socket lookup/SNI and gzip codec integration with controlled sockets; no real remote connection.",
+      "sha256": "e9361296fb1e22eb6d004babc4da0f66ce8f9673da3a4c0aac6dfb123401a2a3"
+    },
+    {
+      "path": "tests/unit/fetchPolicyDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Direct policy/deadline/body accounting with injected resolver/fetch, denied default DNS/transport and virtual Agent.",
+      "sha256": "c1e53080d2a667dd22373cb0ecc697c324bce54fa5ac5bc16df96365b7225698"
+    },
+    {
+      "path": "tests/unit/fluid.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/fluid.ts",
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Nine original sample-file-backed paste/extraction/article block workflow cases. Native image codecs were split separately.",
+      "sha256": "e5f5956de29eadba85714893c8e5280cb165a02f911c07df9e1d941791c01260"
+    },
+    {
+      "path": "tests/unit/fluidDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/fluid.ts"
+      ],
+      "rationale": "Eight inputs for direct fluid conversion, DOM source-column detection and synthetic geometry; no parse article, native codec or file fixtures.",
+      "sha256": "b7c18d378e7aa274cc4e8f11159bbbef16b5c417ba7336ec13d807c285e7b1a3"
+    },
+    {
+      "path": "tests/unit/fluidizeAdapterIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/fluidize.ts"
+      ],
+      "rationale": "Actual DOM mounting and cleanup adapter with completely substituted layout width and fluid core boundaries.",
+      "sha256": "f614b03e6f92dc2398205e35a9b58cfb2e58dbaae1b84faeca450f198bbd5f09"
+    },
+    {
+      "path": "tests/unit/fragmentComponentsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/fragments.ts",
+        "src/core/components.ts",
+        "src/core/templateFill.ts"
+      ],
+      "rationale": "Direct DOM fragment and component transformations/validation with pure helper and synthetic fixture composition, no UI/workflow/storage or transport.",
+      "sha256": "aaf4386f3bc3836fd18b59ad66fa14c6501baf54351d6c60dad7e92ecccf230b"
+    },
+    {
+      "path": "tests/unit/fragmentPreservationBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/fragments.ts",
+        "src/core/components.ts"
+      ],
+      "rationale": "Direct inherited layout and photo-preservation plus component metadata transforms in fixture DOM; no renderer workflow or persistent storage.",
+      "sha256": "96e023f4deb91687fd174b02c7af3fc889935bc7075fe8eef0ec4f6ab7c94b89"
+    },
+    {
+      "path": "tests/unit/fragmentStaleSelection.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/fragments.ts"
+      ],
+      "rationale": "Direct pickElement entry containment decisions over detached, unrelated and root fixture DOM elements; no Canvas/UI workflow.",
+      "sha256": "4e222b24c35a92dd9d21ca4ecbf0b6084639d58a13b53584246af5b5b675e5c9"
+    },
+    {
+      "path": "tests/unit/helpDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Help.tsx"
+      ],
+      "rationale": "Direct Help component with real React portal and synthetic DOM geometry and timers; no other product workflow or real browser.",
+      "sha256": "486d2f9c4b465eb825f7c60dc3ce95545d93faa217f9cd8837e450677a4ca322"
+    },
+    {
+      "path": "tests/unit/htmlGuardCompatibility.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/compiler.ts",
+        "src/core/sanitize.ts"
+      ],
+      "rationale": "Production compileBlock stored-HTML route followed by independent DOM inspection, exercising actual guard composition.",
+      "sha256": "700232da2e3b97fac64d0656a66d1286418927bae29111a7d6641c3d94d1016e"
+    },
+    {
+      "path": "tests/unit/htmlGuardDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/sanitize.ts",
+        "src/core/htmlGuard.ts"
+      ],
+      "rationale": "Direct pure guard transformation; JSDOM only parses returned markup in memory, no browser/network script execution.",
+      "sha256": "d74cec7efb90b6de858a88bef12f1c11350ca83ec3d70f24fead47a06f693a03"
+    },
+    {
+      "path": "tests/unit/htmlLayoutDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/htmlLayout.ts"
+      ],
+      "rationale": "Ten direct structural/reflow policy and content fidelity contracts using explicit in-memory HTML and DOM parsing; no actual import/renderer or browser layout.",
+      "sha256": "0ab34e0222c43505a4344c3f40cfed0c721fb9b8059992e14aa3b9328bc27ea9"
+    },
+    {
+      "path": "tests/unit/htmlTypographyDom.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/HtmlTypographyControls.tsx",
+        "src/editor/ColorPicker.tsx"
+      ],
+      "rationale": "Actual color picker and typography controller interactions over real DOM ranges; multi-component workflow.",
+      "sha256": "f6f495bed40a4adefc9628145ecf4c50bf89ba805de9628f14a1c3c45ae60e37"
+    },
+    {
+      "path": "tests/unit/htmlTypographyIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/HtmlTypographyControls.tsx"
+      ],
+      "rationale": "Actual HTML typography controls and range state with virtual native commands and isolated color chooser; no true browser undo/formatting claim.",
+      "sha256": "0948f9be06514ae4055eb5c6f120ce38b96771109449bd5d0046dc53727c60db"
+    },
+    {
+      "path": "tests/unit/imageBudget.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/imageBudget.ts"
+      ],
+      "rationale": "Original actual Sharp native metadata test uses in-memory SVG and the real image header pixel budget; no file writes; direct queue logic moved separately.",
+      "sha256": "e6d42164ff48355138424eb0e1029d9d99fa23ec49f4823d87ce52f0da4cfcae"
+    },
+    {
+      "path": "tests/unit/imageBudgetDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/imageBudget.ts"
+      ],
+      "rationale": "Three isolated queue/error-mapping cases supply synthetic callbacks and promise controls; no native image decoder or filesystem.",
+      "sha256": "6e901b84c2418664b9e7eac228348e4f2af4445ae0f71f14dacfb154c673b438"
+    },
+    {
+      "path": "tests/unit/imageResize.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/imageResize.ts",
+        "src/core/blocks.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Actual normalization-to-compiler and nested module output checks stay outside strict units.",
+      "sha256": "1c6ee97e0b34dba56dd75b150e77e0da52ace1299dbc65fb15c67c2b56e1d206"
+    },
+    {
+      "path": "tests/unit/imageResizeDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/imageResize.ts",
+        "src/core/blocks.ts"
+      ],
+      "rationale": "Direct width application and block normalization operations assessed independently against tiny fixtures.",
+      "sha256": "18cd43c6a8515f7ef4746c8ad3ab682756d219861fe451b976283a5cd6442726"
+    },
+    {
+      "path": "tests/unit/imageResizeDom.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/ImageResize.tsx",
+        "src/editor/store.ts",
+        "src/core/imageResize.ts"
+      ],
+      "rationale": "Actual store, history and geometry adapter combine with the component; original real document interactions retained outside unit.",
+      "sha256": "2fef2c70cb295357225144f5c001a871c00617f6010b357c62b92bd2be8c4886"
+    },
+    {
+      "path": "tests/unit/imageResizeIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ImageResize.tsx"
+      ],
+      "rationale": "Actual image-control ownership, deterministic DOM geometry, DOM events and virtual store/resize delegates; no browser layout or native input.",
+      "sha256": "6ec44b1791008ca0db960a227b776fd9bbbabdf352067aa484e915fe87431e94"
+    },
+    {
+      "path": "tests/unit/imageResizeTarget.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/imageResizeTarget.ts",
+        "src/core/compiler.ts",
+        "src/core/imageResize.ts"
+      ],
+      "rationale": "Actual compiled fixture DOM drives target lookup and rewrite across logic modules; not a single isolated adapter.",
+      "sha256": "9862267a2c0762f40d1499065df5b8d07c3c6d1407a89c0fe84a481bdfbfb428"
+    },
+    {
+      "path": "tests/unit/imageResizeTargetDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/imageResizeTarget.ts"
+      ],
+      "rationale": "Twenty-one direct mapping and immutable image resize checks with explicit DOM/document in-memory fixtures; no compiler or renderer pipeline.",
+      "sha256": "83e3d8d301a6b9fa9bf0820f3982b83afe68998caa7e87b2bc6c22e76bd9815d"
+    },
+    {
+      "path": "tests/unit/imageSelectorCompatibility.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/images.ts"
+      ],
+      "rationale": "Direct extraction/remapping using injected in-memory JSDOM parse. URL strings are data; no rehosting request or image I/O.",
+      "sha256": "be2f2182a9bc432f7ba89cc6b1d4cce62471e987b8016bf284a70831eac215b1"
+    },
+    {
+      "path": "tests/unit/imageUrlsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/images.ts"
+      ],
+      "rationale": "Direct image reference transformations on synthetic in-memory documents/DOM without fetching images or real filesystem.",
+      "sha256": "ad9f2a88fdaaa1e5343af78ed3c566c6a4f64bb2746df9c90350c291497c8ef9"
+    },
+    {
+      "path": "tests/unit/import.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/wxImport.ts",
+        "src/core/compiler.ts",
+        "src/core/outline.ts",
+        "src/core/fragments.ts"
+      ],
+      "rationale": "Reads a real repository article fixture and composes extraction/compile, layout parsing, Markdown output and component structure.",
+      "sha256": "fde3f4143945649a4a528a5c70b698f38101abc1b4a89ea35e1868ff99bc2090"
+    },
+    {
+      "path": "tests/unit/importCardDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Four original direct card splitting cases with synthetic HTML and source metadata only. No compiler, collection, I/O or network.",
+      "sha256": "e55c3af7adf362514ca67bd74a479274a2d02c06b57149bf1c12ff353ffd8f35"
+    },
+    {
+      "path": "tests/unit/importSanitizeDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/sanitize.ts"
+      ],
+      "rationale": "Three original direct inert markup preprocessing cases in JSDOM; no route, actual browser or external traffic.",
+      "sha256": "009a4efcfc58f0340aab2c9b38d45664870055010ecbd0ad3c0c6cbe414115df"
+    },
+    {
+      "path": "tests/unit/importWizardIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ImportWizard.tsx"
+      ],
+      "rationale": "Real wizard with API, store, navigation and independent workflows replaced; ownership, revision, enrichment and undo without service or actual upload.",
+      "sha256": "7a42533804574053c63d3c1bfd6383cc35248aef17147374226926ab8c2b8f34"
+    },
+    {
+      "path": "tests/unit/importWizardKitIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ImportWizard.tsx"
+      ],
+      "rationale": "Real wizard with planning, store, layout/assembly, API, child UI and image loader replaced. No external rendering, request, or physical image.",
+      "sha256": "7523bb03ee2459744d36b224f933b3551ce644fa23dd6c3dbad8669c7ef382ca"
+    },
+    {
+      "path": "tests/unit/importedHtmlOperationsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/ops.ts"
+      ],
+      "rationale": "Isolated explicit memory Doc and direct operation validator/decision/application; no store, proposal, compiler or AI context.",
+      "sha256": "b488c7c04b74e3fecfa6bde28b77b8f871de4112c59bda091bdaeb55b58027af"
+    },
+    {
+      "path": "tests/unit/importedHtmlThemeLayout.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/ops.ts",
+        "src/editor/store.ts",
+        "src/core/compiler.ts",
+        "server/ai.ts"
+      ],
+      "rationale": "Real editor-store proposals/history/renderer and AI context/import contracts; original combined workflow preserved.",
+      "sha256": "70881063ddf21fb304e379ae975243b509b64a81b317484608e233377c6b27e1"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/importerErrors.test.ts",
+      "layer": "resource-integration",
+      "target": [
+        "server/importer.ts",
+        "server/docxBudget.ts"
+      ],
+      "rationale": "Malformed bytes enter the actual archive parser through importer, preserving real codec failure classification rather than a substituted error.",
+      "sha256": "cd2e25bd9c7ed80077093e872234511ad97c8fff704ea7c85bef91e2ec683853"
+    },
+    {
+      "path": "tests/unit/importerFiles.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/importer.ts",
+        "server/docxBudget.ts"
+      ],
+      "rationale": "Real private synthetic ZIP archive validation and rollback orchestration with substituted conversion/asset boundaries.",
+      "sha256": "9c828e3db15707c24c58876f220eb876ea96bc0651d072257e77718197e86b55"
+    },
+    {
+      "path": "tests/unit/importerOrchestrationIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/importer.ts"
+      ],
+      "rationale": "Actual Word import orchestration and image callback with ZIP validator, converter and media storage all explicitly substituted; no archive or external read.",
+      "sha256": "47870378438aa2b160005572495a1dc7f323ce146b7c41ec1120839646d455cc"
+    },
+    {
+      "path": "tests/unit/importerTextDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/importer.ts"
+      ],
+      "rationale": "Direct text dispatch and semantic markup transformation only. Archive, converter and asset adapters are denied.",
+      "sha256": "c7c71ee2f8dc39d080cad50b90a90edb2532d7518fd6bd5087d2ae21e163e2f6"
+    },
+    {
+      "path": "tests/unit/inlineReview.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/reviewDisplay.ts",
+        "src/editor/store.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Actual store proposes/accepts real operations; review projection and compiler agree on applied output, metadata and isolated replay, so the complete file is not unit.",
+      "sha256": "474044910c807226fe2b21f746d056517838f23a0d14975f10107b020d2fba9c"
+    },
+    {
+      "path": "tests/unit/inlineReviewComponent.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/InlineReview.tsx",
+        "src/editor/store.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Real store updates, review UI and compiled iframe/export contracts coexist; JSDOM does not verify native iframe/browser security behavior.",
+      "sha256": "58b82afe6e93d90b87e7e7e069156e1be9a5cc7521a66e58c4a204f04cdd0ac8"
+    },
+    {
+      "path": "tests/unit/inlineReviewFixture.test.ts",
+      "runner": "vitest",
+      "layer": "static-contract",
+      "target": [
+        "src/core/blocks.ts",
+        "src/core/richtext.ts"
+      ],
+      "rationale": "Contract for known checked-in browser fixture blocks: actual normalization and RichText extraction verify fixture validity, not product branches under isolated inputs.",
+      "sha256": "c80f231874e4519ccf3129876f8badda12fc992f19c2c2d75c45410812a4c9b9"
+    },
+    {
+      "path": "tests/unit/inlineReviewIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/InlineReview.tsx"
+      ],
+      "rationale": "Six actual inline review UI contracts use synthetic projection and store, with controlled DOM, iframe attributes, SMIL and resize observer rather than a browser integration.",
+      "sha256": "e54cafb010338f946e9a556de86f18f0f0f3f08072674c3aa7197d97fc4fb2f3"
+    },
+    {
+      "path": "tests/unit/jsonMutation.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/store.ts"
+      ],
+      "rationale": "The real filesystem-backed JSON queue is exercised against a private temporary directory with concurrent updates and a Windows case-alias contract.",
+      "sha256": "73e2f2d6ea3a3344bee28744778e36859adbb42d3d77f98e2d6bc01778aca116"
+    },
+    {
+      "path": "tests/unit/kit.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/compiler.ts",
+        "src/core/ops.ts",
+        "src/core/wxImport.ts",
+        "src/core/photos.ts"
+      ],
+      "rationale": "Four original cross-stage compile/document validation, paste, and multi-module editor workflows remain intact.",
+      "sha256": "c0fd387ec5388bbc3f9a8eb3117a17a91b975f69241f9a643814684cd5f4e53c"
+    },
+    {
+      "path": "tests/unit/kitCompilerDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Ten original direct kit compiler rendering cases with in-memory input and DOM only observing output.",
+      "sha256": "01d1ab23cf94501f92924649f69cc107ac9648925c24fa094cc7da8d6dee6d44"
+    },
+    {
+      "path": "tests/unit/kitCoreDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/themes.ts",
+        "src/core/blocks.ts",
+        "src/core/tree.ts",
+        "src/core/photos.ts",
+        "src/core/exporters.ts"
+      ],
+      "rationale": "Nine original cases testing same-module core operations in memory; explicit block shapes and registry fixtures.",
+      "sha256": "b21f0fbc7d3e29e823f26a5a54c3f537a3254ede09637202cf0817e384bd86d1"
+    },
+    {
+      "path": "tests/unit/kitPickerIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/KitPicker.tsx"
+      ],
+      "rationale": "Twelve direct kit helper, isolated UI and refresh-hook contracts with replaced API, store and modal/preview subcomponents; pure template role and normalization helpers retained.",
+      "sha256": "a09f7165f7223a932e37b5e65264024e018a5e47d546abaaf0c59fe8d20a7738"
+    },
+    {
+      "path": "tests/unit/kitRenderingIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/kit.ts"
+      ],
+      "rationale": "Five direct kit renderer cases with pure constructed input and synthetic image URL mapping, not real rendering/download.",
+      "sha256": "4ea45e390700b7811c4ba43edf7a4cc83660e2fdf293c751fce41686f156969d"
+    },
+    {
+      "path": "tests/unit/launcherAdaptersIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/launcher.ts"
+      ],
+      "rationale": "Direct launcher discovery/bind/argument contracts with virtual fs/fetch/socket/child; no packaged main or OS action.",
+      "sha256": "39d31ab742ed3d35bd5f0d543144fb6594d94732f4b358864d63dae4b2310ade"
+    },
+    {
+      "path": "tests/unit/layout.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/zoom.ts",
+        "src/editor/Workspace.tsx"
+      ],
+      "rationale": "Independent direct numeric helper assertions. Workspace component is imported but never mounted or persisted; effectiveWidths default window check is guarded and one test injects both defaults.",
+      "sha256": "2f64d265507ebdc01ea1b192e45b82ef84b49fb2a2ac3684dca0fa1638596b16"
+    },
+    {
+      "path": "tests/unit/layoutRecipesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/layouts.ts"
+      ],
+      "rationale": "Thirteen real layout recipe, typed-outline and image pool contracts exercise pure module behavior and in-memory block construction, with no parse/render or provider pipeline.",
+      "sha256": "d58962f0d5d61d77fa0cd666ecaa4d2e4fd550f76bbd25acd7c890e63fa1d609"
+    },
+    {
+      "path": "tests/unit/leftPanelIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/LeftPanel.tsx"
+      ],
+      "rationale": "Fifteen isolated real panel tests drive click, receipt, CAS delegation and input contracts against transport/storage/navigation/sub-dialog/drag adapters; no real document or IO.",
+      "sha256": "e2b0d0569bcb715a7c0050014c2dbb58642ac896179e5db484b3af80a8f744da"
+    },
+    {
+      "path": "tests/unit/markdownExporterDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/exporters.ts"
+      ],
+      "rationale": "Real Markdown conversion with synthetic in-memory block/replay fixtures; no actual compiler, file export or browser.",
+      "sha256": "7b2e1f4def508d615e2e7c97e89958cca5da97a9a5dd42729678d8fa4bb57ae8"
+    },
+    {
+      "path": "tests/unit/modalFocusDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Modal.tsx"
+      ],
+      "rationale": "Seven actual modal focus/click/keyboard tests use explicit local DOM or same-component nesting, never an external browser/editor workflow.",
+      "sha256": "851745289585d2ce9b1c56c8804b9c560f40a8fe24d631f08a8cb9b03d8becfa"
+    },
+    {
+      "path": "tests/unit/modelPicker.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ModelPicker.tsx"
+      ],
+      "rationale": "Direct model-picker root interactions and scroll logic; no real dialog/portal composition or browser layout.",
+      "sha256": "dadd46bcef6edab92bae565c2ceaee821e3cf66aeee9995091af7ad3c62959ea"
+    },
+    {
+      "path": "tests/unit/modelPickerCss.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "src/main.tsx",
+        "src/styles.css",
+        "src/editorial-dark.css"
+      ],
+      "rationale": "Reads real stylesheet files then checks computed minimum touch sizes in in-memory DOM. CSS contract, not isolated component or browser rendering.",
+      "sha256": "4d3f12bd3a3edd26501730ca511b7ea0167f40b3fcc133d06d961413c43c3b3f"
+    },
+    {
+      "path": "tests/unit/modelPickerModal.integration.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/ModelPicker.tsx",
+        "src/editor/Modal.tsx"
+      ],
+      "rationale": "Real modal plus model picker portal coordination and keyboard/focus behavior; preserved two cross-component assertions.",
+      "sha256": "d6fe5de65ec611665b17f841280f27812651a9d984c0ed82a71b2aa2f1aff05b"
+    },
+    {
+      "path": "tests/unit/multiSelectionCanvas.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/Canvas.tsx",
+        "src/editor/store.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Real Canvas/store/compiler selection and editing combinations, plus a stylesheet source assertion; synthetic events do not make actual multi-component workflow unit.",
+      "sha256": "6f8d7a0d1df539be4f141ac8dab10057fc0cfcc4047be19e50dc3f7a47d7429f"
+    },
+    {
+      "path": "tests/unit/multiSelectionFoundation.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/store.ts",
+        "src/editor/proposalSafety.ts",
+        "src/core/ops.ts"
+      ],
+      "rationale": "Actual Zustand selection, history and proposal acceptance/rejection over multiple state operations; keeps nine original cross-stage assertions.",
+      "sha256": "f92a29c2bf0aa556ed8c5549836128dc788f496cd1327ec306ec055f8531ea0f"
+    },
+    {
+      "path": "tests/unit/multiSelectionFoundationDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/ops.ts",
+        "server/aiEdit.ts",
+        "src/core/quickActions.ts"
+      ],
+      "rationale": "Direct selection, request and context transforms over a manual in-memory Doc fixture, no Zustand import or save transport.",
+      "sha256": "8738457c44508edd7a8f2bfbab6970dd23e94953553f2a64b19dfb5e6ffab67d"
+    },
+    {
+      "path": "tests/unit/net.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Direct address, redirect and network policy transformations with fail-closed default resolver and transport; injected responses are in memory.",
+      "sha256": "9a1392b9a41755e0afa1e626ceb2440eb87f9433db72ea968c93e74502df7ea4"
+    },
+    {
+      "path": "tests/unit/netPhaseBudgets.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Direct safeFetch timing/resource adapter, with injected in-memory transport and DNS on valid requests. Uninjected fetch in the parameterized invalid budget cases cannot run: integer range check precedes URL/DNS/Agent/transport. Agent is constructed/closed in valid cases but not used to dial. One live timer case and restored fake timers; in-memory streams and reader cancellation only.",
+      "sha256": "f8a97e33e2885b78e6272efdb624bbcf39e94cdfe79e7ff5b462a8f73058a11f"
+    },
+    {
+      "path": "tests/unit/netPolicyAddressesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Original in-memory network-policy validation with injected DNS/Response, default DNS and fetch denied; no active network.",
+      "sha256": "2f40569f9cf53976d6254429b61ca688ca81d1516715753c53a9db344adf96cd"
+    },
+    {
+      "path": "tests/unit/outlineDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/outline.ts"
+      ],
+      "rationale": "Twelve direct outline normalization/parsing cases with in-memory text, typed fixture and pure lexer, no document generator workflow.",
+      "sha256": "fbafc49dd29f703eed721119dc68938afbecec9c1965abcbd7b3f6ac3cf638cf"
+    },
+    {
+      "path": "tests/unit/packageAdaptersIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/fsutil.ts",
+        "scripts/verificationRuntime.ts",
+        "scripts/verificationLifecycle.ts"
+      ],
+      "rationale": "Eight direct packaging adapter cases use virtual FS/module calls, fake child terminate/wait and cleanup callbacks; no real CLI, shell, filesystem, or process actions.",
+      "sha256": "32a7138044c74953346a0981d0a9e0b2e79da889872b423e2fd77e7fabe4b8e4"
+    },
+    {
+      "path": "tests/unit/packageVerificationLifecycle.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/verificationLifecycle.ts"
+      ],
+      "rationale": "Direct lifecycle callback sequencing and failure propagation with fake callbacks and process status objects; no real deletion, filesystem, spawn or kill.",
+      "sha256": "c64ab30a0bc706f589dc734c74d89e186e08e3ab26c27e8fc322b2577e238201"
+    },
+    {
+      "path": "tests/unit/packageWorkflow.test.ts",
+      "runner": "vitest",
+      "layer": "static-contract",
+      "target": [
+        ".github/workflows/package-verification.yml"
+      ],
+      "rationale": "Reads the real workflow as text and validates required ordering, branch routing and no publishing steps; does not execute the workflow.",
+      "sha256": "55c17fbf7d23d280f72230e9358dd3b187d338f0a87f55a40f9b8f09a2bef5cd"
+    },
+    {
+      "path": "tests/unit/packagedRuntime.test.ts",
+      "runner": "vitest",
+      "layer": "static-contract",
+      "target": [
+        "scripts/package-win.ts"
+      ],
+      "rationale": "Reads packaging source and compares declared Node version/checksum to expected constants; it does not run the packager or the runtime.",
+      "sha256": "dac6aa0bc14cece5f5f9a760bb3ac3738b19f06183d9dac3a7abdc2cc6fcb9a8"
+    },
+    {
+      "path": "tests/unit/photoPlanDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/photoPlan.ts"
+      ],
+      "rationale": "Ten direct planner and model-placement response contracts from explicit in-memory Copy, Kit and units with pure related helpers; no model call, load, or rendered document.",
+      "sha256": "d1467a5a54565229749c58b37770967785c4f12bc748a6e9074cc72866fd4b32"
+    },
+    {
+      "path": "tests/unit/photoPlannerIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/PhotoPlanner.tsx"
+      ],
+      "rationale": "Isolated PhotoPlanner with local React state fixture and pure copy/role helpers, no real rendering pipeline or transport.",
+      "sha256": "6027f4a20ac949fa5a5a2dda4a966497f6023031df45179079113a030113c4c2"
+    },
+    {
+      "path": "tests/unit/photoSlotBoundariesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/photos.ts"
+      ],
+      "rationale": "Actual photo slot and crop hint decisions with constructed blocks and virtual DOM only, no image or filesystem.",
+      "sha256": "4aa98a2296e80829d9d4812362139dacd857d2898a7f93536564f72b7b2abec6"
+    },
+    {
+      "path": "tests/unit/photos.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/photos.ts"
+      ],
+      "rationale": "Direct photo-position and replacement transformations over synthetic documents and injected JSDOM parser. Local and external URLs are inert strings; no images resolved, downloaded or cropped by this test.",
+      "sha256": "110b8b62a954408585180fbc8b255974daf796863d1387ba4ea0b0949bb754f4"
+    },
+    {
+      "path": "tests/unit/planIssuesIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/PlanIssues.tsx"
+      ],
+      "rationale": "Eight direct UI decision and readiness cases use the real component with in-memory state callbacks and an explicit PlanCheck; no import workflow/model/API.",
+      "sha256": "b998fbd83ac21d42e27f779b72b8dc254ab7c9376e366eba33a10aedd384e2fe"
+    },
+    {
+      "path": "tests/unit/playwrightLoopback.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "playwright.config.ts"
+      ],
+      "rationale": "Imports actual dev and packaged Playwright configuration under separate environment values; config contract only, no service or process launched.",
+      "sha256": "b324656852d6df45b05510e5d2b539711ca9f4236da63e714448d95421eaf9d3"
+    },
+    {
+      "path": "tests/unit/probeGeneratorIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/make-xiumi-probe.ts"
+      ],
+      "rationale": "Single compatibility probe assembly with guarded synthetic template roots, substituted fs/codec/compiler and captured log. No real user data, files, image or CLI.",
+      "sha256": "59d44d88cdabcdd73edd9212875c3af758229af887ab58a4f5da422531f100ae"
+    },
+    {
+      "path": "tests/unit/projectApiErrorsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/api.ts"
+      ],
+      "rationale": "Direct API response parsing with fetch explicitly stubbed, no real HTTP or App.",
+      "sha256": "7f558855221482151d07c741b5579e5b9fa9cbd0d23b2da5405d8a0f3bd4d701"
+    },
+    {
+      "path": "tests/unit/projectInitializationBoundary.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/App.tsx",
+        "src/editor/api.ts"
+      ],
+      "rationale": "Actual App mounted with real API JSON decoding and partial boundary substitutes; combined initialization and ownership behavior not unit.",
+      "sha256": "96f452dd3fd8dd0fc0f1602d6bbb406b5675b482051b604945f5593ab4109f12"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/projectRestoreConcurrency.test.ts",
+      "layer": "resource-integration",
+      "target": [
+        "server/projectStore.ts",
+        "server/dataTools.ts"
+      ],
+      "rationale": "Actual temporary filesystem project collection and restore planning/copying run together, with only selected IO delayed to control races. This is persistence integration, not isolated lifecycle logic.",
+      "sha256": "fd30b5d96aad142ad37221d16238c8386fd922030df8e74de3b0951e729049bc"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/projectRevisionHttp.test.ts",
+      "layer": "api-integration",
+      "target": [
+        "server/app.ts",
+        "server/store.ts",
+        "server/dataTools.ts"
+      ],
+      "rationale": "Real ephemeral loopback Express server, HTTP fetch and private persisted project files exercise stale writes and restoration together. Windows-only case remains a platform-specific assertion.",
+      "sha256": "146a0e6375cb5c411f56f92cf4dcc485a2b350c373407f814f7842d801f06ab5"
+    },
+    {
+      "path": "tests/unit/projectStoreIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/projectStore.ts"
+      ],
+      "rationale": "Ten actual single-project revision/CAS/restore/queue contracts behind wholly virtual file and collection adapters, with no actual project or archive writes.",
+      "sha256": "5b75f351c12fcf2b3aff9cdc39a856f9d5900e162c49981d28ca86a7a3e88cf9"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/projectSwitchSafety.test.ts",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/LeftPanel.tsx",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Actual LeftPanel and editor store/history are mounted together with API spies. Preserves the important late-load user-edit assertion, but is not an isolated UI or store unit.",
+      "sha256": "9c2f2ebced11c11fbd2a3dc655a17afa2c7972cc548004c7c16c05e1444a4fa3"
+    },
+    {
+      "path": "tests/unit/proposalProjection.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/store.ts",
+        "src/editor/proposalSafety.ts"
+      ],
+      "rationale": "Real Zustand histories and proposal operations are composed with direct projection, preview and resolve across selection and document changes.",
+      "sha256": "48d9381b774d5d8c57973609ea66a97760c737d59e6bbea4c77cabc56dd3f51a"
+    },
+    {
+      "path": "tests/unit/proposalSafetyIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/proposalSafety.ts"
+      ],
+      "rationale": "Sixteen direct proposal safety cases on explicit document snapshots, pure internal Ops/DOM parser helpers only; store is a type-only import.",
+      "sha256": "941194a7a051b5e30670665cdfedbef02f9946ab699a47b0d33c1477e63184d6"
+    },
+    {
+      "path": "tests/unit/proposalSafetyStore.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/store.ts",
+        "src/core/slots.ts"
+      ],
+      "rationale": "Real slot query/writes exercise actual store proposal transitions across two logical modules.",
+      "sha256": "cc85b772925a9d1e34a5e10a3a069696fa1efcecef5381f66cb036421428d0bb"
+    },
+    {
+      "path": "tests/unit/proposalStoreOwnershipDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/store.ts"
+      ],
+      "rationale": "Direct store proposal/undo/ownership transitions with synthetic docs, fake clock and denied persistence/transport.",
+      "sha256": "c1161419b5b49b61551c190d98d68484beff3bfc68d97d4285200687bfd4605c"
+    },
+    {
+      "path": "tests/unit/propsFormIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/PropsForm.tsx"
+      ],
+      "rationale": "Twenty-seven direct controls, form edits and request lifecycle cases use the actual component with external callbacks, API, child editing features and store isolated.",
+      "sha256": "cfeb5b029f695a746e0871341cb9994906c317819da3ade9085b4bb5e21d5694"
+    },
+    {
+      "path": "tests/unit/providerError.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/providerError.ts"
+      ],
+      "rationale": "Direct scalar/Error transformation; redaction variants and diagnostic projection. No imports or external provider.",
+      "sha256": "a6126e913a1e3d3eb3abef69aea31470fb19db31059cc84daccc956f4084b19d"
+    },
+    {
+      "path": "tests/unit/providerErrorBoundary.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "server/settings.ts",
+        "server/aiModels.ts",
+        "server/providerError.ts"
+      ],
+      "rationale": "Real draft resolution followed by model discovery; store and provider are mocked, but cross-adapter transaction verified.",
+      "sha256": "935a85f20fdf01bf37b0b5803cff041881744748d2082921c94e0a3983e53803"
+    },
+    {
+      "path": "tests/unit/providerErrorDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts",
+        "server/aiModels.ts",
+        "server/providerError.ts"
+      ],
+      "rationale": "Direct chat and effort-probe error propagation/redaction. Fail-closed store and unplanned-fetch stubs; explicit injected response/sender doubles.",
+      "sha256": "556e7ec0ee4d17abfb09b2844bb0f76bd5be811af65350f12120a964a00e6e79"
+    },
+    {
+      "path": "tests/unit/quickActions.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/quickActions.ts",
+        "src/core/outline.ts",
+        "src/core/assemble.ts"
+      ],
+      "rationale": "Preserved real sample file read, outline parse and template layout fixture feeding quick action behavior; not independent in-memory unit.",
+      "sha256": "65466e548b797c00bafc7e3a539ecfc389aff91411f396bab03a9b9166acf1cf"
+    },
+    {
+      "path": "tests/unit/quickRulesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/quickActions.ts"
+      ],
+      "rationale": "Direct quick-action proposals from typed in-memory Doc; no store, persistence, renderer or request.",
+      "sha256": "1a32668d848cbe1077b40a1da0b2ad103728a404085a581a5b92c3a262591033"
+    },
+    {
+      "path": "tests/unit/recolorDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/recolor.ts"
+      ],
+      "rationale": "Pure color harmonization and preservation contracts on strings/in-memory DOM; no media request or application workflow.",
+      "sha256": "6b9305c439f3fce8eefff1630f900b3108421e459ae09081db7287b20953b3a6"
+    },
+    {
+      "path": "tests/unit/redTeam.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/store.ts"
+      ],
+      "rationale": "Actual temporary persistence/atomicity recovery with synthetic files, not unit.",
+      "sha256": "5689fef7d1e79681ae9a62273219d60620c3d1841da5ff931c9a879822aeaafe"
+    },
+    {
+      "path": "tests/unit/regressionCoreDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts",
+        "src/core/blocks.ts",
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Three separate direct in-memory compiler, coercion and extraction recovery cases.",
+      "sha256": "e45c1379b6ff70a04a2a3781b1deb8b00b03cb4a28cf18299018379e8327cf41"
+    },
+    {
+      "path": "tests/unit/regressions.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/wxImport.ts",
+        "src/core/ops.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Actual normalization/operation/import output is consumed by real renderers in the same check.",
+      "sha256": "3068b15779ac68f7bfab3615f033f2b17241a9d49512309e0a90d9aa6aaf2860"
+    },
+    {
+      "path": "tests/unit/replay.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/replay/render.ts",
+        "src/core/replay/cursors.ts",
+        "src/core/replay/schedule.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "20 unchanged multi-stage replay/export/render/snapshot workflows retain actual interconnected logic.",
+      "sha256": "9956bddc2d7c754506ee0758319e322b3a8a13455406091d91b44f8838d0c327"
+    },
+    {
+      "path": "tests/unit/replayCanvasFinal.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/ReplayPreview.tsx",
+        "src/core/compiler.ts",
+        "src/core/replay/render.ts"
+      ],
+      "rationale": "Real ReplayCanvasBody + replay compiler/render path compared before/after mounted render. SVG animation methods stubbed but final markup and export path are real independent stages.",
+      "sha256": "35d907ee300b52d70158c730d964cd588c4a4716602698bde80befe71b5c7755"
+    },
+    {
+      "path": "tests/unit/replayCoreDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/schedule.ts",
+        "src/core/replay/pace.ts",
+        "src/core/replay/layout.ts",
+        "src/core/replay/text.ts",
+        "src/core/replay/schema.ts",
+        "src/core/replay/smil.ts",
+        "src/core/replay/lint.ts"
+      ],
+      "rationale": "22 unchanged direct pure replay operations; memory fixtures only, no renderer or storage.",
+      "sha256": "4badf3f75609452d3ef79d2e16e9265cbea17ff335dbbbdb81eefdf0fee11ddf"
+    },
+    {
+      "path": "tests/unit/replayCursorDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/cursors.ts"
+      ],
+      "rationale": "Actual cursor planning with prepared timeline and separate renderer with prepared cursor track plan; no scene pipeline or browser.",
+      "sha256": "20647564f00aae70d473988f0833810f3317e031c53aa042e5295f6bf41fbec5"
+    },
+    {
+      "path": "tests/unit/replayDrawIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/draw.ts"
+      ],
+      "rationale": "Twenty isolated Replay draw cases with synthetic timed layout input and stub measurement/raster callbacks. XML DOM observes SVG output only.",
+      "sha256": "f0c959cdc4a979022f6739524bbd9ed096aa286720c87bbe2686bc0282283fb7"
+    },
+    {
+      "path": "tests/unit/replayImageDimensions.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/schema.ts"
+      ],
+      "rationale": "Normalizes memory JSON image records and validates dimensional acceptance independently of output geometry.",
+      "sha256": "68f10d247269e45a430f4681c0d905d22dcfce038218a0cffa9c4b45fde9b6d4"
+    },
+    {
+      "path": "tests/unit/replayImportedImageLayoutIntegration.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/replay/schema.ts",
+        "src/core/replay/layout.ts"
+      ],
+      "rationale": "Combines actual imported schema normalization and resulting scene geometry.",
+      "sha256": "f860a0c9c8fd2aaedb7c684a5024046b927137a0da0c895e64a558461f5c6e39"
+    },
+    {
+      "path": "tests/unit/replayNormalizedGlyphIntegration.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/replay/schema.ts",
+        "src/core/replay/layout.ts"
+      ],
+      "rationale": "Consumes actual normalized glyphs in independently asserted lookup and measurement logic; retains complete original combined case.",
+      "sha256": "8ad4de993a02497c4e0ef315fc353d1944667eb3d92d8be20a3b3d71de7861ae"
+    },
+    {
+      "path": "tests/unit/replayPanelIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ReplayPanel.tsx"
+      ],
+      "rationale": "Real ReplayPanel in JSDOM; in-memory fixtures and pure helpers with DnD, raster/render, store and API explicit substitutes.",
+      "sha256": "48bcacc064c3d81dfd9d59b0ba5bd8b2dc6a6c0b36b137790c1326fdd3785190"
+    },
+    {
+      "path": "tests/unit/replayPresetsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/presets.ts"
+      ],
+      "rationale": "Twelve direct deterministic preset render/timing and static output cases with explicit TimedItem and controlled text measurement; SVG parsed only as an observer.",
+      "sha256": "b76ae6737c61fd1957401e03c6fd136785edb9ca48e6892b75d46d374bfe2565"
+    },
+    {
+      "path": "tests/unit/replayPreviewIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ReplayPreview.tsx"
+      ],
+      "rationale": "Ten direct playback, scene seek and host-event contracts with controlled compiler, SVG timing, clock, store and independent modal boundaries.",
+      "sha256": "7186a97d18e898adab692e3023a42da4e4ada9caa1e23fc03ebe589b0961b4bb"
+    },
+    {
+      "path": "tests/unit/replayRenderIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/render.ts"
+      ],
+      "rationale": "Actual replay markup coordination over isolated scene/layout/draw/lint adapters and pure DOM observation. No render timing acceptance.",
+      "sha256": "1b7969cafd0703418fb26c854fa478a3912f00b6e1c5e2d00b4269a9027f5b4b"
+    },
+    {
+      "path": "tests/unit/replaySchemaBoundariesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/schema.ts"
+      ],
+      "rationale": "Actual pure replay normalization and diagnostics against constructed invalid and bounded valid data; no rendering pipeline.",
+      "sha256": "cfdf027085e0dd72305f5115e2809cc296688de32e69ed2395098cdf811909dd"
+    },
+    {
+      "path": "tests/unit/replaySchemaLayoutBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/schema.ts",
+        "src/core/replay/layout.ts"
+      ],
+      "rationale": "8 direct normalization/layout cases with explicit or pure fixture input, separated from a combined case whose original AST is conserved.",
+      "sha256": "8176a6d52757f65aacbb995354baba8d00670629e690a1328f554a5e3fd6f867"
+    },
+    {
+      "path": "tests/unit/replayTextAdapterDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/text.ts"
+      ],
+      "rationale": "Actual text measurement/wrapping and raster command generation with virtual measured geometry/canvas commands and synthetic receipt; no pixels or actual fonts.",
+      "sha256": "7e421c65e40b497e2e65b1af6b339c684ab76a03e8fc8527109ef01ff4f50075"
+    },
+    {
+      "path": "tests/unit/replayUnicodeWrap.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/replay/text.ts"
+      ],
+      "rationale": "Direct wrapText with in-memory measurement callback, including pure glyph measurement helper and preserved word/punctuation behavior.",
+      "sha256": "f771a3f13348b2457adafc10d946d4833cf40eb7aec2beb715bb9e51d7e60960"
+    },
+    {
+      "path": "tests/unit/replayUploadFlow.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/wechatOutput.ts",
+        "src/core/replay/render.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Actual compiler and replay render feed image preflight/rewrite in the upload orchestrator; injected API replies do not remove the renderer boundary.",
+      "sha256": "79dcce13f5ca0e6fdfedfdae7ed9c145a4bac6ecca1b2fec39a7adb573b158f3"
+    },
+    {
+      "path": "tests/unit/reviewDisplayDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/reviewDisplay.ts"
+      ],
+      "rationale": "Nine actual per-item display/projection policy tests with explicit resolution/rendering/final timing adapters and in-memory DOM; no history mutation or actual renderer pipeline.",
+      "sha256": "c37860afe29496e4d45de87c72c5fa9bc2c087a42d6a6a621b6cd0c6ffd97190"
+    },
+    {
+      "path": "tests/unit/reviewNetwork.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Direct network boundary, timing and finite buffer behavior using in-memory resolvers and response streams only.",
+      "sha256": "7831e86de5074d291171cf4b43f540c8543d8b9a2e99ea67f99a96aa2ba6c723"
+    },
+    {
+      "path": "tests/unit/richEditingWhitespaceDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/richtext.ts"
+      ],
+      "rationale": "Three original rich-text alignment and whitespace contracts over typed memory data.",
+      "sha256": "9a35f384bf14bb9f0a14c507b9b79e6abb88c6777926ad913023384b9a660cae"
+    },
+    {
+      "path": "tests/unit/richEditorIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/RichEditor.tsx"
+      ],
+      "rationale": "Ten direct JSDOM toolbar cases with explicit editor state and command engine replacements, actual UI mixed formats and native select focus.",
+      "sha256": "148f8372b4aec76916c7dfcadd7a564da47b17a2f12fa2453258972d5e268e94"
+    },
+    {
+      "path": "tests/unit/richTypographyCompilerDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Real paragraph compiler with synthetic rich document; JSDOM observes output only, no replay pipeline/UI.",
+      "sha256": "d356868b4bc0fc6a8a9ca907d223cffef324c448abff4d2b838cb0d750f14b95"
+    },
+    {
+      "path": "tests/unit/richTypographyControls.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/RichEditor.tsx",
+        "src/editor/ColorPicker.tsx"
+      ],
+      "rationale": "Actual rich text editor and color picker backed by Tiptap transactions. Retains integration rather than claiming a stubbed controller.",
+      "sha256": "8f67e1635e802d1e57dcd7056945561cb23a00839e087c192ea7eeded9201ffd"
+    },
+    {
+      "path": "tests/unit/richtextConversionsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/richtext.ts"
+      ],
+      "rationale": "Actual pure conversion and alignment of constructed rich text nodes, not TipTap/renderer/export flow.",
+      "sha256": "10a466c277030d7bf4ede6b8e79008dafdf9cbc0d55ca655b607c56354007791"
+    },
+    {
+      "path": "tests/unit/rightPanelIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/RightPanel.tsx"
+      ],
+      "rationale": "Actual inspector actions over memory store and mocked transport, theme and style adapters; no real model, resource or article fetch.",
+      "sha256": "9db45b3887c9c6bcedbf5d7b6ce3bd7d6f0fc728b00f999409c4ac00079a250a"
+    },
+    {
+      "path": "tests/unit/roleHeuristicsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/roles.ts"
+      ],
+      "rationale": "Direct template role and layout heuristics over synthetic blocks and inert DOM; no resource fetch, actual template load or editor workflow.",
+      "sha256": "47f65706f880cc28210fd5fb128e7bf1c22f1703106418d0ddb54b6063cb3dbd"
+    },
+    {
+      "path": "tests/unit/runtime.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/dataTools.ts",
+        "server/store.ts",
+        "server/launcher.ts"
+      ],
+      "rationale": "Original backup/migration/history cases exercise real private temp files, while port tests exercise loopback binding.",
+      "sha256": "30f2d64f1688d080f68a6ba470e7f5e73a919313d6d783f466a9aaf0f713b64e"
+    },
+    {
+      "path": "tests/unit/runtimeDependencies.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "scripts/runtimeDependencies.ts"
+      ],
+      "rationale": "Creates a private real package tree and checks actual filesystem copy and createRequire dependency resolution; package tool flow, not strict unit.",
+      "sha256": "d0a55374dbc9efb19227dd16ad9d635df38a741958e5f77b136dce1caca709ca"
+    },
+    {
+      "path": "tests/unit/runtimeDependenciesIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/runtimeDependencies.ts"
+      ],
+      "rationale": "Direct resolver for a synthetic dependency graph with FS/probe/mkdir/copy replaced; no installation or package run.",
+      "sha256": "0451f88377531ea9fe9b2eaf26c9c8ecc12bf392fce78585aa0f5cc006023da3"
+    },
+    {
+      "path": "tests/unit/runtimePathsProcess.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "server/paths.ts"
+      ],
+      "rationale": "Original Node subprocess reads actual synthetic dotenv files under temporary paths. Tool contract, independent of strict units.",
+      "sha256": "dd00f27ca228caed549085bc704a289e59e96ad63381283d6c60820b340d1fb6"
+    },
+    {
+      "path": "tests/unit/safeFetchIsolatedLifecycle.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/net.ts"
+      ],
+      "rationale": "Direct dispatcher, abort, timeout and late rejection lifecycle against fake Agent and fail-closed DNS/transport defaults.",
+      "sha256": "00347d4f71ae3cfff8261424db1300e38fda3f474502f5b682b4ce8287092fa4"
+    },
+    {
+      "path": "tests/unit/saveRevisionClient.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/store.ts"
+      ],
+      "rationale": "Two preserved direct revision and conflict-copy regressions with all API members and transport fail closed, fake clocks and in-memory store.",
+      "sha256": "1d4320f66456ad2107d39a6c3231b5a1aa77f28f0a13a5d24caa25cdf3ef428a"
+    },
+    {
+      "path": "tests/unit/saveSafetyUpstream.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/store.ts"
+      ],
+      "rationale": "Direct state and save identity boundaries with fail-closed API/fetch and network receipts substituted. Original three case bodies unchanged.",
+      "sha256": "4a957bddfab51bad43967047e2e5f1b33d8eac60b0e834fb91168132d8ecc486"
+    },
+    {
+      "path": "tests/unit/selectedTextStyle.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/selectedTextStyle.ts"
+      ],
+      "rationale": "Direct clone-and-transform against detached in-memory DOM Range fixtures; native editor command and persistence never run. Sanitization is a deterministic internal helper.",
+      "sha256": "274602eb0b864e5ec1f9d560d90f0d9f5ec17b27ef140a9a49844ce0cb79c6fb"
+    },
+    {
+      "path": "tests/unit/selectionOperationDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/ops.ts",
+        "src/core/quickActions.ts"
+      ],
+      "rationale": "Fourteen AST-preserved in-memory selection permission/validation and context cases moved out of the original sample workflow; assertions and input support unchanged.",
+      "sha256": "5b0bbebb26a86b47a44b61deb30e9f6d4bb30099c779a78c38c6d1d301a65855"
+    },
+    {
+      "path": "tests/unit/selectionScopeHook.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/useSelectionScope.ts"
+      ],
+      "rationale": "Six actual React hook cases use a synchronous in-memory selection subscription adapter; no real editor store, transport, or application mount.",
+      "sha256": "f1780335d124fc8411b0138aeb5c669d54d9da4037a354128d72641d60635fcb"
+    },
+    {
+      "path": "tests/unit/selectionSyncPanel.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/RightPanel.tsx",
+        "src/editor/store.ts",
+        "src/editor/useSelectionScope.ts"
+      ],
+      "rationale": "Real RightPanel/store/hooks act together across document history, membership ABA and delayed synthetic cause/effects.",
+      "sha256": "2e56883e3890c86f5b3c45cebd72e84b8cb1aaef64c082230eb544715aa2bfbc"
+    },
+    {
+      "path": "tests/unit/selectionTouchCascade.test.ts",
+      "runner": "vitest",
+      "layer": "static-contract",
+      "target": [
+        "src/main.tsx",
+        "src/editor/Canvas.tsx"
+      ],
+      "rationale": "Reads actual entry stylesheet imports and assembles CSS cascade in JSDOM to check 44px UI contract for both themes; not isolated JS logic or physical touch/browser measurement.",
+      "sha256": "b363bcf9714fe4a9abdde77903a4480789b35ca0314aa9e4afc027321ad71564"
+    },
+    {
+      "path": "tests/unit/server.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/importer.ts"
+      ],
+      "rationale": "Direct HTML to Markdown conversion; Mammoth, archive reader and asset boundaries all fail closed.",
+      "sha256": "c75ffbd6ce62b419893e00211a25e6cb98172e08583deede14d11d48ae5d7636"
+    },
+    {
+      "path": "tests/unit/serverAppHandlersIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/app.ts"
+      ],
+      "rationale": "Actual captured server terminal handlers and local-only middleware with synthetic sockets, process, filesystem, backup and model boundaries; no real listener or transport.",
+      "sha256": "37bed931a460a4a61c080a0948bf247ebefc26bec5ee28f37b25ea42dc346704"
+    },
+    {
+      "path": "tests/unit/serverAssetsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/assets.ts"
+      ],
+      "rationale": "Thirteen actual assets-orchestration cases with virtual codecs, budget, filesystem, index and IDs, no real disk/decode or remote action.",
+      "sha256": "78572b4282933d2b8aafc5c02458adc9a276fccd7d1db5d5f563240525228e84"
+    },
+    {
+      "path": "tests/unit/serverComponentsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/components.ts"
+      ],
+      "rationale": "Direct repository handlers with virtual collection, filesystem and ID seams; validation and metadata policy real, no disk/server.",
+      "sha256": "b39b26e1237e6209b790dbf520455c17d2e455839dd6210294269948bd1a84ab"
+    },
+    {
+      "path": "tests/unit/serverJsonStoreIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/store.ts"
+      ],
+      "rationale": "Seven actual JSON store scheduling/collection cases with virtual filesystem and paths, isolated UUID and no actual write, process or environment.",
+      "sha256": "3604e6a17d18761630fa2b37df58482f236910c500be923692aa40a78c2dd241"
+    },
+    {
+      "path": "tests/unit/serverLogIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/log.ts"
+      ],
+      "rationale": "Real redact/tee behavior with virtual file sink, console and clock; only synthetic values.",
+      "sha256": "1ab7c6069d0532b880a9af5096de68adec2ce3a8613eb092e60889ccdf85bac9"
+    },
+    {
+      "path": "tests/unit/serverPathsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/paths.ts"
+      ],
+      "rationale": "Real path resolution with explicit process-env fixture plus virtual presence and dotenv-load dependencies. No host paths or real dotenv read.",
+      "sha256": "1b4fccd172e8f2d8d2fa21c109301351590eed6d26c9387815ddb76fce3096f2"
+    },
+    {
+      "path": "tests/unit/settings.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/settings.ts",
+        "server/store.ts"
+      ],
+      "rationale": "Retains ten existing real settings JSON tests in a private temporary directory; not strict unit coverage.",
+      "sha256": "f909ff1ebd21538a5380c0a94ea06c1d819b08407ac83393d252735d60fe9657"
+    },
+    {
+      "path": "tests/unit/settingsIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/settings.ts"
+      ],
+      "rationale": "Direct settings policy with all store/paths dependencies replaced in memory, synthetic env values, fail-closed transport.",
+      "sha256": "0fe8224689cfbd715f48264b64bf4025078ce2606cd4543dac6f68434fc98c4d"
+    },
+    {
+      "path": "tests/unit/shellProjectFixture.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "tests/shell/projectFixture.ts"
+      ],
+      "rationale": "Uses in-memory request replacements to test shell browser fixture helpers only. The target is test support, not a product source.",
+      "sha256": "629574c62670939ede0c97ad165f03a54b1cbc77ae542717253cd395d7b5b3c5"
+    },
+    {
+      "path": "tests/unit/slotAppearanceDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/slots.ts"
+      ],
+      "rationale": "Pure slot appearance operations and detached parsing; no media transfer, metadata fetch or browser.",
+      "sha256": "8cbcf0a9e059915452c9d3e872da089741080f954211889dff074ccffa442e0b"
+    },
+    {
+      "path": "tests/unit/slotEditingWhitespaceDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/slots.ts"
+      ],
+      "rationale": "Six original direct slot writing/alignment contracts over synthetic in-memory HTML.",
+      "sha256": "309f6e824352bc8326aa0747472a281396777a662f197e7e504188df58a5e872"
+    },
+    {
+      "path": "tests/unit/slotMediaAndAlignDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/slots.ts"
+      ],
+      "rationale": "Actual slot media geometry and localized DOM changes from synthetic markup, no media load or rendering pipeline.",
+      "sha256": "32ad11b0353b2ad298a2b790dc675e72bebdbfbbc40a8d1de6b5fb441b3f705c"
+    },
+    {
+      "path": "tests/unit/slots.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/slots.ts",
+        "src/core/ops.ts",
+        "src/core/quickActions.ts"
+      ],
+      "rationale": "Preserved staged validation/application/revalidation across HTML operation boundaries and AI-context projection, not direct slot unit.",
+      "sha256": "5a6c20d937d040fbe76387862ae979ef6c6dec91e4542517397f9e7987776aee"
+    },
+    {
+      "path": "tests/unit/slotsDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/slots.ts"
+      ],
+      "rationale": "Direct extraction, writing and observation over an injected in-memory DOM parser; no operation validation/application workflow.",
+      "sha256": "79503453591b5757c7b297a12cdf617ce6763cb7a383ca9565599dc58520c4ac"
+    },
+    {
+      "path": "tests/unit/store.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/store.ts"
+      ],
+      "rationale": "Actual temp-file queue, real reads/updates and rollback with selected filesystem adapter faults; no faux unit claim from import path.",
+      "sha256": "ae71a99adb5664841170ea6f7d737681182f72714a92da3bdb5e3de4e4858a6b"
+    },
+    {
+      "path": "tests/unit/styleExtractDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/styleExtract.ts"
+      ],
+      "rationale": "Actual style statistics from in-memory markup and separate theme generation from a prepared report. No browser, transport or persistence.",
+      "sha256": "972c71c8c6d117e108dfd6a44f6924f7d052df95018c8084f546763b76b9be62"
+    },
+    {
+      "path": "tests/unit/suggestionInput.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/SuggestionInput.tsx"
+      ],
+      "rationale": "Direct isolated rendering of one React controlled input; placeholder acceptance, manual input, IME, keyboard and touch callback semantics.",
+      "sha256": "35920ab69bbac920af38f26ad2e74d39d2606907083901d5558cd932ee31fc33"
+    },
+    {
+      "path": "tests/unit/suggestionPanel.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/RightPanel.tsx",
+        "src/editor/suggestionQueue.ts",
+        "src/editor/store.ts"
+      ],
+      "rationale": "Real panel, store and suggestion queue plus preference storage are exercised as a workflow, even with model responses substituted.",
+      "sha256": "a64dc3b1f852afcc0693a26f15ba50f246b354e39a4073972a194e8a7dd21aeb"
+    },
+    {
+      "path": "tests/unit/suggestionPreference.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/suggestionPreference.ts"
+      ],
+      "rationale": "Direct isolated preference reads/writes against jsdom memory storage, with resetModules/clear and throwing method stubs; does not mount a panel or use the user's browser storage.",
+      "sha256": "904cabe8fe3658a7f88e062359fb72afcc3d5d0185dce45b0f5616b56958e010"
+    },
+    {
+      "path": "tests/unit/suggestionQueue.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/suggestionQueue.ts"
+      ],
+      "rationale": "Direct queue class or its module listener with injected promises/callbacks, scoped fake timers and synthetic EventTarget. No actual provider, settings/app mounting or user event integration.",
+      "sha256": "b7108aed8e43a5f9951695435dc69abca7ccf6690646c95a6949ec9c0b347def"
+    },
+    {
+      "path": "tests/unit/templateCatalogBoundariesDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/templateFill.ts"
+      ],
+      "rationale": "Actual template catalog classification, deduplication and theme selection with prepared templates and pure DOM observers.",
+      "sha256": "17246ba12ae53c906b907a21f1ad69793153f60fc87512d66691885696cf9b18"
+    },
+    {
+      "path": "tests/unit/templateFill.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/templateFill.ts"
+      ],
+      "rationale": "Direct catalog, renumber and theme transforms from in-memory blocks and injected JSDOM; no template DB/import/assembly workflow. Assertions ignore generated fixture IDs.",
+      "sha256": "2f33f6baafefe915c0b9b8cb66437fb57db82e02f695a7aa4069cf332311e064"
+    },
+    {
+      "path": "tests/unit/templateModulesIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/TemplateModules.tsx"
+      ],
+      "rationale": "Eight real template-role editor/helper cases, replace API/store/modal/preview; no true save or mounted application, verify unit lifetime and role draft state.",
+      "sha256": "fb17270229239997cfbc431419b614236cb4f8771c6a93954e322d45125605f2"
+    },
+    {
+      "path": "tests/unit/textColor.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/slots.ts",
+        "src/core/compiler.ts"
+      ],
+      "rationale": "Two independently exercised units: direct slot transformation/inspection and direct compiler output. No single test chains the two targets. JSDOM reparse is output observation, not persistence or real rendering.",
+      "sha256": "dc9cca8b231b1ef5ba085f8ae3e06b70995e22681fe5ee501938a2f93d0a38a2"
+    },
+    {
+      "path": "tests/unit/textControls.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/PropsForm.tsx",
+        "src/editor/store.ts",
+        "src/core/slots.ts"
+      ],
+      "rationale": "Actual form interacts with editor store and dedicated slot transforms; validation includes persisted-in-memory field and reopen behavior.",
+      "sha256": "fd356b4b6bf8de541adc1cf1c31702ac0d88dcd347a6f89af5a9a86e0d01046a"
+    },
+    {
+      "path": "tests/unit/textTypography.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/compiler.ts",
+        "src/core/replay/render.ts"
+      ],
+      "rationale": "Actual compiler and replay renderer parity; second logical engine is not folded into unit scope.",
+      "sha256": "25557c96de1c30b8f8bb534c07cc9d3acfd7ad151cf7feecfa9c6de68e20aa11"
+    },
+    {
+      "path": "tests/unit/toolbarIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Toolbar.tsx"
+      ],
+      "rationale": "Actual Toolbar control handlers with persistence, browser clipboard/download, model publication, compilation and child panels substituted; no real external side effects.",
+      "sha256": "5b5a011f83d232131efa1a59728ba49d103b926324175c88c8f8da2f740eeaec"
+    },
+    {
+      "path": "tests/unit/toolbarMenuDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/ToolbarMenu.tsx"
+      ],
+      "rationale": "Four actual standalone overflow control scenarios drive in-memory children/callbacks and pointer/key events without toolbar/editor actions.",
+      "sha256": "9e82990b65f3eba965b83001fef033093c1698400cbbffa30fc297623587d269"
+    },
+    {
+      "path": "tests/unit/typographyValidationDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/textTypography.ts"
+      ],
+      "rationale": "Direct typed values and invalid syntax checks against formatting validators; no renderer.",
+      "sha256": "0d643916dd856ccb6fa692ba982bda75fdefb73e1fc63da961b16edec718e5b2"
+    },
+    {
+      "path": "tests/unit/uploadAdmissionDefence.test.ts",
+      "runner": "vitest",
+      "layer": "api-integration",
+      "target": [
+        "server/uploadGate.ts"
+      ],
+      "rationale": "Real Express loopback socket proves a rejected unfinished multipart body yields prompt 429 and closes; not executed as a strict unit.",
+      "sha256": "b91d748dbdcfee6e88ef79c933946d1137ed95ab8a7bf0ebb41ca6b5ddfe7979"
+    },
+    {
+      "path": "tests/unit/uploadAdmissionDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/uploadGate.ts"
+      ],
+      "rationale": "Direct parser callback deduplication and permit release over fake EventEmitter request/response surfaces, with no Express runtime or socket.",
+      "sha256": "6544be58710fe0c330327cb530f910c66f491a5691d98c3fc62e81c3319f0c73"
+    },
+    {
+      "path": "tests/unit/uploadDisk.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/uploadStorage.ts",
+        "server/uploadGate.ts"
+      ],
+      "rationale": "Streams to and cleans real private temporary files even when some write faults and request events are injected; filesystem resource integration.",
+      "sha256": "5805d5bbfe0cd8ffe3a7ec17ad549dee51150c06f0fc8b194140a7fb68075cb8"
+    },
+    {
+      "path": "tests/unit/uploadGate.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/uploadGate.ts"
+      ],
+      "rationale": "Direct permit, timeout, disconnect and listener lifecycle over fake request/response EventEmitter surfaces and injected parser/handler. No real HTTP, parser, filesystem or socket.",
+      "sha256": "3f6498c3703932b692152ae0b0dabadee384d78e1469b04e9c97a9eddc09b3a2"
+    },
+    {
+      "runner": "vitest",
+      "path": "tests/unit/uploadGateIntegration.test.ts",
+      "layer": "api-integration",
+      "target": [
+        "server/uploadGate.ts",
+        "server/uploadStorage.ts"
+      ],
+      "rationale": "Real Express/Multer HTTP multipart, private disk, timeout and disconnect lifecycle; injected ENOSPC does not replace the HTTP/storage integration boundary.",
+      "sha256": "e0e475ed55da181e4e4d356d0f74ce65aec5749c07f9ab3e82f4a41345f6a6dd"
+    },
+    {
+      "path": "tests/unit/uploadGateLateCleanup.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/uploadGate.ts"
+      ],
+      "rationale": "Direct cleanup ordering, status forwarding and timeout adapter under mocked request/response surfaces; synthetic downstream failures only, no HTTP or real process.",
+      "sha256": "4319f3be86c6120ea942be2f61606f738a34d174fef291ee3508d035d87e46de"
+    },
+    {
+      "path": "tests/unit/uploadStorage.resource.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/uploadStorage.ts",
+        "server/uploadGate.ts"
+      ],
+      "rationale": "Actual private disk writer with synthetic request/file streams, covering abort/overflow/cleanup.",
+      "sha256": "982173115a3b502ba4d94b7b853bca60e804d0f4dc7880d08fd75afce12440ad"
+    },
+    {
+      "path": "tests/unit/uploadStorage.test.ts",
+      "runner": "vitest",
+      "layer": "api-integration",
+      "target": [
+        "server/uploadStorage.ts"
+      ],
+      "rationale": "Actual private loopback HTTP/Express/multipart tests under isolated temp storage; not direct unit.",
+      "sha256": "481edccbd91eb3aac5ba723365151d35f59f05a3de579916c45a54f5293586df"
+    },
+    {
+      "path": "tests/unit/uploadStorageBudgetDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/uploadStorage.ts"
+      ],
+      "rationale": "Direct configuration and in-memory buffer removal only, fail closed on filesystem or upload context entry.",
+      "sha256": "dd6d403b51f4685934c3a693b53460f1fa1da59d7a2ce5aad80ff391eeaf5e7f"
+    },
+    {
+      "path": "tests/unit/uploadStorageIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/uploadStorage.ts"
+      ],
+      "rationale": "Seven actual upload-storage lifecycle cases use synthetic streams, fake IO and guard registration. No filesystem or HTTP transport.",
+      "sha256": "d71ffc23d4704c27e3ddd35bf6a6515f2f7051ef26f5c4fcb29fc8ee045fbecc"
+    },
+    {
+      "path": "tests/unit/upstreamAnimationBudget.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/assets.ts",
+        "server/imageBudget.ts",
+        "server/store.ts"
+      ],
+      "rationale": "Uses real store import and private temp directories despite mocked Sharp frame inspection; resource integration, not isolated test.",
+      "sha256": "6475c9890b25a587052346a5a6b5785736bf4cd5c0cb581759b9e5d67b6f1f63"
+    },
+    {
+      "path": "tests/unit/upstreamAssetMergeConcurrency.test.ts",
+      "runner": "vitest",
+      "layer": "resource-integration",
+      "target": [
+        "server/assets.ts",
+        "server/dataTools.ts"
+      ],
+      "rationale": "Actual private files and Sharp are used across storage and add-only restore; only reads are delayed to observe interleaving.",
+      "sha256": "a9f01cfcd6fc428dc3a793a9b6db962d7fb9ee3032da84bd575a4404fe4e3ca2"
+    },
+    {
+      "path": "tests/unit/upstreamReplayBoundary.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/ops.ts"
+      ],
+      "rationale": "Direct validateOp calls over a synthetic Doc; block constructors only build fixtures, no replay render, editor state or storage.",
+      "sha256": "97afda9495bc2303200f53198aba53e8ce762e22a6e38b6a061d90b939f7463a"
+    },
+    {
+      "path": "tests/unit/upstreamReviewPolicy.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/aiEdit.ts",
+        "src/core/ops.ts"
+      ],
+      "rationale": "Direct environment-policy parsing and selection boundary transformations using synthetic objects. Environment restored; scope helper calls operate only on the provided article tree, not Zustand or real server routes.",
+      "sha256": "1baecb916a2f0f6a5d9e6b8bd30c1f294c73cf56671b342947acaa9ce8caab63"
+    },
+    {
+      "path": "tests/unit/upstreamUploadAdmission.test.ts",
+      "runner": "vitest",
+      "layer": "api-integration",
+      "target": [
+        "server/app.ts",
+        "server/uploadGate.ts",
+        "server/uploadStorage.ts"
+      ],
+      "rationale": "Actual loopback application pipeline with multipart admission/request budgets; Sharp and private filesystem are used for asset boundary. No real provider.",
+      "sha256": "3d5624db4d6c4c0b75b8730e3db68e1ef6ae5ddfaacde4c2bc16ef4866c9e42f"
+    },
+    {
+      "path": "tests/unit/verificationArchive.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/verificationArchive.ts"
+      ],
+      "rationale": "Direct in-memory archive inspection with deterministic ZIP bytes generated as fixtures; no real archive file or packaged launcher.",
+      "sha256": "31ff38479d6da895583a975e6e342feaa22f2fdbb40cfd7c4e7a3e607cda4389"
+    },
+    {
+      "path": "tests/unit/verificationAssemblyIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/verificationRuntime.ts",
+        "scripts/verificationArchive.ts"
+      ],
+      "rationale": "Two independent deterministic portable-verifier helpers: synthetic child environment with explicit presence boundary and synthetic in-memory Word archive. No real tool.",
+      "sha256": "d60ddd23657324461b0d5e3e0164a196a51dda055f5ca40e2cf102818edbd2c0"
+    },
+    {
+      "path": "tests/unit/verificationRuntime.test.ts",
+      "runner": "vitest",
+      "layer": "tool",
+      "target": [
+        "scripts/verificationRuntime.ts"
+      ],
+      "rationale": "Real filesystem/module resolution contracts for temp project trees, package metadata and junction escape; no actual Windows EXE launched. Test classification is not inferred from the directory name.",
+      "sha256": "5c96bae9d12fb95c12446b577d74d7fb08701dd136831e23e61b4387a5113045"
+    },
+    {
+      "path": "tests/unit/verificationTransportIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "scripts/verificationRuntime.ts"
+      ],
+      "rationale": "Direct control of request framing, in-memory multipart and readiness timing using fake time and denied fallback transport.",
+      "sha256": "192cedc92ea91b39bb8bbe4719ceab81f8decbd6eca4b3ea7c5897c3cef14fe4"
+    },
+    {
+      "path": "tests/unit/wechatDraftValidationIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/wechat.ts"
+      ],
+      "rationale": "Direct draft validator over fixture markup; explicit fail-closed store and asset-probe boundaries, no WeChat request.",
+      "sha256": "caec5017d8c451c6fe58cb83e9f40e45502a16af730919e6ff68f8c7925c8d5c"
+    },
+    {
+      "path": "tests/unit/wechatOutputIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/wechatOutput.ts"
+      ],
+      "rationale": "Twenty-five direct output orchestration cases with compile, ZIP, API, clipboard, URL, canvas and transport boundaries replaced; no real publishing or file download.",
+      "sha256": "3f26ebe24820b4a0a2368423f1bf104c700b200e7d752b1bec487f9c605f6b32"
+    },
+    {
+      "path": "tests/unit/wechatWireIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/wechat.ts"
+      ],
+      "rationale": "Twelve actual protocol/cache/error cases use synthetic-only env, virtual local storage/image processing and fake fetch. No real credentials or WeChat request.",
+      "sha256": "d3dd6fb475d34b37d8b341412dcbd456920242e7f9369978ea5d8cf49cd25e32"
+    },
+    {
+      "path": "tests/unit/workspaceIsolated.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Workspace.tsx"
+      ],
+      "rationale": "Actual Workspace with simple panel children, in-memory storage/events/timer, controlled geometry/capture; not native browser acceptance.",
+      "sha256": "fef9cd4202f52c98b33e540c201abcd84968a96d73915fce7e59d3d75814626d"
+    },
+    {
+      "path": "tests/unit/wxImportBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Direct source detection, extraction, content-layer and shell-split API assertions over explicit in-memory DOM and fixtures; no staged output consumer, network or persistent workflow.",
+      "sha256": "ad9ebe62f2c4b59c43fec803764dfb29b2e7ecbdd56e180d396ad6d7f8df325f"
+    },
+    {
+      "path": "tests/unit/wxImportFidelity.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Direct independent shell/split assertions and Markdown serialization against a prepared DOM fixture; ordering, nested list shell and safe integer edge cases.",
+      "sha256": "fb62fc6ccfb3680e568c804f4d5a5dece096ea37fc8b0815f2d8d522881d377f"
+    },
+    {
+      "path": "tests/unit/wxImportPipeline.integration.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/wxImport.ts",
+        "src/core/sanitize.ts"
+      ],
+      "rationale": "Real in-memory extraction and Markdown serialization across stages; preserved source-shell, metadata and ordered-list expectations.",
+      "sha256": "91643478accb28d94ea83ca29a2ee7c8a8506b71ae0cd0753d73efc29d9627ec"
+    },
+    {
+      "path": "tests/unit/wxMarkdownDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Actual article Markdown converter with prepared in-memory article/DOM, no extraction pipeline, media network or renderer.",
+      "sha256": "5a27168b3fe77ba0cb4dc0e8ba16a1fe30b628b30f6dcea286c73fc66856dc45"
+    },
+    {
+      "path": "tests/unit/wxStyleDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/wxImport.ts"
+      ],
+      "rationale": "Direct import wrapper style/flow arithmetic over constructed in-memory DOM, not visual parity or network.",
+      "sha256": "5630715ac77b429af9016475b3d4da5091a90a1cba49d48144038652533c80b4"
+    },
+    {
+      "path": "tests/unit/xiumiConfirmation.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/Toolbar.tsx",
+        "src/editor/store.ts",
+        "src/editor/wechatOutput.ts",
+        "src/core/xiumiExport.ts"
+      ],
+      "rationale": "Real toolbar/store/output and compilation workflow exercises confirmation against transformed multipart size with publishing/download boundary stubs.",
+      "sha256": "4bd3df422d3273a56ebb0417808b73d9cd6ec9b8ce0274a0a52c06b14f5a70ee"
+    },
+    {
+      "path": "tests/unit/xiumiExportDirect.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/core/xiumiExport.ts"
+      ],
+      "rationale": "Eight direct size/HTML/image and in-memory archive structure tests; no editor state, clipboard, provider or FS.",
+      "sha256": "2ed3555492ab9ab20d5077bcd8b9b0858f4855d50607ce9e66ec285b4d3272c5"
+    },
+    {
+      "path": "tests/unit/xiumiLimits.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/core/xiumiExport.ts",
+        "src/core/compiler.ts",
+        "src/editor/wechatOutput.ts"
+      ],
+      "rationale": "Six original editor/output orchestration cases retain compile/export/asset-flow boundaries and real editor fixture code; adapter mocked.",
+      "sha256": "70748a4b75cff211a22837fef9aba353ebc882f90b437800530408be2a0e5f88"
+    }
+  ],
+  "support": [
+    {
+      "path": "tests/e2e/fixtures/inlineReview.ts",
+      "sha256": "e29a30563e273b61ce94f00fae6046712614a39353b779f8710bb31732f0dc23"
+    },
+    {
+      "path": "tests/quality/test-layer-check.mjs",
+      "sha256": "2d053edaf0672fa4e5743602ab230ce2a935b446640421b88843988a11286464"
+    },
+    {
+      "path": "tests/shell/projectFixture.ts",
+      "sha256": "4129959639a9f53acf707da14d847b50bc93a56552a42133fa0b4d11c2586039"
+    },
+    {
+      "path": "tests/unit/helpers.ts",
+      "sha256": "b685828f468e38a7e684d955f78277b8b6806aea4eeb951201693a5ba6a8e4d0"
+    },
+    {
+      "path": "tests/unit/importCardFixture.ts",
+      "sha256": "8c5d60372b2db5c2b62ffb8cdda2f569c5211705908b2bf8321bf05c513e9be1"
+    },
+    {
+      "path": "tests/unit/wxSvgRegressionFixture.ts",
+      "sha256": "4e50af7174cbe232538493a6d98e10296a2c9da9f525a9582fe4cb7c4b4e8b70"
+    }
+  ]
+}

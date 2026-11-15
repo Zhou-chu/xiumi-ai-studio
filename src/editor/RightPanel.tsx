@@ -107,6 +107,10 @@ function ThemePanel() {
           await api.saveTheme(t)
           registerTheme(t)
           refreshThemes()
+          if (useStore.getState().doc !== doc) {
+            notify('主题已保存；文稿已变化，未自动应用')
+            return
+          }
           commit({ ...doc, themeId: t.id, themeOverrides: undefined })
           notify('主题已保存')
         }}
@@ -127,6 +131,7 @@ function AiPanel() {
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [instruction, setInstruction] = useState('')
   const [busy, setBusy] = useState(false)
+  const editRequest = useRef<{ scope: string } | null>(null)
   const [collection, setCollection] = useState<{doc:Doc;selection?:string|string[];token:string;epoch:number}|null>(null)
   const imageCommand = isImageLibraryRequest(instruction)
   const documentEpoch = useRef(0), collectionOpen = useRef(false), suggestionController = useRef<AbortController|null>(null)
@@ -165,17 +170,33 @@ function AiPanel() {
     return () => { clearTimeout(timer); controller.abort(); if (suggestionController.current === controller) suggestionController.current = null }
   }, [collection, autoSuggest, ai, instruction, busy, context, contextKey, selectedId, multipleIds, scopeIdentity, captureScope, isScopeCurrent])
   useEffect(() => {
-    const load = () => api.aiStatus().then(setAi).catch(() => setAi(null))
-    load()
+    let alive = true
+    let generation = 0
+    const load = async () => {
+      const current = ++generation
+      try {
+        const status = await api.aiStatus()
+        if (alive && current === generation) setAi(status)
+      } catch {
+        if (alive && current === generation) setAi(null)
+      }
+    }
+    void load()
     window.addEventListener('ai-settings-changed', load)
-    return () => window.removeEventListener('ai-settings-changed', load)
+    return () => {
+      alive = false
+      window.removeEventListener('ai-settings-changed', load)
+    }
   }, [])
   const run = async () => {
     if (!instruction.trim() || !isScopeCurrent(scopeIdentity)) return
     if (imageCommand) { openCollection(); return }
+    const requestedScope = captureScope()
+    if (editRequest.current?.scope === requestedScope) return
+    const request = { scope: requestedScope }
+    editRequest.current = request
     setBusy(true)
     const expectedVersion = useStore.getState().proposalVersion
-    const requestedScope = captureScope()
     try {
       const r = await api.aiEdit(aiContext(doc, selection), instruction, undefined, selectedId, multipleIds)
       if (!isScopeCurrent(requestedScope)) return
@@ -184,7 +205,10 @@ function AiPanel() {
     } catch (e: any) {
       if (isScopeCurrent(requestedScope)) notify(e.message, 'error')
     } finally {
-      if (isScopeCurrent(requestedScope)) setBusy(false)
+      if (editRequest.current === request) {
+        editRequest.current = null
+        if (isScopeCurrent(requestedScope)) setBusy(false)
+      }
     }
   }
   const pending = proposal?.items.filter((i) => i.status === 'pending') ?? []
@@ -293,12 +317,17 @@ function ReferencePanel() {
           <button
             className="primary wide"
             onClick={async () => {
+              const doc = useStore.getState().doc
               const name = prompt('新主题名称', '我的参考风格') ?? '我的参考风格'
               const t = { ...draft, name }
               await api.saveTheme(t)
               registerTheme(t)
               refreshThemes()
-              commit({ ...useStore.getState().doc, themeId: t.id, themeOverrides: undefined })
+              if (useStore.getState().doc !== doc) {
+                notify('主题已保存；文稿已变化，未自动应用')
+                return
+              }
+              commit({ ...doc, themeId: t.id, themeOverrides: undefined })
               notify(`已创建并应用主题「${name}」`)
             }}
           >

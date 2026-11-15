@@ -20,8 +20,15 @@ const baseSrc = (src: string) => (src.startsWith('/media/') ? src.split('?')[0] 
 
 /** 从 /media/x.jpg?fit=100:68 中读出原相框的高宽比 */
 export function fitRatio(src: string): number | undefined {
-  const m = decodeURIComponent(src).match(/[?&]fit=(\d+):(\d+)/)
-  return m ? Number(m[2]) / Number(m[1]) : undefined
+  const beforeFragment = src.split('#', 1)[0]
+  const queryStart = beforeFragment.indexOf('?')
+  if (queryStart < 0) return undefined
+  const value = new URLSearchParams(beforeFragment.slice(queryStart + 1)).get('fit')
+  if (value === null) return undefined
+  const m = value.match(/^(\d+):(\d+)$/)
+  if (!m) return undefined
+  const ratio = Number(m[2]) / Number(m[1])
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : undefined
 }
 
 /** 模块里按 <img> 顺序排列的照片；装饰图、二维码为 null（不可移动） */

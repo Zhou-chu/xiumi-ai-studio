@@ -1,5 +1,5 @@
 import { ModelPicker } from './ModelPicker'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type AiProfile } from './api'
 import { AI_PRESETS } from './aiPresets'
 import { Modal } from './Modal'
@@ -27,18 +27,32 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [activeId, setActiveId] = useState('')
   const [editing, setEditing] = useState<number>(-1)
   const [testing, setTesting] = useState('')
+  const [testPending, setTestPending] = useState(false)
   const [probing, setProbing] = useState(false)
   const [effortNote, setEffortNote] = useState('')
-  const actionRequest = useRef({ probe: 0, test: 0 })
+  const actionRequest = useRef({ probe: 0, test: 0, probePending: false, testPending: false })
   const [modelList, setModelList] = useState<Awaited<ReturnType<typeof api.aiModels>>>([])
   const [modelStatus, setModelStatus] = useState('')
+  const [credentialWarning, setCredentialWarning] = useState<{ id: string; endpoint: string } | null>(null)
   const [fetchingModels, setFetchingModels] = useState(false)
   const modelRequest = useRef({ generation: 0, pending: false })
   const tuningScopes = useRef(new Map<string, string>())
+  const obsoleteTuning = useRef(new WeakSet<AiProfile>())
   const credentialScopes = useRef(new Map<string, string>())
   const [busy, setBusy] = useState(false)
   // 设置读取完成前不能新增：否则读取结果会覆盖刚选的预设
   const [loaded, setLoaded] = useState(false)
+
+  const invalidateActions = useCallback(() => {
+    actionRequest.current.probe++
+    actionRequest.current.test++
+    actionRequest.current.testPending = false
+    actionRequest.current.probePending = false
+    setProbing(false)
+    setTestPending(false)
+    setEffortNote('')
+    setTesting('')
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -46,6 +60,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       .aiSettings()
       .then((s) => {
         if (!alive) return
+        invalidateActions()
         for (const p of s.profiles) {
           if (endpointOf(p)) tuningScopes.current.set(p.id, endpointOf(p))
           if ((p.apiKey || p.hasKey) && endpointOf(p)) credentialScopes.current.set(p.id, endpointOf(p))
@@ -57,7 +72,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       })
       .catch((e) => { if (alive) notify(e.message, 'error') })
     return () => { alive = false }
-  }, [notify])
+  }, [notify, invalidateActions])
 
   const cur = editing >= 0 ? profiles[editing] : null
   useEffect(() => {
@@ -71,7 +86,10 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const serviceDraft = (p: AiProfile): AiProfile => {
     const previous = tuningScopes.current.get(p.id)
     const next = endpointOf(p)
-    return previous && next && previous !== next
+    // The scope can advance before React replaces this draft. Any action
+    // still holding that exact draft must keep using reset endpoint limits.
+    if (previous && next && previous !== next) obsoleteTuning.current.add(p)
+    return obsoleteTuning.current.has(p)
       ? { ...p, contextWindow: 0, maxOutputTokens: 0, efforts: [], reasoningEffort: '' } : p
   }
   const checkCredentials = (p: AiProfile) => {
@@ -89,10 +107,11 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       // Compare the completed URL, not partially typed hostnames. Saved keys are
       // also checked by the server; this protects newly entered draft keys.
       if (p.apiKey || p.hasKey) setProfiles((list) => list.map((x) => x.id === p.id ? { ...x, apiKey: '', hasKey: false } : x))
-      setModelStatus('更换服务商地址或接口类型后，请重新输入 API Key。')
+      setCredentialWarning({ id: p.id, endpoint: target })
       return false
     }
-    if (target && (p.apiKey.trim() || p.hasKey)) credentialScopes.current.set(p.id, target)
+    if (p.apiKey.trim() || p.hasKey) credentialScopes.current.set(p.id, target)
+    setCredentialWarning((warning) => warning?.id === p.id && warning.endpoint === target ? null : warning)
     return true
   }
   const fetchModels = async (p: AiProfile) => {
@@ -126,28 +145,21 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     if (!p.apiKey.trim() && !p.hasKey && !local) return
     void fetchModels(p)
   }
+  // User draft/profile actions invalidate immediately. Internal normalization
+  // (e.g. resetting token limits at request start) must not invalidate that request.
   useEffect(() => {
     const state = actionRequest.current
-    state.probe++
-    state.test++
-    setProbing(false)
-    setEffortNote('')
-    setTesting('')
-    return () => { state.probe++; state.test++ }
-  }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey, cur?.model, cur?.extraBody, cur?.jsonMode, cur?.maxOutputTokens])
+    return () => { state.probe++; state.test++; state.probePending = false; state.testPending = false }
+  }, [])
 
   const invalidate = () => {
     setFetchingModels(false)
-    setProbing(false)
     setModelStatus('')
-    setEffortNote('')
-    setTesting('')
     modelRequest.current.generation++
     modelRequest.current.pending = false
-    actionRequest.current.probe++
-    actionRequest.current.test++
+    invalidateActions()
   }
-  const close = () => { invalidate(); onClose() }
+  const close = () => { invalidate(); setCredentialWarning(null); onClose() }
   const patch = (p: Partial<AiProfile>) => {
     // Invalidate synchronously, before a queued response can land after an edit.
     const endpoint = ['baseUrl', 'provider'].some((key) => key in p)
@@ -158,8 +170,10 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     if (cur && 'apiKey' in p && !p.apiKey?.trim()) credentialScopes.current.delete(cur.id)
     if (cur && 'apiKey' in p && p.apiKey?.trim()) {
       const target = endpointOf(cur)
-      if (target) credentialScopes.current.set(cur.id, target)
-      else credentialScopes.current.delete(cur.id)
+      if (target) {
+        credentialScopes.current.set(cur.id, target)
+        setCredentialWarning((warning) => warning?.id === cur.id && warning.endpoint === target ? null : warning)
+      } else credentialScopes.current.delete(cur.id)
     }
     const changedProvider = cur && p.provider && p.provider !== cur.provider
     if (changedProvider) {
@@ -167,11 +181,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       const target = endpointOf({ ...cur, ...p })
       if (target) tuningScopes.current.set(cur.id, target)
     }
-    actionRequest.current.probe++
-    actionRequest.current.test++
-    setProbing(false)
-    setTesting('')
-    setEffortNote('')
+    invalidateActions()
     setProfiles((list) => list.map((x, i) => i === editing ? {
       ...x,
       ...(changedProvider ? { contextWindow: 0, maxOutputTokens: 0, efforts: [], reasoningEffort: '' } : {}),
@@ -185,9 +195,11 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   const probe = async (p: AiProfile) => {
+    if (actionRequest.current.probePending) return
     p = serviceDraft(p)
     if (!checkCredentials(p)) return
     const request = ++actionRequest.current.probe
+    actionRequest.current.probePending = true
     setProbing(true)
     setEffortNote('检测中…每个强度发一条请求，可能需要几分钟。')
     try {
@@ -204,7 +216,10 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     } catch (e: any) {
       if (request === actionRequest.current.probe) setEffortNote(`检测失败：${e.message}`)
     } finally {
-      if (request === actionRequest.current.probe) setProbing(false)
+      if (request === actionRequest.current.probe) {
+        actionRequest.current.probePending = false
+        setProbing(false)
+      }
     }
   }
 
@@ -237,9 +252,12 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   const test = async (p: AiProfile) => {
+    if (actionRequest.current.testPending) return
     p = serviceDraft(p)
     if (!checkCredentials(p)) return
     const request = ++actionRequest.current.test
+    actionRequest.current.testPending = true
+    setTestPending(true)
     setTesting('测试中…')
     try {
       const r = await api.testAi(p)
@@ -247,9 +265,16 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : `已响应但格式异常：${JSON.stringify(r.reply).slice(0, 80)}`)
     } catch (e: any) {
       if (request === actionRequest.current.test) setTesting(`✕ ${e.message}`)
+    } finally {
+      if (request === actionRequest.current.test) {
+        actionRequest.current.testPending = false
+        setTestPending(false)
+      }
     }
   }
 
+  const currentModelStatus = cur && credentialWarning?.id === cur.id && credentialWarning.endpoint === endpointOf(cur)
+    ? '更换服务商地址或接口类型后，请重新输入 API Key。' : modelStatus
   const ignoredExtras = ignoredExtraParameters(cur?.extraBody)
   const preset = cur ? AI_PRESETS.find((x) => x.baseUrl && x.baseUrl === cur.baseUrl) : undefined
   return (
@@ -294,7 +319,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
               <label className="field"><span>模型名称</span><input data-testid="ai-model" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => patch({ model: e.target.value })} /></label>
               <button data-testid="ai-load-models" disabled={!endpointOf(cur) || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
               <p className="hint">填好地址和密钥后，离开输入框会自动获取模型列表；不会在打开设置或逐字输入时请求，也可点击按钮刷新。本地服务可不填密钥；更换服务商域名或接口类型后需重新输入密钥，或明确清空以使用无密钥服务。</p>
-              {modelStatus && <p className="hint" role="status" data-testid="ai-model-note">{modelStatus}</p>}
+              {currentModelStatus && <p className="hint" role="status" data-testid="ai-model-note">{currentModelStatus}</p>}
               {modelList.length > 0 && (
                 <ModelPicker models={modelList} value={cur.model} disabled={cur.readonly} onSelect={selectModel} />
               )}
@@ -319,7 +344,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 请求 JSON 模式（response_format；服务不支持时会自动关闭重试）
               </label>
               <div className="row gap">
-                <button onClick={() => test(cur)} disabled={!endpointOf(cur) || !cur.model}>测试连接</button>
+                <button onClick={() => test(cur)} disabled={!endpointOf(cur) || !cur.model || testPending}>测试连接</button>
                 {!cur.readonly && (
                   <button
                     className="danger"

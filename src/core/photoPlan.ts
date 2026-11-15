@@ -148,7 +148,7 @@ export function normalizeAiPlacements(raw: any, input: PlanInput, req: AiPlaceRe
   const out: Placement[] = []
   const used = new Set<number>()
   for (const p of Array.isArray(raw?.placements) ? raw.placements : []) {
-    const photos: number[] = (Array.isArray(p?.photos) ? p.photos : []).map((x: unknown) => Number(x) - 1).filter((i: number) => Number.isInteger(i) && unitOf.has(i) && !used.has(i))
+    const photos: number[] = [...new Set<number>((Array.isArray(p?.photos) ? p.photos : []).map((x: unknown) => Number(x) - 1).filter((i: number) => Number.isInteger(i) && unitOf.has(i) && !used.has(i)))]
     if (!photos.length) continue
     const unitIds = [...new Set(photos.map((i) => unitOf.get(i)!))]
     const units = unitIds.map((id) => req.units.find((x) => x.id === id)!)

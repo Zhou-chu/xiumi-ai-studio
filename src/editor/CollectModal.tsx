@@ -1,5 +1,5 @@
 // 收藏组件：选择整块或子结构，确认名称、类别和来源。导入内容必须确认使用权。
-import { useEffect, useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { blockMeta, createBlock } from '../core/blocks'
 import { compileBlock } from '../core/compiler'
 import { makeDraft, normalizeTags, SOURCE_LABEL } from '../core/components'
@@ -43,7 +43,7 @@ function optionsOf(req: CollectRequest): Option[] {
   return [whole, ...parts]
 }
 
-function CollectModal({ req, onClose }: { req: CollectRequest; onClose: () => void }) {
+function CollectModal({ req, onClose, isCurrent }: { req: CollectRequest; onClose: () => void; isCurrent: () => boolean }) {
   const doc = useStore((s) => s.doc)
   const notify = useStore((s) => s.notify)
   const theme = useMemo(() => resolveTheme(doc), [doc])
@@ -75,6 +75,7 @@ function CollectModal({ req, onClose }: { req: CollectRequest; onClose: () => vo
   }
   const preview = useMemo(() => displayHtml(compileBlock(req.block.type === 'html' ? createBlock('html', { html: opt.html }) : req.block, theme)), [req.block, opt, theme])
   const save = async () => {
+    if (!isCurrent()) return
     setBusy(true)
     try {
       const draft = makeDraft(
@@ -82,14 +83,15 @@ function CollectModal({ req, onClose }: { req: CollectRequest; onClose: () => vo
         parseDoc,
       )
       const r = await api.saveComponent(draft)
-      setSaved((s) => new Set(s).add(opt.key))
       window.dispatchEvent(new Event('components-changed'))
+      if (!isCurrent()) return
+      setSaved((s) => new Set(s).add(opt.key))
       notify(r.duplicate ? `已有结构相同的组件「${r.component.name}」，没有重复收藏` : `已收藏组件「${name.trim() || '未命名组件'}」`)
       if (options.length === 1) onClose()
-    } catch (e: any) {
-      notify(e.message, 'error')
+    } catch (error) {
+      if (isCurrent()) notify(error instanceof Error ? error.message : String(error), 'error')
     } finally {
-      setBusy(false)
+      if (isCurrent()) setBusy(false)
     }
   }
   return (
@@ -154,11 +156,26 @@ function CollectModal({ req, onClose }: { req: CollectRequest; onClose: () => vo
 
 /** 监听收藏请求（画布工具栏、点选、模板部件都走这里） */
 export function CollectHost() {
-  const [req, setReq] = useState<CollectRequest | null>(null)
-  useEffect(() => {
-    const open = (e: Event) => setReq((e as CustomEvent<CollectRequest>).detail)
+  const [session, setSession] = useState<{ key: number; req: CollectRequest } | null>(null)
+  const counter = useRef(0)
+  const current = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    const open = (e: Event) => {
+      const key = ++counter.current
+      current.current = key
+      setSession({ key, req: (e as CustomEvent<CollectRequest>).detail })
+    }
     window.addEventListener('open-collect', open)
-    return () => window.removeEventListener('open-collect', open)
+    return () => {
+      current.current = null
+      window.removeEventListener('open-collect', open)
+    }
   }, [])
-  return req ? <CollectModal key={req.block.id + (req.fragment?.length ?? 0)} req={req} onClose={() => setReq(null)} /> : null
+  if (!session) return null
+  const isCurrent = () => current.current === session.key
+  return <CollectModal key={session.key} req={session.req} isCurrent={isCurrent} onClose={() => {
+    if (!isCurrent()) return
+    current.current = null
+    setSession(null)
+  }} />
 }

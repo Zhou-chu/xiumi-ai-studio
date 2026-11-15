@@ -1,5 +1,5 @@
 import { CoverTitleAlignment } from './CoverTitleAlignment'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { blockLabel, blockMeta } from '../core/blocks'
 import { displayUrl } from '../core/images'
 import { sanitizeHtml } from '../core/sanitize'
@@ -130,17 +130,62 @@ function ColorFields({ blockId, html, upd }: { blockId: string; html: string; up
   )
 }
 
+type LibraryState =
+  | { status: 'idle' | 'loading' }
+  | { status: 'ready'; assets: Asset[] }
+  | { status: 'error'; message: string }
+const idleLibrary: LibraryState = { status: 'idle' }
+
 /** 原文片段：按槽位改字、替换图片、编辑源码 */
 function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd: Upd }) {
   const [picking, setPicking] = useState(-1)
   const [bgPicking, setBgPicking] = useState('')
-  const [assets, setAssets] = useState<Asset[]>([])
+  const [library, setLibrary] = useState<LibraryState>(idleLibrary)
+  const [assetAttempt, setAssetAttempt] = useState(0)
+  const assetPending = useRef(false)
+  const assetPickerOpen = picking >= 0 || !!bgPicking
+  const assets = library.status === 'ready' ? library.assets : []
+  const cachedAssets = assets.length > 0
   const [source, setSource] = useState(html)
   const [srcOpen, setSrcOpen] = useState(false)
   useEffect(() => setSource(html), [html])
   useEffect(() => {
-    if ((picking >= 0 || bgPicking) && !assets.length) api.assets().then(setAssets).catch(() => {})
-  }, [picking, bgPicking, assets.length])
+    if (!assetPickerOpen) {
+      if (!cachedAssets) setLibrary(idleLibrary)
+      return
+    }
+    if (cachedAssets) return
+    let active = true
+    assetPending.current = true
+    setLibrary({ status: 'loading' })
+    void (async () => {
+      try {
+        const assets = await api.assets()
+        if (active) setLibrary({ status: 'ready', assets })
+      } catch (error: unknown) {
+        if (!active) return
+        const message = `素材加载失败：${error instanceof Error ? error.message : '请稍后重试'}`
+        setLibrary({ status: 'error', message })
+        useStore.getState().notify(message, 'error')
+      } finally {
+        if (active) assetPending.current = false
+      }
+    })()
+    // This API does not accept an AbortSignal; ignore receipts from closed sessions.
+    return () => { active = false; assetPending.current = false }
+  }, [assetPickerOpen, cachedAssets, assetAttempt, blockId])
+  const assetFeedback = () => {
+    if (library.status === 'ready') return <p className="empty">素材库为空，请先在左侧「素材」上传</p>
+    if (library.status !== 'error') return <p role="status">正在加载素材…</p>
+    return <div role="alert">
+      <p>{library.message}</p>
+      <button type="button" onClick={() => {
+        if (assetPending.current) return
+        assetPending.current = true
+        setAssetAttempt(attempt => attempt + 1)
+      }}>重试加载素材</button>
+    </div>
+  }
   const slots = useMemo(() => extractSlots(html, parseDoc), [html])
   const texts = slots.filter((s): s is TextSlot => s.kind === 'text')
   // 表单里显示保留空格的文字；对齐状态一次算出，避免每个槽位都重新解析一遍大片段
@@ -163,7 +208,9 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
   const bgPhotos = useMemo(() => backgroundPhotos(html, parseDoc), [html])
   const replace = (i: number, src: string) => {
     // 按原相框比例裁切新照片（比例取自画布上的显示尺寸）
-    const shown = shownRatio(document.querySelectorAll(`[data-block-id="${blockId}"] .block-html img`)[i] ?? null)
+    const photos = Array.from(document.querySelectorAll<HTMLImageElement>('[data-testid="canvas"] [data-block-id] .block-html img'))
+      .filter(img => img.closest<HTMLElement>('[data-block-id]')?.dataset.blockId === blockId)
+    const shown = shownRatio(photos[i] ?? null)
     const b = setPhoto({ id: blockId, type: 'html', props: { html, label: '' } }, i, { src }, { ratio: shown, parse: parseDoc })
     if (b.type === 'html') upd({ html: b.props.html }, 'html')
     setPicking(-1)
@@ -249,7 +296,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
                   </div>
                 ))}
               </div>
-              {!assets.length && <p className="empty">素材库为空，请先在左侧「素材」上传</p>}
+              {!cachedAssets && assetFeedback()}
             </div>
           )}
         </div>
@@ -283,7 +330,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
                   </div>
                 ))}
               </div>
-              {!assets.length && <p className="empty">素材库为空，请先在左侧「素材」上传</p>}
+              {!cachedAssets && assetFeedback()}
             </div>
           )}
           <p className="hint">

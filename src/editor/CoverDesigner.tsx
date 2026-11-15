@@ -1,5 +1,5 @@
 // 封面设计：在 canvas 上合成 900×383（2.35:1）公众号封面，导出 PNG 存入素材库。
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { resolveTheme } from '../core/themes'
 import { api, assetRef, type Asset } from './api'
 import { Modal } from './Modal'
@@ -42,6 +42,15 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
   const [kicker, setKicker] = useState((doc.blocks.find((b) => b.type === 'cover') as any)?.props.kicker ?? '')
   const [layout, setLayout] = useState<Layout>('gradient')
   const [busy, setBusy] = useState(false)
+  const lifetime = useRef<symbol | null>(null)
+  useLayoutEffect(() => {
+    lifetime.current = Symbol()
+    return () => { lifetime.current = null }
+  }, [])
+  const dismiss = () => {
+    lifetime.current = null
+    onClose()
+  }
 
   useEffect(() => {
     api.assets().then(setAssets).catch(() => {})
@@ -66,6 +75,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
           /* 图片加载失败时保留纯色背景 */
         }
       }
+      if (cancelled) return
       const font = (size: number, weight = 700) => `${weight} ${size}px "PingFang SC","Microsoft YaHei",sans-serif`
       if (layout === 'gradient') {
         const g = ctx.createLinearGradient(0, 0, W * 0.75, 0)
@@ -105,23 +115,33 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
   }, [bg, title, kicker, layout, theme])
 
   const save = async () => {
+    const startedIn = lifetime.current
+    const expectedDoc = useStore.getState().doc
+    if (!startedIn || expectedDoc !== doc) return
+    const isMounted = () => lifetime.current === startedIn
+    const isCurrent = () => isMounted() && useStore.getState().doc === expectedDoc
     setBusy(true)
     try {
-      const blob = await new Promise<Blob>((r) => canvas.current!.toBlob((b) => r(b!), 'image/jpeg', 0.92))
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.current!.toBlob((value) => {
+        if (value) resolve(value)
+        else reject(new Error('封面编码失败，请重试'))
+      }, 'image/jpeg', 0.92))
+      if (!isCurrent()) return
       const [a] = await api.uploadAssets([new File([blob], `cover-${Date.now()}.jpg`, { type: 'image/jpeg' })])
-      setDocFields({ cover: assetRef(a) })
       window.dispatchEvent(new Event('assets-changed'))
+      if (!isCurrent()) return
+      setDocFields({ cover: assetRef(a) })
       notify('封面已生成并设置')
-      onClose()
+      if (isMounted()) dismiss()
     } catch (e: any) {
-      notify(e.message, 'error')
+      if (isCurrent()) notify(e.message, 'error')
     } finally {
-      setBusy(false)
+      if (isMounted()) setBusy(false)
     }
   }
 
   return (
-    <Modal title="封面设计（900×383，2.35:1）" onClose={onClose} width={980}>
+    <Modal title="封面设计（900×383，2.35:1）" onClose={dismiss} width={980}>
       <canvas ref={canvas} width={W} height={H} className="cover-canvas" />
       <p className="hint">公众号会从封面中裁出 1:1 区域作为小图，重要内容尽量放在左侧 383px 内。</p>
       <div className="row gap wrap">
@@ -140,7 +160,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="modal-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={dismiss}>取消</button>
         {bg && <button onClick={() => { const a = assets.find((x) => bg.startsWith(`/media/${x.file}`)); if (a) { setDocFields({ cover: assetRef(a) }); notify('已直接使用原图作为封面'); onClose() } }}>直接用原图</button>}
         <button className="primary" disabled={busy} onClick={save}>{busy ? '生成中…' : '生成并设为封面'}</button>
       </div>

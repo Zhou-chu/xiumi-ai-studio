@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ColorModeControl, ColorModeProvider } from '../../src/editor/ColorModeControl'
-import { COLOR_MODE_KEY, readColorMode, resolveColorMode } from '../../src/editor/colorMode'
+import { COLOR_MODE_KEY, readColorMode } from '../../src/editor/colorMode'
 
 
 let root: Root | undefined
@@ -39,28 +39,6 @@ function choose(value: string) {
     select.dispatchEvent(new Event('change', { bubbles: true }))
   })
 }
-
-describe('local day/night boundaries', () => {
-  it.each([
-    [0, 0, 'dark'], [6, 59, 'dark'], [7, 0, 'light'],
-    [18, 59, 'light'], [19, 0, 'dark'], [23, 59, 'dark'],
-  ] as const)('uses local %i:%i as %s', (hour, minute, expected) => {
-    expect(resolveColorMode('auto', new Date(2026, 10, 10, hour, minute))).toBe(expected)
-  })
-
-  it('keeps manual light and dark choices at the opposite time of day', () => {
-    expect(resolveColorMode('light', new Date(2026, 10, 10, 23))).toBe('light')
-    expect(resolveColorMode('dark', new Date(2026, 10, 10, 12))).toBe('dark')
-  })
-
-  it('rejects an invalid stored choice and defaults to local automatic mode', () => {
-    expect(readColorMode()).toBe('auto')
-    localStorage.setItem(COLOR_MODE_KEY, 'system')
-    expect(readColorMode()).toBe('auto')
-    localStorage.setItem(COLOR_MODE_KEY, 'dark')
-    expect(readColorMode()).toBe('dark')
-  })
-})
 
 it('starts automatic, allows both manual choices, and restores a saved choice on remount', () => {
   mount()

@@ -54,6 +54,7 @@ function outsideBox(blocks: Block[], t: { parentId: string | null; index: number
 function useShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing) return
       // Dialogs own their keyboard interactions; never edit the article behind them.
       if (document.querySelector('[role="dialog"]')) return
       const t = e.target as HTMLElement

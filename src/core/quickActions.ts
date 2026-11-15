@@ -43,9 +43,10 @@ export const QUICK_ACTIONS: QuickAction[] = [
       let offset = 0
       doc.blocks.forEach((b, i) => {
         // 全文引言最多 4 处，避免重复点击不断堆叠
-        if (b.type !== 'paragraph' || existing.size + ops.length >= 4) return
+        if (b.type !== 'paragraph' || existing.size >= 4) return
         const m = richToPlain(b.props.content).match(/[“"「]([^”"」]{12,60})[”"」]/)
         if (!m || existing.has(m[1])) return
+        existing.add(m[1])
         ops.push({ op: 'insert', index: i + 1 + offset, block: createBlock('quote', { text: m[1], source: '', variant: 'auto' }), reason: '段落中的直接引语适合单独突出' })
         offset++
       })

@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { createContext, lazy, memo, Suspense, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, lazy, memo, Suspense, useContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { blockTextFields } from '../core/blockTextEditing'
 import { BlockTextEditor } from './BlockTextEditor'
 import { HtmlTypographyControls } from './HtmlTypographyControls'
@@ -300,6 +300,45 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
   const { select, setEditing, setPicking, updateProps, removeBlock, replaceBlock, duplicateBlock, moveBlock, moveBlockTo, notify } = useStore.getState()
   // 在所在层（顶层或文本框内）的位置
   const index = useStore((s) => findBlock(s.doc.blocks, block.id)?.index ?? -1)
+  const templateRequest = useRef<{ stale: boolean; unsubscribe?: () => void } | null>(null)
+  const [templateBusy, setTemplateBusy] = useState(false)
+  useLayoutEffect(() => () => {
+    const request = templateRequest.current
+    if (!request) return
+    request.stale = true
+    request.unsubscribe?.()
+    request.unsubscribe = undefined
+    templateRequest.current = null
+  }, [])
+
+  const saveBlockTemplate = async () => {
+    if (templateRequest.current) return
+    const source = useStore.getState().doc
+    const request: { stale: boolean; unsubscribe?: () => void } = { stale: false }
+    templateRequest.current = request
+    const canNotify = () => !request.stale && useStore.getState().doc.id === source.id
+    try {
+      request.unsubscribe = useStore.subscribe((next) => {
+        if (next.doc.id !== source.id) request.stale = true
+      })
+      const name = prompt('模板名称', blockLabel(block))
+      if (!name || !canNotify()) return
+      setTemplateBusy(true)
+      await api.saveTemplate(name, [block], source)
+    } catch (error) {
+      if (canNotify()) notify(error instanceof Error ? error.message : '收藏模板失败，请重试', 'error')
+      return
+    } finally {
+      request.unsubscribe?.()
+      if (templateRequest.current === request) {
+        templateRequest.current = null
+        setTemplateBusy(false)
+      }
+    }
+    if (canNotify()) notify('已收藏到「模板」')
+    // The global template library changed even if the originating block is no longer visible.
+    window.dispatchEvent(new Event('templates-changed'))
+  }
   const inBox = !!parentId
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging, isOver } = useSortable({ id: block.id, data: { parentId: parentId ?? null } })
   const style: React.CSSProperties = {
@@ -395,13 +434,9 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
           {block.type === 'html' && <button title="拆开此模块：把卡片里的标题、正文、轮播拆成独立模块" onClick={splitBlock} data-testid="split-block">✂</button>}
           <button
             title="收藏为模板"
-            onClick={async () => {
-              const name = prompt('模板名称', blockLabel(block))
-              if (!name) return
-              await api.saveTemplate(name, [block], useStore.getState().doc)
-              notify('已收藏到「模板」')
-              window.dispatchEvent(new Event('templates-changed'))
-            }}
+            aria-busy={templateBusy}
+            disabled={templateBusy}
+            onClick={saveBlockTemplate}
           >
             ☆
           </button>
@@ -453,8 +488,17 @@ function usePhotoDrag(scroller: React.RefObject<HTMLDivElement | null>) {
       mark(null)
       if (!raw || !t) return
       e.preventDefault()
-      const from = JSON.parse(raw) as PhotoPos
-      const fromImg = document.querySelector(`[data-block-id="${from.blockId}"] img[data-photo="${from.index}"]`)
+      let parsed: unknown
+      try { parsed = JSON.parse(raw) } catch { return }
+      if (!parsed || typeof parsed !== 'object' || !('blockId' in parsed) || !('index' in parsed)) return
+      const { blockId, index } = parsed
+      if (typeof blockId !== 'string' || !blockId || typeof index !== 'number' || !Number.isSafeInteger(index) || index < 0) return
+      const from: PhotoPos = { blockId, index }
+      const fromImg = Array.from(scroller.current?.querySelectorAll<HTMLImageElement>('img[data-photo]') ?? []).find((img) => {
+        const source = photoTarget(img)?.pos
+        return source?.blockId === blockId && source.index === index
+      })
+      if (!fromImg) return
       const s = useStore.getState()
       const next = swapPhotos(s.doc, from, t.pos, { ratioA: shownRatio(fromImg), ratioB: shownRatio(t.img) })
       if (next !== s.doc) {

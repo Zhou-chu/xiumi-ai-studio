@@ -1,6 +1,6 @@
 // 数据与备份：数据保存位置、备份下载、从备份恢复、从旧版本迁移、公众号接口配置文件。
 // 恢复和迁移都先预览，确认后才写入；同名内容保留本机版本，不覆盖，来源文件不改动。
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, type AppInfo, type MergePlanView, type MergeResult } from './api'
 import { Modal } from './Modal'
 import { flushSave, useStore } from './store'
@@ -43,7 +43,9 @@ export function DataModal({ info, onClose }: { info: AppInfo | null; onClose: ()
   const [busy, setBusy] = useState('')
   const [restore, setRestore] = useState<{ token: string; plan: MergePlanView } | null>(null)
   const [legacyPath, setLegacyPath] = useState('')
-  const [migrate, setMigrate] = useState<MergePlanView | null>(null)
+  const [migrate, setMigrate] = useState<{ path: string; ticket: number; plan: MergePlanView } | null>(null)
+  const legacyTicket = useRef(0)
+  useLayoutEffect(() => () => { legacyTicket.current += 1 }, [])
   const [done, setDone] = useState('')
   const [wx, setWx] = useState<{ configured: boolean } | null>(null)
   useEffect(() => {
@@ -66,8 +68,36 @@ export function DataModal({ info, onClose }: { info: AppInfo | null; onClose: ()
       if (!r.opened) notify(`位置：${r.path}`)
     })
 
+  const revokeLegacyPreview = () => {
+    legacyTicket.current += 1
+    setMigrate(null)
+  }
+  const previewLegacy = () => {
+    const path = legacyPath
+    if (!path.trim()) return
+    const ticket = ++legacyTicket.current
+    setMigrate(null)
+    return run('检测中…', async () => {
+      try {
+        const { plan } = await api.migratePreview(path)
+        if (ticket === legacyTicket.current) setMigrate({ path, ticket, plan })
+      } catch (error) {
+        if (ticket === legacyTicket.current) throw error
+      }
+    })
+  }
+  const applyLegacy = () => {
+    if (!migrate || migrate.ticket !== legacyTicket.current || migrate.path !== legacyPath) return
+    const path = migrate.path
+    return run('迁移中…', async () => {
+      const r = await api.migrateApply(path)
+      setMigrate(null)
+      setDone(resultText(r))
+    })
+  }
+
   return (
-    <Modal title="数据与备份" onClose={onClose} width={620}>
+    <Modal title="数据与备份" onClose={() => { revokeLegacyPreview(); onClose() }} width={620}>
       <div className="data-modal">
       <h4>数据保存位置</h4>
       <p className="hint">
@@ -150,27 +180,21 @@ export function DataModal({ info, onClose }: { info: AppInfo | null; onClose: ()
         以前用源码（pnpm）运行时，数据在项目文件夹的 <code>data</code> 里，公众号配置在 <code>.env</code>。填写旧的项目文件夹或 data 文件夹的位置，先检测再迁移。迁移只复制，原文件保持不变。
       </p>
       <div className="row gap">
-        <input className="grow" value={legacyPath} placeholder="例如 D:\xiumi-ai-studio" onChange={(e) => (setLegacyPath(e.target.value), setMigrate(null))} data-testid="legacy-path" />
-        <button disabled={!legacyPath.trim() || !!busy} onClick={() => run('检测中…', async () => setMigrate((await api.migratePreview(legacyPath)).plan))} data-testid="legacy-preview">
+        <input className="grow" value={legacyPath} placeholder="例如 D:\xiumi-ai-studio" onChange={(e) => { revokeLegacyPreview(); setLegacyPath(e.target.value) }} data-testid="legacy-path" />
+        <button disabled={!legacyPath.trim() || !!busy} onClick={previewLegacy} data-testid="legacy-preview">
           检测
         </button>
       </div>
       {migrate && (
         <>
-          <PlanView plan={migrate} />
+          <PlanView plan={migrate.plan} />
           <div className="modal-actions">
-            <button onClick={() => setMigrate(null)}>取消</button>
+            <button onClick={revokeLegacyPreview}>取消</button>
             <button
               className="primary"
               data-testid="legacy-apply"
               disabled={!!busy}
-              onClick={() =>
-                run('迁移中…', async () => {
-                  const r = await api.migrateApply(legacyPath)
-                  setMigrate(null)
-                  setDone(resultText(r))
-                })
-              }
+              onClick={applyLegacy}
             >
               确认迁移
             </button>

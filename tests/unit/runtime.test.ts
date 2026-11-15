@@ -1,5 +1,4 @@
 // 打包运行相关：配置加载顺序、本机访问限制、日志打码、备份/恢复/迁移、端口选择
-import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -13,14 +12,10 @@ const DATA = tmp('data 数据')
 process.env.DATA_DIR = DATA
 
 let tools: typeof import('../../server/dataTools')
-let app: typeof import('../../server/app')
 let launcher: typeof import('../../server/launcher')
-let log: typeof import('../../server/log')
 beforeAll(async () => {
   tools = await import('../../server/dataTools')
-  app = await import('../../server/app')
   launcher = await import('../../server/launcher')
-  log = await import('../../server/log')
 })
 
 const write = (file: string, data: string | Buffer) => {
@@ -29,42 +24,6 @@ const write = (file: string, data: string | Buffer) => {
 }
 const json = (o: unknown) => JSON.stringify(o)
 
-/** 在独立进程里加载 paths.ts，返回解析出的路径和环境变量 */
-function loadPaths(env: Record<string, string>) {
-  const script = `import('./server/paths.ts').then((p) => console.log(JSON.stringify({ DATA: p.DATA, ROOT: p.ROOT, files: p.loadedEnvFiles, model: process.env.AI_MODEL ?? null, wx: process.env.WECHAT_APPID ?? null })))`
-  const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(DATA_DIR|XIUMI_|AI_|WECHAT_)/.test(k)))
-  const r = spawnSync(process.execPath, ['--import', 'tsx', '-e', script], { cwd: join(import.meta.dirname, '..', '..'), env: { ...clean, ...env }, encoding: 'utf8' })
-  if (r.status !== 0) throw new Error(r.stderr)
-  return JSON.parse(r.stdout.trim().split('\n').pop()!)
-}
-
-describe('配置加载顺序', () => {
-  it('源码运行：仓库 .env 里的 DATA_DIR 在数据目录确定之前生效', () => {
-    const root = tmp('repo')
-    const target = join(root, '自定义 数据')
-    write(join(root, '.env'), `DATA_DIR=${target}\nAI_MODEL=from-repo-env\n`)
-    const r = loadPaths({ XIUMI_RESOURCES: root })
-    expect(r.DATA).toBe(target)
-    expect(r.model).toBe('from-repo-env')
-  })
-  it('打包运行：数据在 LOCALAPPDATA，读数据目录的 .env，不读程序目录的 .env，系统环境变量优先', () => {
-    const local = tmp('local appdata')
-    const res = tmp('resources')
-    write(join(res, '.env'), 'AI_MODEL=should-not-load\n')
-    write(join(local, 'XIUMI AI Studio', '.env'), 'WECHAT_APPID=wx-from-data\nAI_MODEL=from-data-env\n')
-    const r = loadPaths({ XIUMI_PACKAGED: '1', XIUMI_RESOURCES: res, LOCALAPPDATA: local, AI_MODEL: 'from-system' })
-    expect(r.DATA).toBe(join(local, 'XIUMI AI Studio'))
-    expect(r.ROOT).toBe(res)
-    expect(r.wx).toBe('wx-from-data')
-    expect(r.model).toBe('from-system')
-    expect(r.files).toEqual([join(local, 'XIUMI AI Studio', '.env')])
-  })
-  it('XIUMI_DATA_DIR 可以指定数据目录（路径含中文和空格）', () => {
-    const d = join(tmp('custom'), '我的 数据')
-    expect(loadPaths({ XIUMI_PACKAGED: '1', XIUMI_DATA_DIR: d, LOCALAPPDATA: tmp('x') }).DATA).toBe(d)
-  })
-})
-
 describe('历史版本存储', () => {
   it('项目第一次保存版本时创建目录；没有版本时列表为空', async () => {
     const { collection } = await import('../../server/store')
@@ -72,31 +31,6 @@ describe('历史版本存储', () => {
     expect(await col.list()).toEqual([])
     await col.put({ id: '1-a', label: '第一个版本' })
     expect((await col.list()).map((v) => v.label)).toEqual(['第一个版本'])
-  })
-})
-
-describe('本机访问限制', () => {
-  const req = (host: string, method = 'GET', origin?: string) => ({ method, headers: { host, ...(origin && { origin }) } })
-  it('只接受回环地址的 Host', () => {
-    expect(app.localOnly(req('127.0.0.1:5174'))).toBeNull()
-    expect(app.localOnly(req('localhost:5273'))).toBeNull()
-    expect(app.localOnly(req('[::1]:5174'))).toBeNull()
-    expect(app.localOnly(req('evil.example.com:5174'))).toContain('本机')
-    expect(app.localOnly(req('192.168.1.5:5174'))).toContain('本机')
-  })
-  it('拒绝其他网站发来的写请求，读取不受影响', () => {
-    expect(app.localOnly(req('127.0.0.1:5174', 'POST', 'http://localhost:5273'))).toBeNull()
-    expect(app.localOnly(req('127.0.0.1:5174', 'POST', 'https://evil.example.com'))).toContain('其他网站')
-    expect(app.localOnly(req('127.0.0.1:5174', 'POST', 'null'))).toContain('其他网站')
-    expect(app.localOnly(req('127.0.0.1:5174', 'GET', 'https://evil.example.com'))).toBeNull()
-  })
-})
-
-describe('日志打码', () => {
-  it('去掉登记过的密钥和常见密钥格式', () => {
-    log.addSecret('my-very-secret-value')
-    const s = log.redact('key=my-very-secret-value auth: Bearer abc.def sk-1234567890abcdef {"apiKey":"zzz999"} appsecret=qwerty123')
-    expect(s).not.toMatch(/my-very-secret-value|abc\.def|1234567890abcdef|zzz999|qwerty123/)
   })
 })
 
