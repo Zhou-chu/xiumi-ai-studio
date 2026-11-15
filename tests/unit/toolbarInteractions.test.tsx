@@ -20,12 +20,12 @@ it('versions save, cancel, restore, errors and stale-response guards protect the
  const version={id:'v',label:'Earlier',createdAt:1,blockCount:1};vi.mocked(api.versions).mockResolvedValue([version]);const save=vi.spyOn(api,'saveVersion').mockResolvedValue(version);const get=vi.spyOn(api,'version').mockResolvedValue({doc:{...state().doc,title:'Restored'}})
  await mount(<Toolbar/>);await click(button('历史版本'));vi.mocked(window.prompt).mockReturnValueOnce(null);await click(button('保存当前为新版本'));expect(save).not.toHaveBeenCalled();vi.mocked(window.prompt).mockReturnValueOnce('');await click(button('保存当前为新版本'));expect(save).toHaveBeenCalledWith(expect.anything(),'手动保存')
  await click(button('恢复'));expect(state().doc.title).toBe('Restored');expect(host.querySelector('[role="dialog"]')).toBeNull()
- await click(button('历史版本'));get.mockRejectedValueOnce(new Error('Missing version'));await click(button('恢复'));expect(state().toast?.text).toBe('Missing version')
+ await click(button('历史版本'));get.mockRejectedValueOnce(new Error('Missing version'));await click(button('恢复'));expect(state().toast?.kind).toBe('error');expect(state().toast?.text).toContain('版本恢复失败');expect(state().toast?.text).not.toContain('Missing version');expect(state().doc.title).toBe('Restored');expect(host.querySelector('[role="dialog"]')).not.toBeNull()
  let resolve!:(v:any)=>void;get.mockImplementationOnce(()=>new Promise(r=>{resolve=r}));await click(button('恢复'));await act(async()=>state().setDocFields({title:'Latest'}));await act(async()=>resolve({doc:{...state().doc,title:'Late'}}));expect(state().doc.title).toBe('Latest')
  get.mockImplementationOnce(()=>new Promise(r=>{resolve=r}));await click(button('恢复'));await close();await act(async()=>resolve({doc:{...state().doc,title:'Closed'}}));expect(state().doc.title).toBe('Latest')
 })
-it('version listing errors show empty history; conflict export never discards the local draft',async()=>{
- vi.mocked(api.versions).mockRejectedValue(new Error('offline'));await mount(<Toolbar/>);await click(button('历史版本'));expect(host.textContent).toContain('还没有保存过版本');await close()
+it('version listing errors remain distinct from an empty history; conflict export never discards the local draft',async()=>{
+ vi.mocked(api.versions).mockRejectedValue(new Error('offline'));await mount(<Toolbar/>);await click(button('历史版本'));expect(host.textContent).toContain('暂时无法加载版本列表');expect(host.textContent).not.toContain('还没有保存过版本');expect(state().toast?.kind).toBe('error');expect(state().toast?.text).not.toContain('offline');await close()
  await act(async()=>state().setDocFields({title:'Unsaved local'}));await act(async()=>markConflict());await click(button('导出当前内容'));expect(host.querySelector('[role="dialog"]')).not.toBeNull();expect(state().doc.title).toBe('Unsaved local');await close();await click(button('另存冲突副本'));expect(state().saveConflict).toBe(false)
 })
 function markConflict(){state();importStore.setState({saveConflict:true,saveStatus:'error',saveError:'Conflict'})}
