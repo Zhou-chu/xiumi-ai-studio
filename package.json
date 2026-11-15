@@ -17,6 +17,8 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "sample": "tsx scripts/make-sample.ts",
     "probe": "tsx scripts/make-xiumi-probe.ts",
+    "test:coverage": "vitest run --config vitest.coverage.config.ts --coverage",
+    "quality:smells": "eslint src server --config eslint.quality.config.js",
     "package:win": "tsx scripts/package-win.ts",
     "verify:package": "tsx scripts/verify-package.ts",
     "e2e:package": "cross-env E2E_TARGET=packaged node --import isomorphic-dompurify node_modules/@playwright/test/cli.js test"

@@ -91,11 +91,12 @@ describe('reviewed routes survive the app/launcher split', () => {
     expect(await response.json()).toEqual([{ id: 'custom', efforts: ['high'] }])
     expect(discoverModels).toHaveBeenCalledTimes(1)
   })
-  it('uses the reviewed connection helper instead of the old 100-token probe', async () => {
-    vi.mocked(testConnection).mockResolvedValue({ ok: true })
+  it.each([[true, 'budget_limited'], [false, 'authentication']] as const)('uses the reviewed connection helper and preserves stage %s %s', async (ok, stage) => {
+    const reply = { ok, stage, message: 'classified probe receipt' }
+    vi.mocked(testConnection).mockResolvedValue(reply)
     const response = await post('/api/settings/ai/test', { model: 'custom' })
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ ok: true, reply: { ok: true } })
+    expect(await response.json()).toMatchObject({ ok, reply, ms: expect.any(Number) })
     expect(testConnection).toHaveBeenCalledWith({ model: 'custom' })
     expect(chatJson).not.toHaveBeenCalled()
   })

@@ -332,11 +332,11 @@ app.delete('/api/themes/:id', h(async (req, res) => {
 app.get('/api/ai/status', h(async (req, res) => res.json(await aiStatus(req.query.profileId as string | undefined))))
 app.get('/api/settings/ai', h(async (_req, res) => res.json(await publicAiSettings())))
 app.put('/api/settings/ai', h(async (req, res) => res.json(await saveAiSettings(req.body))))
-/** 测试连接：让模型返回一个最小 JSON */
 app.post('/api/settings/ai/models', h(async (req, res) => {
   res.json(await discoverModels(await resolveDraftProfile(req.body ?? {})))
 }))
 
+/** 低预算连接检查，不代表业务生成通过。 */
 app.post('/api/settings/ai/test', h(async (req, res) => {
   const profile = await resolveDraftProfile(req.body ?? {})
   const t0 = Date.now()
@@ -360,7 +360,7 @@ app.post('/api/ai/outline', h(async (req, res) => {
 ${text}
 
 可用图片（括号内是用户对照片的描述，按描述把照片归到对应章节；imageRefs 只填文件名，可留空）：${images.join('、') || '无'}`
-  res.json(await chatJson(OUTLINE_SYSTEM, user, { maxTokens: 8000, profileId: pid(req) }))
+  res.json(await chatJson(OUTLINE_SYSTEM, user, { defaultMaxTokens: 8000, profileId: pid(req) }))
 }))
 app.post('/api/ai/design', h(async (req, res) => {
   const hint = String(req.body.hint ?? '').slice(0, 500)
@@ -368,7 +368,7 @@ app.post('/api/ai/design', h(async (req, res) => {
 ${JSON.stringify(req.body.brief)}
 
 用户的风格要求：${hint || '无，自行判断最适合该内容的风格'}`
-  res.json(await chatJson(DESIGN_SYSTEM, user, { maxTokens: 6000, temperature: 0.8, profileId: pid(req) }))
+  res.json(await chatJson(DESIGN_SYSTEM, user, { defaultMaxTokens: 6000, temperature: 0.8, profileId: pid(req) }))
 }))
 app.post('/api/ai/copywrite', h(async (req, res) => {
   const b = req.body ?? {}
@@ -389,7 +389,7 @@ ${previous}
 
 修改意见：${revise || '换一种写法重新写，保留事实'}
 请在上一版基础上按修改意见改写，格式要求不变，输出完整文案。` : ''}`
-  res.json(await chatJson(COPY_SYSTEM, user, { maxTokens: 6000, temperature: 0.85, profileId: pid(req) }))
+  res.json(await chatJson(COPY_SYSTEM, user, { defaultMaxTokens: 6000, temperature: 0.85, profileId: pid(req) }))
 }))
 app.post('/api/ai/enrich-copy', h(async (req, res) => {
   const b = req.body ?? {}
@@ -410,7 +410,7 @@ ${lines.join('\n')}
 
 必须原样保留的句子：
 ${keep.map((k) => `- ${k}`).join('\n') || '无'}`
-  res.json(await chatJson(ENRICH_SYSTEM, user, { maxTokens: 8000, temperature: 0.5, profileId: pid(req) }))
+  res.json(await chatJson(ENRICH_SYSTEM, user, { defaultMaxTokens: 8000, temperature: 0.5, profileId: pid(req) }))
 }))
 app.post('/api/ai/place-photos', h(async (req, res) => {
   const b = req.body ?? {}
@@ -422,7 +422,7 @@ ${JSON.stringify(b.units ?? []).slice(0, 8000)}
 
 可用版式（按照片张数）：
 ${JSON.stringify(b.layouts ?? {})}`
-  res.json(await chatJson(PLACE_SYSTEM, user, { maxTokens: 3000, temperature: 0.3, profileId: pid(req) }))
+  res.json(await chatJson(PLACE_SYSTEM, user, { defaultMaxTokens: 3000, temperature: 0.3, profileId: pid(req) }))
 }))
 app.post('/api/ai/suggest-instruction', h(async (req, res) => {
   const { context, selectedId, selectedIds } = req.body
@@ -434,7 +434,7 @@ app.post('/api/ai/suggest-instruction', h(async (req, res) => {
   try {
     if (req.aborted || res.destroyed) controller.abort()
     controller.signal.throwIfAborted()
-    const result = await chatJson(SUGGESTION_SYSTEM, prompt, { maxTokens: 2000, profileId: pid(req), signal: controller.signal })
+    const result = await chatJson(SUGGESTION_SYSTEM, prompt, { defaultMaxTokens: 2000, profileId: pid(req), signal: controller.signal })
     if (!controller.signal.aborted) res.json(readSuggestion(result))
   } catch (error) {
     if (!controller.signal.aborted) throw error
@@ -447,7 +447,7 @@ app.post('/api/ai/edit', h(async (req, res) => {
   const { context, instruction } = req.body
   const edit = prepareEdit(context, req.body.selectedId, undefined, req.body.selectedIds)
   const user = edit.prompt(instruction)
-  res.json(edit.result(await chatJson(EDIT_SYSTEM, user, { maxTokens: 6000, profileId: pid(req) })))
+  res.json(edit.result(await chatJson(EDIT_SYSTEM, user, { defaultMaxTokens: 6000, profileId: pid(req) })))
 }))
 
 // ---------- 文章抓取（导入公众号推文 / 参考风格） ----------

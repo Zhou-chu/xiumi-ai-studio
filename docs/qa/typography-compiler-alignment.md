@@ -1,5 +1,6 @@
 # Document typography compiler alignment, stage 1
 
+> Historical development record: the combined-base counts below are not this narrow branch’s results. This branch replays only the typography changes onto upstream `f0c819f`; see `rich-typography-narrow.md` for its scope and fresh verification.
 Base: combined upstream PR7–10 `1284931`; reference: fork `9d7493487713ec1a07dea313062ccbe67e6e3fb4`. This stage is compiler support only. It does not deliver user-visible Word-style controls; RichEditor and HTML selection controls remain later work. No package/lock or application UI changes.
 
 ## Supported data

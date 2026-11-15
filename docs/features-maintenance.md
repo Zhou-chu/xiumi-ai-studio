@@ -1,6 +1,6 @@
 # 功能维护入口
 
-功能状态、需求编号和未完成项统一维护在 fork main 的[持续功能需求与实现清单](https://github.com/Zhou-chu/xiumi-ai-studio/blob/9d7493487713ec1a07dea313062ccbe67e6e3fb4/docs/functional-requirements.md)。主分支交付背景见[交付状态](https://github.com/Zhou-chu/xiumi-ai-studio/blob/9d7493487713ec1a07dea313062ccbe67e6e3fb4/docs/release-status.md)。这里不重复维护一份功能状态表。[共同规范](../UIdesign.md)与 [Xiumi 产品设计入口](../DESIGN.md)说明设计约束。
+功能状态、需求编号和未完成项统一维护在 [持续功能需求与实现清单](./functional-requirements.md)。主分支交付背景见[交付状态](https://github.com/Zhou-chu/xiumi-ai-studio/blob/9d7493487713ec1a07dea313062ccbe67e6e3fb4/docs/release-status.md)。这里不重复维护一份功能状态表。[共同规范](../UIdesign.md)与 [Xiumi 产品设计入口](../DESIGN.md)说明设计约束。
 
 ## 独立分支的验收边界
 

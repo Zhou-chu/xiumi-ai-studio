@@ -258,11 +258,17 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     const request = ++actionRequest.current.test
     actionRequest.current.testPending = true
     setTestPending(true)
-    setTesting('测试中…')
+    setTesting('测试中…（低预算连接检查）')
     try {
       const r = await api.testAi(p)
       if (request !== actionRequest.current.test) return
-      setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : `已响应但格式异常：${JSON.stringify(r.reply).slice(0, 80)}`)
+      const reply = r.reply && typeof r.reply === 'object' ? r.reply as { stage?: string; message?: string } : null
+      if (typeof reply?.stage === 'string' && typeof reply.message === 'string') {
+        const prefix = !r.ok ? '✕ ' : reply.stage === 'complete' ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）：` : '⚠ '
+        setTesting(prefix + reply.message)
+      } else {
+        setTesting(r.ok ? `✓ 连接成功（${(r.ms / 1000).toFixed(1)} 秒）` : '接口有响应，但最小 JSON 检查未通过。')
+      }
     } catch (e: any) {
       if (request === actionRequest.current.test) setTesting(`✕ ${e.message}`)
     } finally {

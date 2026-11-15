@@ -1,5 +1,6 @@
 # RichEditor typography controls, stage 2
 
+> Historical development record: the combined-base counts below are not this narrow branch’s results. This branch replays only the typography changes onto upstream `f0c819f`; see `rich-typography-narrow.md` for its scope and fresh verification.
 Based on stage-1 compiler commit `2b1c95e`, itself based on combined upstream `1284931`. This is a candidate, not a published UI or a completed HTML-selection feature.
 
 ## Incremental change

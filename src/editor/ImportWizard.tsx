@@ -341,34 +341,58 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
     }, 'AI 改写中…')
 
   const choosing = useRef(false)
+  const [choiceError, setChoiceError] = useState('')
   const persisted = useRef(new Map<string, { signature: string; doc: Doc }>())
-  const persistVariant = async (doc: Doc): Promise<Doc> => {
+  const persistVariant = async (doc: Doc, isCurrent: () => boolean): Promise<Doc | null> => {
     const signature = JSON.stringify({ ...doc, revision: undefined })
     const previous = persisted.current.get(doc.id)
-    if (previous?.signature === signature) return previous.doc
+    if (previous?.signature === signature) {
+      // A saved receipt avoids a duplicate write, but does not prove the
+      // project is still present or unchanged on the server.
+      let current: Doc
+      try {
+        current = await api.project(doc.id)
+      } catch (error) {
+        if (!isCurrent()) return null
+        if ((error as { status?: number })?.status === 404) {
+          throw new Error('已保存的方案已被其他页面删除，请在项目中核对，或重新生成方案。', { cause: error })
+        }
+        throw error
+      }
+      if (!isCurrent()) return null
+      if (!current.revision || current.revision !== previous.doc.revision) {
+        throw new Error('已保存的方案已被其他页面修改，请在项目中核对，或重新生成方案。')
+      }
+      return current
+    }
     const response = await api.saveProject({ ...doc, revision: previous?.doc.revision ?? doc.revision })
-    const saved = { ...doc, revision: response.revision }
+    const saved = { ...doc, ...response }
     persisted.current.set(doc.id, { signature, doc: saved })
-    return saved
+    return isCurrent() ? saved : null
   }
   const choose = async (doc: Doc, all?: Variant[]) => {
     if (choosing.current) return
     choosing.current = true
     const expected = useStore.getState().doc
+    const isCurrent = () => active.current && useStore.getState().doc === expected
     setBusy('保存方案…')
+    setChoiceError('')
     try {
       if (!await saveBeforeLeave()) return
-      if (!active.current || useStore.getState().doc !== expected) return
+      if (!isCurrent()) return
       if (all) for (const v of all) if (v.doc.id !== doc.id) {
-        await persistVariant(v.doc)
-        if (!active.current || useStore.getState().doc !== expected) return
+        if (!await persistVariant(v.doc, isCurrent)) return
       }
-      const saved = await persistVariant(doc)
-      if (!active.current || !loadIfUnchanged(saved, expected)) return
+      const saved = await persistVariant(doc, isCurrent)
+      if (!saved || !isCurrent() || !loadIfUnchanged(saved, expected)) return
       notify(all ? `${all.length} 套方案均已保存为项目，可在「项目」中切换` : '已打开所选方案')
       closeWizard()
     } catch (error) {
-      if (active.current) notify((error as Error).message, 'error')
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : String(error)
+        setChoiceError(`方案保存未完成，当前文稿未替换。已成功保存的方案会保留，可核对后重试：${message}`)
+        notify(message, 'error')
+      }
     } finally { choosing.current = false; if (active.current) setBusy('') }
   }
 
@@ -584,8 +608,9 @@ export function ImportWizard({ onClose, initialText, initialImages, initialTempl
           )}
           <h4 className="variants-title">内置版式</h4>
           <div className="variant-grid">{builtin.map(card)}</div>
+          {choiceError && <p className="warn" role="alert" data-testid="variant-save-error">{choiceError}</p>}
           <div className="modal-actions">
-            <button disabled={!!busy} onClick={() => choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
+            <button disabled={!!busy} data-testid="save-all-variants" onClick={() => choose((tplDocs[0] ?? aiDocs[0] ?? builtin[0]).doc, [...tplDocs, ...aiDocs, ...builtin])}>全部保存为项目，并打开第一套</button>
           </div>
         </div>
       )}

@@ -39,7 +39,10 @@ function extractJson(text: string): any {
 }
 
 interface ChatOpts {
+  /** Explicit hard budget, used by capability probes. */
   maxTokens?: number
+  /** Task default only when the selected model has no configured budget. */
+  defaultMaxTokens?: number
   temperature?: number
   profileId?: string
   /** 直接指定配置（用于“测试连接”） */
@@ -107,13 +110,13 @@ export function adjustWire(w: Wire, message: string, keepEffort = true): Wire | 
   return null
 }
 
-async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, keepEffort: boolean): Promise<Response> {
+async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, keepEffort: boolean): Promise<{ response: Response; wire: Wire }> {
   let w = start
   const attempted = new Set<string>()
   for (let i = 0; i < 6; i++) {
     attempted.add(JSON.stringify(w))
     const res = await send(w)
-    if (res.ok) return res
+    if (res.ok) return { response: res, wire: w }
     const message = await readError(res)
     const next = res.status === 400 || res.status === 422 ? adjustWire(w, message, keepEffort) : null
     if (!next && w.effort && keepEffort && (res.status === 400 || res.status === 422) && /reasoning|effort|thinking/i.test(message) && /unsupported|not supported|not allowed|unknown|unrecognized|invalid|must be|不支持|无效/i.test(message)) {
@@ -123,6 +126,14 @@ async function sendAdaptive(send: (w: Wire) => Promise<Response>, start: Wire, k
     w = next
   }
   throw Object.assign(new Error('AI 请求失败：参数被服务反复拒绝'), { status: 502 })
+}
+
+/** Only numeric usage is surfaced; never echo output text or private reasoning. */
+function outputLimitError(actual: number, configured: number | undefined, usage: any): Error {
+  const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+  const completed = count(usage?.completion_tokens ?? usage?.output_tokens)
+  const reasoning = count(usage?.completion_tokens_details?.reasoning_tokens)
+  return new Error(`AI 已响应，但输出达到 token 上限：本次请求 ${actual} tokens${configured ? `，模型设置 ${configured}` : '（模型未配置，使用任务默认值）'}${completed !== undefined ? `，服务返回输出用量 ${completed}` : ''}${reasoning !== undefined ? `（其中推理 ${reasoning}）` : ''}。思考与正文可能共用预算；请检查输出上限和模型限制，或拆分任务。`)
 }
 
 /** 调用模型，返回文本。OpenAI 兼容接口或 Anthropic */
@@ -138,7 +149,7 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
   const timer = setTimeout(() => ctrl.abort(), timeout)
   try {
     const effort = opts.effort ?? p.reasoningEffort ?? ''
-    const wanted = opts.maxTokens ?? 8000
+    const wanted = opts.maxTokens ?? (p.maxOutputTokens || opts.defaultMaxTokens || 8000)
     const start: Wire = {
       json: p.jsonMode && p.provider !== 'anthropic',
       tokenField: effort && p.provider !== 'anthropic' && new URL(p.baseUrl).hostname === 'api.openai.com' ? 'max_completion_tokens' : 'max_tokens',
@@ -148,7 +159,7 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
     }
     const extra = extraBodyOf(p)
     if (p.provider === 'anthropic') {
-      const res = await sendAdaptive(
+      const { response, wire } = await sendAdaptive(
         (w) =>
           fetch(`${anthropicBase(p.baseUrl)}/messages`, {
             method: 'POST',
@@ -168,12 +179,12 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
         start,
         Boolean(effort) || Boolean(opts.keepEffort),
       )
-      const data: any = await res.json()
+      const data: any = await response.json()
       ctrl.signal.throwIfAborted()
-      if (!opts.allowTruncated && data.stop_reason === 'max_tokens') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
+      if (!opts.allowTruncated && data.stop_reason === 'max_tokens') throw outputLimitError(wire.maxTokens, p.maxOutputTokens, data.usage)
       return data.content?.map((c: any) => c.text ?? '').join('') ?? ''
     }
-    const res = await sendAdaptive(
+    const { response, wire } = await sendAdaptive(
       (w) =>
         fetch(`${p.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
           method: 'POST',
@@ -196,9 +207,9 @@ export async function chatText(system: string, user: string, opts: ChatOpts = {}
       start,
       Boolean(effort) || Boolean(opts.keepEffort),
     )
-    const data: any = await res.json()
+    const data: any = await response.json()
     ctrl.signal.throwIfAborted()
-    if (!opts.allowTruncated && data.choices?.[0]?.finish_reason === 'length') throw new Error('AI 已响应，但输出达到 token 上限；请降低思考强度或减少输入后重试')
+    if (!opts.allowTruncated && data.choices?.[0]?.finish_reason === 'length') throw outputLimitError(wire.maxTokens, p.maxOutputTokens, data.usage)
     return data.choices?.[0]?.message?.content ?? ''
   } catch (e: any) {
     if (opts.signal?.aborted) throw opts.signal.reason
@@ -224,11 +235,101 @@ export async function discoverModels(p: AiProfile): Promise<DiscoveredModel[]> {
   return fetchModels(p)
 }
 
-export function testConnection(profile: AiProfile): Promise<any> {
-  return chatJson('只输出 JSON。', '请输出 {"ok":true,"model":"你的模型名称"}', {
-    // Some models reason by default even without an explicit effort setting.
-    profile, maxTokens: 4096, temperature: 0,
-  })
+/** Connection is not a full generation-quality check. Never return private reasoning. */
+interface ProbeContext { budgetTokens: number; thinkingDisabled: boolean; probeOnly: boolean }
+
+function probeBody(profile: AiProfile, wire: Wire, effort: string, thinkingDisabled: boolean) {
+  const extra = extraBodyOf(profile)
+  delete extra.n
+  const anthropic = profile.provider === 'anthropic'
+  return anthropic ? {
+    ...extra, model: profile.model, max_tokens: wire.maxTokens,
+    ...(wire.effort ? { output_config: { effort } } : {}),
+    system: 'Reply only with JSON.', messages: [{ role: 'user', content: '{"ok":true}' }],
+  } : {
+    ...extra, model: profile.model, n: 1, [wire.tokenField]: wire.maxTokens,
+    ...(wire.effort ? { reasoning_effort: effort } : {}),
+    ...(wire.json ? { response_format: { type: 'json_object' } } : {}),
+    ...(thinkingDisabled ? { thinking: { type: 'disabled' } } : {}),
+    messages: [{ role: 'system', content: 'Reply only with JSON.' }, { role: 'user', content: 'Return exactly {"ok":true}.' }],
+  }
+}
+
+function probeHttpFailure(status: number) {
+  const stage = [401,403].includes(status) ? 'authentication' : status === 404 ? 'model_or_endpoint' : [400,422].includes(status) ? 'request' : 'service'
+  const message = stage === 'authentication' ? '鉴权被拒绝，请检查密钥及访问权限。' : stage === 'model_or_endpoint' ? '模型或接口路径不存在，请核对模型名称及 Base URL。' : stage === 'request' ? '服务拒绝了探针参数，请核对模型接口兼容性；未更改你的设置。' : '服务暂时拒绝请求，请检查限流、配额或服务状态。'
+  return { ok: false, stage, httpStatus: status, message }
+}
+
+function isProbeJson(text: unknown): boolean {
+  let valid = false
+  try { valid = typeof text === 'string' && extractJson(text)?.ok === true } catch { /* Accepted request, but formatting remains unverified. */ }
+  return valid
+}
+
+function probeResponse(data: any, anthropic: boolean, base: ProbeContext) {
+  const message = data?.choices?.[0]?.message
+  if (anthropic ? !Array.isArray(data?.content) : !message || typeof message !== 'object') {
+    return { ...base, ok: false, stage: 'response', message: '接口返回了响应，但不是兼容的模型响应结构。' }
+  }
+  if (anthropic ? data.stop_reason === 'max_tokens' : data.choices[0].finish_reason === 'length') {
+    return { ...base, ok: true, stage: 'budget_limited', message: '连接已确认；低预算探针达到输出上限，尚未验证完整 JSON 输出。这不代表业务生成已通过。' }
+  }
+  const text = anthropic ? data.content.map((item: { text?: unknown } | null) => typeof item?.text === 'string' ? item.text : '').join('') : message.content
+  const valid = isProbeJson(text)
+  return { ...base, ok: true, stage: valid ? 'complete' : 'format_warning', message: valid ? '连接成功，最小 JSON 响应正常；不代表完整业务生成已验证。' : '连接已确认，但最小 JSON 格式未通过；请检查结构化输出兼容性。' }
+}
+
+function probeConfiguration(profile: AiProfile) {
+  const budgetTokens = Math.min(128, profile.maxOutputTokens || 128)
+  let url: URL
+  try { url = new URL(profile.baseUrl) } catch {
+    return { error: { ok: false, stage: 'configuration', message: '接口地址无效。' } }
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || !profile.model) {
+    return { error: { ok: false, stage: 'configuration', message: '请填写 HTTP(S) 接口地址和模型名称。' } }
+  }
+  // Official DeepSeek defaults to thinking even when reasoning_effort is blank.
+  // This cheap connectivity probe alone disables it; saved/business settings stay intact.
+  const thinkingDisabled = profile.provider === 'openai' && url.origin === 'https://api.deepseek.com' && /^\/(v1\/?)?$/.test(url.pathname)
+  const effort = thinkingDisabled ? '' : profile.reasoningEffort || ''
+  const wire: Wire = { json: profile.jsonMode && profile.provider !== 'anthropic', tokenField: effort && profile.provider !== 'anthropic' && url.hostname === 'api.openai.com' ? 'max_completion_tokens' : 'max_tokens', temperature: false, effort: !!effort, maxTokens: budgetTokens }
+  return { budgetTokens, thinkingDisabled, effort, wire }
+}
+
+export async function testConnection(profile: AiProfile) {
+  const config = probeConfiguration(profile)
+  if (config.error) return config.error
+  const { budgetTokens, thinkingDisabled, effort } = config
+  let wire = config.wire
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 20_000)
+  const base = { budgetTokens, thinkingDisabled, probeOnly: true }
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const anthropic = profile.provider === 'anthropic'
+      const body = probeBody(profile, wire, effort, thinkingDisabled)
+      const url = anthropic ? `${anthropicBase(profile.baseUrl)}/messages` : `${profile.baseUrl.replace(/\/+$/, '')}/chat/completions`
+      const headers = new Headers({ 'content-type': 'application/json' })
+      if (anthropic) headers.set('anthropic-version', '2023-06-01')
+      if (profile.apiKey) headers.set(anthropic ? 'x-api-key' : 'authorization', anthropic ? profile.apiKey : `Bearer ${profile.apiKey}`)
+      const res = await fetch(url, {
+        method: 'POST', redirect: 'error', signal: ctrl.signal, headers,
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const next = attempt === 0 && [400,422].includes(res.status) ? adjustWire(wire, await readError(res), true) : null
+        if (next) { wire = next; continue }
+        return { ...base, ...probeHttpFailure(res.status) }
+      }
+      const data = await res.json().catch(() => null)
+      return probeResponse(data, anthropic, base)
+    }
+    return { ...base, ok: false, stage: 'request', message: '探针兼容性重试已停止。' }
+  } catch (error) {
+    const timeout = ctrl.signal.aborted || (error as Error).name === 'AbortError'
+    return { ...base, ok: false, stage: timeout ? 'timeout' : 'transport', message: timeout ? '连接测试超时（20 秒），已停止，不自动重复请求。' : '网络连接失败，请检查地址、网络或代理。' }
+  } finally { clearTimeout(timer) }
 }
 
 export const OUTLINE_SYSTEM = `你是资深的微信公众号主编。把用户提供的文稿整理为结构化大纲，用于自动排版。

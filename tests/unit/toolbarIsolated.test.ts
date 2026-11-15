@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   saveVersion: vi.fn(), saveNow: vi.fn(), commit: vi.fn(), setDocFields: vi.fn(),
   undo:vi.fn(), redo:vi.fn(), conflict:vi.fn(), child:vi.fn(), past:[] as unknown[], future:[] as unknown[], conflicted:false,
   draft: vi.fn(), compile: vi.fn(), copy: vi.fn(), prepare: vi.fn(), download: vi.fn(), pack: vi.fn(),
+  subscriptions: new Set<(next: { doc: Doc }, previous: { doc: Doc }) => void>(),
   unexpected: () => { throw Error('Unexpected boundary call') }, compileDoc: vi.fn(), parts: 1, localImages: 0, dialog: vi.fn(), doc: null as unknown as Doc,
 }))
 
@@ -25,7 +26,10 @@ vi.mock('../../src/editor/store', () => {
     notify: h.notify, commit: h.commit, setDocFields: h.setDocFields, undo: h.undo, redo: h.redo,
   })
   return {
-    useStore: Object.assign((select: (value: ReturnType<typeof state>) => unknown) => select(state()), { getState: state }),
+    useStore: Object.assign((select: (value: ReturnType<typeof state>) => unknown) => select(state()), { getState: state, subscribe: (listener: Parameters<typeof h.subscriptions.add>[0]) => {
+      h.subscriptions.add(listener)
+      return () => { h.subscriptions.delete(listener) }
+    } }),
     saveNow: h.saveNow, flushSave: h.flush, saveConflictCopy: h.conflict,
     normalizeDoc: (value: Doc) => value,
   }
@@ -81,7 +85,7 @@ beforeEach(() => {
   h.notify.mockReset(); h.commit.mockReset(); h.setDocFields.mockReset()
   h.child.mockReset().mockImplementation(h.unexpected)
   h.undo.mockReset();h.redo.mockReset();h.conflict.mockReset();h.past=[];h.future=[];h.conflicted=false
-  h.doc=doc(); h.parts=1; h.localImages=0
+  h.subscriptions.clear(); h.doc=doc(); h.parts=1; h.localImages=0
   host=document.createElement('div'); document.body.append(host); root=createRoot(host)
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals() })
@@ -279,7 +283,11 @@ it.each(['new-document','closed','newer-request'] as const)('rejects stale histo
   const finish: Array<(value:{doc:Doc})=>void>=[]
   h.version.mockImplementation(()=>new Promise(resolve=>finish.push(resolve)))
   await mount(); await press(named('历史版本')); await press(named('恢复'))
-  if(change==='new-document') h.doc=doc({title:'新编辑'})
+  if(change==='new-document') {
+    const previous = h.doc
+    h.doc=doc({title:'新编辑'})
+    for (const listener of h.subscriptions) listener({ doc: h.doc }, { doc: previous })
+  }
   if(change==='closed') await press(host.querySelector('button[aria-label="关闭 历史版本"]')!)
   if(change==='newer-request') await press(named('恢复'))
   await act(async()=>finish[0]({doc:doc({title:'过期版'})}))
@@ -361,6 +369,7 @@ it('keeps a failed history list readable and permits closing without restore', a
   h.saveNow.mockReturnValue(undefined); h.versions.mockRejectedValueOnce(Error('offline'))
   await mount(); await press(named('历史版本'))
   expect(host.textContent).toContain('还没有保存过版本')
+  expect(h.notify).toHaveBeenCalledExactlyOnceWith('加载版本列表失败：offline', 'error')
   await press(host.querySelector('button[aria-label="关闭 历史版本"]')!)
   expect(h.commit).not.toHaveBeenCalled()
 })

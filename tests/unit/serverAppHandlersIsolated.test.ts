@@ -663,7 +663,7 @@ it('forwards suggestion identity and cleans listeners after a normal response',a
   h.suggestionPrompt.mockReturnValue('fixture prompt');h.chat.mockResolvedValue({raw:true});h.readSuggestion.mockReturnValue({instruction:'receipt'})
   const run=suggestionRun();await run.pending
   expect(h.suggestionPrompt).toHaveBeenCalledExactlyOnceWith('synthetic context','one',['one'])
-  expect(h.chat.mock.calls[0][2]).toEqual({maxTokens:2000,profileId:'fixture-profile',signal:expect.any(AbortSignal)})
+  expect(h.chat.mock.calls[0][2]).toEqual({defaultMaxTokens:2000,profileId:'fixture-profile',signal:expect.any(AbortSignal)})
   success(run.res,{instruction:'receipt'});expect(run.next).not.toHaveBeenCalled()
   expect(run.req.listenerCount('aborted')).toBe(0);expect(run.res.listenerCount('close')).toBe(0)
 })

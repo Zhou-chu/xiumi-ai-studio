@@ -14,12 +14,17 @@ const after=(id:string,anchor='a'):Insert=>({op:'insert',index:1,anchor:{id:anch
 const before=(id:string,anchor='a'):Insert=>({op:'insert',index:0,anchor:{id:anchor,side:'before'},block:paragraph(id)})
 const ids=(d:Doc)=>d.blocks.map(block=>block.id)
 
-it('clamps explicit integer insertion positions and defaults a missing position to the end',()=>{
+it('normalizes finite unanchored insertion positions and defaults a missing position to the end',()=>{
   const d=doc(), block={type:'paragraph',props:{content:'新段落'}}
   expect(validateOp(d,{op:'insert',index:-4,block}).op).toMatchObject({op:'insert',index:0})
   expect(validateOp(d,{op:'insert',index:'9',block}).op).toMatchObject({op:'insert',index:3})
   expect(validateOp(d,{op:'insert',block}).op).toMatchObject({op:'insert',index:3})
-  for(const index of [1.5,'invalid']) expect(validateOp(d,{op:'insert',index,block}).error).toContain('位置或锚点无效')
+  expect(validateOp(d,{op:'insert',index:null,block}).op).toMatchObject({op:'insert',index:3})
+  expect(validateOp(d,{op:'insert',index:1.5,block}).op).toMatchObject({op:'insert',index:1})
+  expect(validateOp(d,{op:'insert',index:'2.75',block}).op).toMatchObject({op:'insert',index:2})
+  for(const index of ['invalid',Infinity, NaN, true]) {
+    expect(validateOp(d,{op:'insert',index,block})).toEqual({error:'插入位置必须是有限数字'})
+  }
 })
 
 it('uses a unique current anchor and never falls back to numeric insertion on a bad anchor',()=>{
@@ -86,7 +91,12 @@ it('rejects malformed operations and nonexistent or non-top-level move identitie
   for(const op of ['remove','update','move']) expect(validateOp(d,{op,id:'missing'}).error).toContain('找不到模块')
   expect(validateOp(d,{op:'move',id:'child',to:0}).error).toContain('找不到模块')
   expect(validateOp(d,{op:'move',id:'box',to:'1'}).op).toMatchObject({to:1})
-  expect(validateOp(d,{op:'move',id:'box',to:'nan'}).op).toMatchObject({to:0})
+  expect(validateOp(d,{op:'move',id:'box',to:'2.75'}).op).toMatchObject({to:2})
+  expect(validateOp(d,{op:'move',id:'box',to:-2.75}).op).toMatchObject({to:-2})
+  expect(validateOp(d,{op:'move',id:'box'}).op).toMatchObject({to:0})
+  for(const to of ['nan',Infinity, NaN, true]) {
+    expect(validateOp(d,{op:'move',id:'box',to})).toEqual({error:'移动位置必须是有限数字'})
+  }
 })
 
 it('keeps metadata fields not requested, resets overrides on theme change, and applies bounded top-level reorder',()=>{
@@ -99,6 +109,9 @@ it('keeps metadata fields not requested, resets overrides on theme change, and a
   expect(applyOp(start,theme)).toMatchObject({themeId:'new-theme',themeOverrides:undefined,title:start.title})
   const meta:DocOp={op:'setMeta',title:'新标题',author:''}
   expect(validateOp(start,meta).op).toBe(meta)
+  for(const fields of [{title:5},{digest:null},{author:false}]) {
+    expect(validateOp(start,{op:'setMeta',...fields})).toEqual({error:'文章信息必须是文字'})
+  }
   expect(applyOp(start,meta)).toMatchObject({title:'新标题',author:'',digest:start.digest})
   expect(start.themeOverrides).toEqual({fontSize:23})
 })

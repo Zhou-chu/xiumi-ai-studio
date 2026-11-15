@@ -163,11 +163,11 @@
     "scripts/verificationLifecycle.ts": "6effea4a69b1e7f5571cf9f289bbfd4c8922e856129b2ca4ab1a95502bdfcfb6",
     "scripts/verificationRuntime.ts": "d647559a0013d03f902c525f3a761660d9b275d5ea4ac4462153ec0a1847a066",
     "scripts/verify-package.ts": "1d68c348da61047f9bb799b0cfcbecbbb396d45ef77fef8c4f01a7fb302df641",
-    "server/ai.ts": "59657176f6fc24f2f08c027815c125db3d0fbfbfd1a89bc4c808605ce3737089",
+    "server/ai.ts": "2d6a46d115ab48ddf749115b16dc01cd574a26223adb1abe47f4d37c243d660f",
     "server/aiEdit.ts": "ac1a2c73554b9b5d0a66db22313a1cf24f1ea18ccea37107c93d6f6cdbe72306",
     "server/aiModels.ts": "86330318f63df2db15607badfbda9b0b069c9c69b60d634be23e9a3efa520899",
     "server/aiSuggestion.ts": "0e1261a92e61f4daf69f39f9264c62b81b8c59dc5c3ae50cff427d8f90ece409",
-    "server/app.ts": "c73b58ac970e4845ea350e36bc9e232baa6e49ef965f33b579ea1db172e720ed",
+    "server/app.ts": "52f1662ca526d80ef1f9509934fce08878e6baa5f7d0f4e6200b63d94f0d6bed",
     "server/articleImages.ts": "c376f0b19a106fa4c287ac4a6230abcdc7bdd133b7f3f7ed351d028e937531d4",
     "server/assets.ts": "7e54ea3fa21c9beabaa68573258eb37913b442ab0f47ee84e80c72044e2b700b",
     "server/components.ts": "16a277aa382b09aee21bf64035b6ef00c9cff3e89d7b9c47d1f108dab674c980",
@@ -211,7 +211,7 @@
     "src/core/images.ts": "b67d35c5860a08fe81e4615c665df6c969e3e8ea199b9e5bc668cdc3bcba82d0",
     "src/core/kit.ts": "9acd9a36cdc8cc416a689e798564371db927e854417e192dd067823bf781f27c",
     "src/core/layouts.ts": "5630bc3e8734a18cd84766d2a8fe3eb2c1ca7b7e6e6fbec0d00018d53fd6790d",
-    "src/core/ops.ts": "9f62e3b268095931f05cf4b1440a437a21b5ed01ffd131f5a0d91ae0d89d20f6",
+    "src/core/ops.ts": "41f502f7de820d47ef30063ebde7725c3368565fc78f5f12559e2c5caf673e0a",
     "src/core/outline.ts": "95fb43e142912e027c3e74588eac8caaabd2825a34321e736ff2b3fc6f8ed775",
     "src/core/photoPlan.ts": "c236adef954db3d63f407c344612e1c466bcc5e9f9565d021e37e4d2d91acfef",
     "src/core/photos.ts": "3da8631c315a827b311758147dfc135fd0b4b2097bd37f74f090b42d7228074b",
@@ -244,7 +244,7 @@
     "src/core/types.ts": "4ab97a32e72303684461138bce47f3a7409859dbffcab7348f3508784319fcb5",
     "src/core/wxImport.ts": "74538bb2a33f20f3834c5e45306eb30566eb76819104ff21cbcb9a46945ead47",
     "src/core/xiumiExport.ts": "4b50f3547705d9f6d5fd865879755f4daf076b176d706eba195df880fe228122",
-    "src/editor/AiSettingsModal.tsx": "57551a673ad9d5f8f7df33c9da9bc9fc5fcaca92763bac0cd05597e7d3df8343",
+    "src/editor/AiSettingsModal.tsx": "c57f66dddb2c39820a8d7da3a478f3e1d8b70d5e7eb2494457915f39dc7bbd13",
     "src/editor/ArticleImageImport.tsx": "dea0bd67ced63808ac511f7ba9341aaa22646163fb46b2aecc7e34aeaec5808a",
     "src/editor/ArticleImport.tsx": "f6cade4350d28d5707f0619ffb77909289aab193df58db44eb0570441d8513dc",
     "src/editor/BlockTextEditor.tsx": "e55b47156d543e3484d34a615221ce8bf89988ecf323c236c33b4e64fc1331b1",
@@ -254,7 +254,7 @@
     "src/editor/ColorPicker.tsx": "cad08fcab2dec167454e222be28699b6f2372d97a42457d24e80d32594e3b5e5",
     "src/editor/ComponentLibrary.tsx": "9c794c81676f98522a9cde2945905de6bccae84efc42735e883b97d434d0ba7a",
     "src/editor/Copywriter.tsx": "4c0d357f1ca227124525485cc819555c33f96308dc643951bf532f24dd77a4f6",
-    "src/editor/CoverDesigner.tsx": "a0c426006fe49034795ef1746c7b3ed585ac1be85c1b680fa10d555c066514cf",
+    "src/editor/CoverDesigner.tsx": "b5ffaf9a08e8d3f72300e344de0aeea4440acd97600393a865368f537a33bc0d",
     "src/editor/CoverTitleAlignment.tsx": "9c06e5164c0a54b5d076f7cf0f680a263115146be2be831b0478da37bdbf4559",
     "src/editor/CropModal.tsx": "c8826f923a8254fb5f1a759215b58bdd3f0547374d0c235641e76915aac86bdb",
     "src/editor/DataModal.tsx": "239673daf13cf312eeb51b305697c532b701b7bbc6cc568a647079f208b3148c",
@@ -262,7 +262,7 @@
     "src/editor/Help.tsx": "589e9e3bac5d75e2a96cb4928ae954c6d08615684336edf1011e6adc71bd9074",
     "src/editor/HtmlTypographyControls.tsx": "1c25ccf7eb6b6f2f28a1f5b02d4753f5b08bead4674aa53d22f1665e291c61e9",
     "src/editor/ImageResize.tsx": "6cf44de629dea790cf340dabe033dcfe0568dcf8604b7301a13408281da00efb",
-    "src/editor/ImportWizard.tsx": "865d3b47cc7f41bde2b61e98fd942d96f4662fdb7b94ccd2bedcee8ce284f8fe",
+    "src/editor/ImportWizard.tsx": "aca69b93e52ef8b40e59468d384286189230197fb8882bdf015298c9bd1f2c2c",
     "src/editor/InlineReview.tsx": "11192c28e510e880c0fb5cd5ce32246570197f0faa436be18e94f014bfc48b11",
     "src/editor/KitPicker.tsx": "4577080e8bf814172ffe8d17088361ee9b683466def35e7c2acdaa667bd9836b",
     "src/editor/LeftPanel.tsx": "17fd44ce8cd6b9d36c263ee5a6cb8788544ec71109e73d20c3ca07d41fdfb44d",
@@ -274,16 +274,16 @@
     "src/editor/ReplayPanel.tsx": "9f1c0b6631f7a636df57ef2a82efaf5372e3eabb5ab6530c6877a00db4bc8db8",
     "src/editor/ReplayPreview.tsx": "b13677d059c1f30b18567d4029d6b8ab742b3a77b311932fa17f13ae482407a6",
     "src/editor/RichEditor.tsx": "a02044076452809a08bdb1db9d870eebf2c30afd0bbf60266efcfea046962e7b",
-    "src/editor/RightPanel.tsx": "673ebe885c3d316e14e799cb788da4af3b0d19710cb8736a4f27f9d1866a6478",
+    "src/editor/RightPanel.tsx": "89fbb0e71621c0cc41fb5a248535933e96c91652821248c2bbe9eafc0835cc5d",
     "src/editor/RoleSelect.tsx": "b6c4c71d02eb85fddfb7cad9aa316377752afe9b74b2a5f9e022c79e56320fd9",
     "src/editor/SuggestionInput.tsx": "3f503b0f84e680f6ef122f8a571799cefeecdd40fb5867f1de6bf97ed171d608",
     "src/editor/TemplateModules.tsx": "bbdb5b98f8c69b7fc5706cfccf74effe9bcdc8257bf8ce99127aa76da1de0b0c",
-    "src/editor/Toolbar.tsx": "2a78a6ddbfb5a03850019bde1ea6611853b49d1ff0b22ecc3e205da824de7db5",
+    "src/editor/Toolbar.tsx": "a47e57b43f82872ca63993058f282d1526f8d33f19729170b3858baac726de56",
     "src/editor/ToolbarMenu.tsx": "94f362003743a2757b84f7a5c9e5e2c425b0298a9c784fb4674e22899127de1c",
     "src/editor/UiIcon.tsx": "c9da1882040f8df24957b1afda30160dfa52f90f1b9f5a6c4ab8ea5654909d98",
     "src/editor/Workspace.tsx": "2d5a9bb1eda9d23bd34b5a73b0f45f52640eb09908c43959265bbe2db8fda35f",
     "src/editor/aiPresets.ts": "2a236927049e5bd38373607d34ceeefd357eff8d0492bf1b4fbd05768f2a8037",
-    "src/editor/api.ts": "4d60ee54343d215797b27aa86a9e8fcd4d658701951957f390aa182cbb9169c5",
+    "src/editor/api.ts": "92150df388e5413b8e6941cb5d0e11df5fcd25d49fd425dd136301a29136c52d",
     "src/editor/colorMode.ts": "bd7eea61b1178c35340914c11d4d35cae6b629899dfc026d55edbe921d0b515c",
     "src/editor/componentActions.ts": "a3eba5c483bbec98588dff199266ce5137dfa9d6168def67a3440e79c968ba56",
     "src/editor/documentNavigation.ts": "75b34f966ca1dc4400c2038e116a74c44bc74afa481eb4660072ea90d2edb53c",
@@ -304,6 +304,47 @@
     "templates/eea-germany/build.mjs": "82923636523adb408c25e4fc9daadac89ee5554a594bec25c066a0d8b361dc57"
   },
   "tests": [
+    {
+      "path": "deploy/test-desktop.ps1",
+      "runner": "powershell",
+      "layer": "resource-integration",
+      "target": [
+        "deploy/desktop.ps1"
+      ],
+      "rationale": "Loads real deployment script functions, starts an isolated built Node instance on loopback, and verifies owned-process, state and disposable-directory behavior. Not a strict source unit.",
+      "sha256": "7af73406054a7f2575558bb4d5a101f100a53b6112bb9067660e2a6ec19e10dc"
+    },
+    {
+      "path": "tests/deployment/BoundaryProof.Tests.ps1",
+      "runner": "pester",
+      "layer": "tool",
+      "target": [
+        "deploy/desktop.ps1"
+      ],
+      "rationale": "Exercises real checked sandbox state writes and Pester command interception. Harness boundary proof; does not count as a strict source unit.",
+      "sha256": "07b4ce4338d02f6243ed26b98d62a0423a943077d7b8b5a02db604b165046ec0"
+    },
+    {
+      "path": "tests/deployment/Deployment.Tests.ps1",
+      "runner": "pester",
+      "layer": "tool",
+      "target": [
+        "deploy/desktop.ps1",
+        "deploy/install-desktop.ps1"
+      ],
+      "rationale": "Uses Pester custody checks, real disposable filesystem writes and mocked process, network and scheduler commands for deployment control tests. Not a strict source unit.",
+      "sha256": "31675e1c4edee8206a7236f5d50d3de3edf10e7c38037f70ca7510a7c1789d97"
+    },
+    {
+      "path": "tests/deployment/ThrowDiagnostic.Tests.ps1",
+      "runner": "pester",
+      "layer": "tool",
+      "target": [
+        "deploy/desktop.ps1"
+      ],
+      "rationale": "Pester exception-matching diagnostic comparing direct and Should Throw handling. This diagnostic is not included in strict application-source coverage.",
+      "sha256": "f11135eb9db6751672978a7bd1eb374ba9a66869ac41697bea841c0ee2777978"
+    },
     {
       "path": "tests/e2e/acceptance.spec.ts",
       "runner": "playwright",
@@ -617,8 +658,8 @@
         "src/editor/RichEditor.tsx",
         "src/editor/Canvas.tsx"
       ],
-      "rationale": "Browser selection ranges and keyboard typography, persistence through local API, direct compile of saved result, reload and phone-width color compatibility.",
-      "sha256": "6d3d14a29e67be59b32aee096a686c7cd93d2a871158cd51abcd72bb784a6fab"
+      "rationale": "Browser ranges and keyboard typography, persistence via local API, compilation and reload, plus separate phone and desktop color/keyboard compatibility.",
+      "sha256": "e1ca480886ac000d16bea5f9131fb89c86ff998d1133029767a7233e93a53333"
     },
     {
       "path": "tests/e2e/save-flow-retries.spec.ts",
@@ -678,6 +719,29 @@
       "sha256": "318073e9d33de56674ed5456a8b6adfbc950e7e71478b37af182446133f9eb49"
     },
     {
+      "path": "tests/e2e/variant-save-retry.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/ImportWizard.tsx",
+        "src/editor/api.ts",
+        "server/projectStore.ts"
+      ],
+      "rationale": "Browser wizard plus actual local project server/temporary data CAS, with exactly one induced transient variant write failure; not strict unit or external provider verification.",
+      "sha256": "46d2b0e1d80ee9607d9104d45989122c23a31a9725298fa55c24cd380af2cb65"
+    },
+    {
+      "path": "tests/e2e/version-action-boundaries.spec.ts",
+      "runner": "playwright",
+      "layer": "browser",
+      "target": [
+        "src/editor/Toolbar.tsx",
+        "server/projectStore.ts"
+      ],
+      "rationale": "Chromium drives real local project/version API and simulated HTTP failures and delays; separates user-visible failures and stale completion from strict unit coverage.",
+      "sha256": "661a4dd2fbb8cec926912aa1a58d2c45334a2cacb9a91352a311c27c8ce05bd3"
+    },
+    {
       "path": "tests/e2e/workspace.spec.ts",
       "runner": "playwright",
       "layer": "browser",
@@ -700,6 +764,17 @@
       ],
       "rationale": "Real export UI, document API, confirmation cancellation and upload/download observation; upload endpoint synthesized, not real publishing.",
       "sha256": "713ae5342bb05b8d3eb4105631c28e14e99138b70e413565b36fe613a5d2c0c2"
+    },
+    {
+      "path": "tests/quality/sonar-scope.test.mjs",
+      "runner": "node-test",
+      "layer": "static-contract",
+      "target": [
+        ".sonarcloud.properties",
+        "test-layers.json"
+      ],
+      "rationale": "Audits actual tracked repository file classification and reviewed production inventory. Static scope contract, not a hosted Sonar analysis or a strict product-source unit.",
+      "sha256": "b387891a9625bc82e1cb5eefa2648a2598da2b70f76ea0666a95e092155dcb6a"
     },
     {
       "path": "tests/quality/test-layer-check.test.mjs",
@@ -824,6 +899,16 @@
       "sha256": "9f37f7a60049d90fe7def0d5fbc925d114605d557fc650ef9389365bec51aa56"
     },
     {
+      "path": "tests/unit/aiOutputBudget.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts"
+      ],
+      "rationale": "Production request budgeting, adaptive reply handling, and numeric-only diagnostics with transport and profile storage replaced; no network, settings I/O or external model execution.",
+      "sha256": "e19e5cd909ef82b4abdea7b04b76ab98e9bc620352c419ca831b3820378757e7"
+    },
+    {
       "path": "tests/unit/aiProfiles.test.ts",
       "runner": "vitest",
       "layer": "unit",
@@ -832,7 +917,7 @@
         "server/aiModels.ts"
       ],
       "rationale": "Direct model discovery/generation/connection probes with explicit profile and response doubles. Fail-closed store/unplanned-fetch stubs avoid import-time mkdir and accidental network.",
-      "sha256": "483ecdc43817e9289a205299667f34c365e3f9e77abeedbd6c302c129c3f4cc7"
+      "sha256": "a59a7b73b84f95b5dec4d1b0c7181fba4b9e28c3b971f7dd336c0af15806fa04"
     },
     {
       "path": "tests/unit/aiResponseBoundariesDirect.test.ts",
@@ -873,7 +958,7 @@
         "src/editor/AiSettingsModal.tsx"
       ],
       "rationale": "Actual modal logic with API, storage, picker/child dialog and transports substituted; no real model or network.",
-      "sha256": "c38b4598e8a5d3c0adf0b8ef84d8e46c9be3b8d5a52e4bd660a35ea6ca415dfc"
+      "sha256": "a1a1787ec1a97e329453d550b37f4dab55444d881cab1ce09eff6b4aeefd9f29"
     },
     {
       "path": "tests/unit/aiSettingsUi.test.ts",
@@ -906,7 +991,7 @@
         "server/aiModels.ts"
       ],
       "rationale": "Original provider adapter protocol cases preserved with fake transport and complete store/paths side-effect guard, no HTTP or filesystem.",
-      "sha256": "7c5c00956fe5bf8620ba4799d623606e5c39f1abdc1c12e118e342fa77bbf2a6"
+      "sha256": "800460af0bc514fe3471b7524df01bcd0dde69cd794fd08f97401effc6436e16"
     },
     {
       "path": "tests/unit/alignmentCompilerDirect.test.ts",
@@ -926,7 +1011,7 @@
         "src/editor/api.ts"
       ],
       "rationale": "Direct client response adapter checks, each with restored fetch double. Synthetic body refusal, bodyless response handling, and structured HTTP status normalization; never calls a real endpoint.",
-      "sha256": "f15de57078a7542041cb9434e87bb4de571475add0471caa65e7122d4375a556"
+      "sha256": "d67c36d57ec0718629b1634426baf50403b1863d2d2be7fc76944326b858195d"
     },
     {
       "path": "tests/unit/apiWireContracts.test.ts",
@@ -970,7 +1055,7 @@
         "server/articleImages.ts"
       ],
       "rationale": "Actual Express loopback endpoints and middleware with private resource fixtures; provider and remote fetch are stubbed.",
-      "sha256": "51c0a54f13c9b8c6159d83ad0e0f9190a25971b768a65fcecf39d47c1f856632"
+      "sha256": "112bd0db2224f5bd28813d58c1901c0089f472307f0c5803001ef38e9b56b3c5"
     },
     {
       "path": "tests/unit/articleImageCollection.test.ts",
@@ -1236,6 +1321,16 @@
       "sha256": "819662d2ecff1d635c6c4ff95b00066a80a7d7cba73b25e4da18701fd8b547a7"
     },
     {
+      "path": "tests/unit/connectionProbe.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "server/ai.ts"
+      ],
+      "rationale": "Production connection probe logic, provider envelopes, bounded retry and synthetic timeout through substituted provider transport and settings store, no actual network or settings I/O.",
+      "sha256": "cc1ced7b9cca41319c9087d9bc1711707781308d1383949669440c2f5ccd8b36"
+    },
+    {
       "path": "tests/unit/copyParsingBoundaries.test.ts",
       "runner": "vitest",
       "layer": "unit",
@@ -1298,7 +1393,7 @@
         "src/core/ops.ts"
       ],
       "rationale": "Eleven direct pure operations with explicit document/block fixtures, no proposal workflow, persistence or UI.",
-      "sha256": "8b14c00a955be3f0425e2aee7fe4da415c432a5992242cbdb3bdb04ea2ccb59c"
+      "sha256": "dea821034e2e283d51c9e71c6e23fcb8a2648d90833b1fcb613377611c6a9384"
     },
     {
       "path": "tests/unit/coverAlignment.test.ts",
@@ -1319,8 +1414,20 @@
       "target": [
         "src/editor/CoverDesigner.tsx"
       ],
-      "rationale": "Twelve actual cover designer checks use controlled Canvas/Image/Blob, API and editor store replacements; no camera, real file, encoding engine, upload or document write.",
-      "sha256": "72bc381f84e7ee1e5371a76c965fc7b3447311db4a4ad5e89e6e8cd9278b265c"
+      "rationale": "Fifteen actual cover designer checks use controlled Canvas/Image/Blob, API and editor store replacements; no camera, real file, encoding engine, upload or document write.",
+      "sha256": "16b5ffbeece86bda0eb4441a74c237b400938cd5f4ee638f1f7e56cca79212ae"
+    },
+    {
+      "path": "tests/unit/coverTitleSafety.test.ts",
+      "runner": "vitest",
+      "layer": "component-integration",
+      "target": [
+        "src/editor/CoverDesigner.tsx",
+        "src/editor/store.ts",
+        "src/editor/Modal.tsx"
+      ],
+      "rationale": "Fork regression exercises the real cover UI, editor store and modal; canvas and background image receipts are substituted, but cross-component/UI-store interactions are not strict unit.",
+      "sha256": "22e607330678f48d5582f3d08f2377988553c6017657d39a229b2024ca553695"
     },
     {
       "path": "tests/unit/cropModalIsolated.test.ts",
@@ -1631,8 +1738,8 @@
         "src/core/blocks.ts",
         "src/core/compiler.ts"
       ],
-      "rationale": "Actual normalization-to-compiler and nested module output checks stay outside strict units.",
-      "sha256": "1c6ee97e0b34dba56dd75b150e77e0da52ace1299dbc65fb15c67c2b56e1d206"
+      "rationale": "Actual normalization-to-compiler and nested module output checks plus in-memory image width validation; remains outside strict units.",
+      "sha256": "f8ffaf37849ed9ef543ab10666b8906b8f23c56f220d944888cd4501daa9693a"
     },
     {
       "path": "tests/unit/imageResizeDirect.test.ts",
@@ -1750,7 +1857,7 @@
         "src/editor/ImportWizard.tsx"
       ],
       "rationale": "Real wizard with API, store, navigation and independent workflows replaced; ownership, revision, enrichment and undo without service or actual upload.",
-      "sha256": "7a42533804574053c63d3c1bfd6383cc35248aef17147374226926ab8c2b8f34"
+      "sha256": "205ad4b0eec6dde6e3e7a61c097ae97e4481e767dfa40f8ae1533f6c02293a72"
     },
     {
       "path": "tests/unit/importWizardKitIsolated.test.ts",
@@ -2208,8 +2315,8 @@
       "target": [
         "playwright.config.ts"
       ],
-      "rationale": "Imports actual dev and packaged Playwright configuration under separate environment values; config contract only, no service or process launched.",
-      "sha256": "b324656852d6df45b05510e5d2b539711ca9f4236da63e714448d95421eaf9d3"
+      "rationale": "Imports development and packaged Playwright configurations under isolated environment values; checks loopback, trace and no retry, without starting processes.",
+      "sha256": "b497a44451cf20cab23239489c55579a34bfe70c5f6da6b1bb9bd0290aff6272"
     },
     {
       "path": "tests/unit/probeGeneratorIsolated.test.ts",
@@ -2315,8 +2422,8 @@
         "src/editor/store.ts",
         "src/core/slots.ts"
       ],
-      "rationale": "Real slot query/writes exercise actual store proposal transitions across two logical modules.",
-      "sha256": "cc85b772925a9d1e34a5e10a3a069696fa1efcecef5381f66cb036421428d0bb"
+      "rationale": "Actual store/slots/operations collaborate to resolve proposal conflicts and stale versions, including HTML alignment; remains cross-component.",
+      "sha256": "2ae4e08b2a8d9ded562df99a9ff217f73107d6b8ef982b46c40ca963eefe65ae"
     },
     {
       "path": "tests/unit/proposalStoreOwnershipDirect.test.ts",
@@ -2703,7 +2810,7 @@
         "src/editor/RightPanel.tsx"
       ],
       "rationale": "Actual inspector actions over memory store and mocked transport, theme and style adapters; no real model, resource or article fetch.",
-      "sha256": "9db45b3887c9c6bcedbf5d7b6ce3bd7d6f0fc728b00f999409c4ac00079a250a"
+      "sha256": "e1b1c5b3905e9d5752073af668550c9f04bbb6113dd7e3cea6c9577673029183"
     },
     {
       "path": "tests/unit/roleHeuristicsDirect.test.ts",
@@ -2859,7 +2966,7 @@
         "server/app.ts"
       ],
       "rationale": "Actual captured server terminal handlers and local-only middleware with synthetic sockets, process, filesystem, backup and model boundaries; no real listener or transport.",
-      "sha256": "37bed931a460a4a61c080a0948bf247ebefc26bec5ee28f37b25ea42dc346704"
+      "sha256": "82a60abfd7e1c6358dba11e4058ad34a70ee70fc9e7ed2340f5654a06b834eda"
     },
     {
       "path": "tests/unit/serverAssetsIsolated.test.ts",
@@ -3115,10 +3222,11 @@
       "layer": "component-integration",
       "target": [
         "src/core/compiler.ts",
-        "src/core/replay/render.ts"
+        "src/core/replay/render.ts",
+        "src/core/textTypography.ts"
       ],
-      "rationale": "Actual compiler and replay renderer parity; second logical engine is not folded into unit scope.",
-      "sha256": "25557c96de1c30b8f8bb534c07cc9d3acfd7ad151cf7feecfa9c6de68e20aa11"
+      "rationale": "Actual compiler, replay renderer, HTML DOM parsing and typography validation; cross-module checks remain outside strict units.",
+      "sha256": "52a37760278b8fe125b32d66dd63bdef5fd511f07bb5dc6bc5a394d9f8a3efe0"
     },
     {
       "path": "tests/unit/toolbarIsolated.test.ts",
@@ -3128,7 +3236,7 @@
         "src/editor/Toolbar.tsx"
       ],
       "rationale": "Actual Toolbar control handlers with persistence, browser clipboard/download, model publication, compilation and child panels substituted; no real external side effects.",
-      "sha256": "5b5a011f83d232131efa1a59728ba49d103b926324175c88c8f8da2f740eeaec"
+      "sha256": "e3d33428ead814e8e5d18be7d65906c7f2a305620c3f42dbc9ebbd892d989102"
     },
     {
       "path": "tests/unit/toolbarMenuDirect.test.ts",
@@ -3351,6 +3459,16 @@
       "sha256": "192cedc92ea91b39bb8bbe4719ceab81f8decbd6eca4b3ea7c5897c3cef14fe4"
     },
     {
+      "path": "tests/unit/versionActionBoundaries.test.ts",
+      "runner": "vitest",
+      "layer": "unit",
+      "target": [
+        "src/editor/Toolbar.tsx"
+      ],
+      "rationale": "Executes real Toolbar history callbacks and React state with underlying store, API persistence, compiler, export and child panels substituted; no network, disk or real browser.",
+      "sha256": "ce3a30022437fc1bc221fb631a560e90b2feaad9490ee2de9cc519fe2cdc8fd1"
+    },
+    {
       "path": "tests/unit/wechatDraftValidationIsolated.test.ts",
       "runner": "vitest",
       "layer": "unit",
@@ -3478,6 +3596,30 @@
     }
   ],
   "support": [
+    {
+      "path": "tests/deployment/TestIsolation.ps1",
+      "sha256": "7cbe3b08f653642bedc7e10bd830b0ed4729503c707d817bb2b79c682cf63561"
+    },
+    {
+      "path": "tests/deployment/boundary-child.ps1",
+      "sha256": "21a6a5afafb8bfe69b72128de57d462451635d8e76891f09b73be13c3482834b"
+    },
+    {
+      "path": "tests/deployment/isolation-self-check.ps1",
+      "sha256": "0ad7f3b5bbb8bfc75de0121e19a4cd3612f0e69b721bc024cc98abd8e6f66d01"
+    },
+    {
+      "path": "tests/deployment/run-coverage-worker.ps1",
+      "sha256": "3e9c88d2dbe255fcec6f037e1a19b6f1aa27fd9311ea234882f8a1233e901175"
+    },
+    {
+      "path": "tests/deployment/run-coverage.ps1",
+      "sha256": "002f7e5451c08aeb6be3eb2a9b6717a2d7963748cff18267bad29d83d3346edc"
+    },
+    {
+      "path": "tests/deployment/state-write-proof.ps1",
+      "sha256": "1299fdcaaf2338cc3f2d61cb55beee554bb3b9bf2093a7678a84eea961d1730e"
+    },
     {
       "path": "tests/e2e/fixtures/inlineReview.ts",
       "sha256": "e29a30563e273b61ce94f00fae6046712614a39353b779f8710bb31732f0dc23"

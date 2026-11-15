@@ -220,7 +220,7 @@ describe('connection and effort feedback', () => {
     else h.connection.mockResolvedValueOnce({ ok: outcome === 'success', ms: 1234, reply: { value: 'wire-response' } })
     await press('测试连接')
     expect(h.connection).toHaveBeenCalledExactlyOnceWith(first)
-    expect(host.textContent).toContain({ success: '连接成功（1.2 秒）', malformed: '已响应但格式异常：{"value":"wire-response"}', error: '✕ 上游拒绝' }[outcome])
+    expect(host.textContent).toContain({ success: '连接成功（1.2 秒）', malformed: '接口有响应，但最小 JSON 检查未通过。', error: '✕ 上游拒绝' }[outcome])
     if (outcome !== 'success') expect(host.textContent).not.toContain('连接成功')
   })
 
@@ -513,4 +513,17 @@ it('clears endpoint credentials and tuning when the interface type changes but p
   await press('OpenAI 兼容');change(input('ai-context'),'1000');change(input('ai-max-output'),'')
   h.connection.mockResolvedValueOnce({ok:true,ms:1,reply:null});await press('测试连接')
   expect(h.connection).toHaveBeenLastCalledWith(expect.objectContaining({provider:'openai',contextWindow:1000,maxOutputTokens:0}))
+})
+it.each([
+  ['complete', true, '✓ 连接成功（1.2 秒）：'],
+  ['budget_limited', true, '⚠ '],
+  ['format_warning', true, '⚠ '],
+  ['authentication', false, '✕ '],
+] as const)('distinguishes the connectivity stage %s from full generation', async (stage, ok, prefix) => {
+  await mount()
+  const message = '探针反馈，不代表业务生成已通过。'
+  h.connection.mockResolvedValueOnce({ ok, ms: 1234, reply: { stage, message } })
+  await press('测试连接')
+  expect(host.textContent).toContain(prefix + message)
+  if (stage !== 'complete') expect(host.textContent).not.toContain('连接成功')
 })

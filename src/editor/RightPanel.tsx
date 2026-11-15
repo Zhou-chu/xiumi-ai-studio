@@ -46,10 +46,49 @@ function DocSettings() {
   )
 }
 
+function useThemeSave() {
+  const lifetime = useRef<symbol | null>(null)
+  const pending = useRef(false)
+  const [saving, setSaving] = useState(false)
+  useLayoutEffect(() => {
+    lifetime.current = Symbol()
+    return () => { lifetime.current = null }
+  }, [])
+
+  const save = async (buildTheme: () => Theme | null, success: (theme: Theme) => string) => {
+    const owner = lifetime.current
+    if (!owner || pending.current) return
+    const { doc: expected, commit, notify, refreshThemes } = useStore.getState()
+    pending.current = true
+    setSaving(true)
+    try {
+      const theme = buildTheme()
+      if (!theme) return
+      await api.saveTheme(theme)
+      registerTheme(theme)
+      refreshThemes()
+      if (lifetime.current !== owner) return
+      if (useStore.getState().doc !== expected) {
+        notify('主题已保存；文稿已变化，未自动应用')
+        return
+      }
+      commit({ ...expected, themeId: theme.id, themeOverrides: undefined })
+      notify(success(theme))
+    } catch (error) {
+      if (lifetime.current === owner) notify(error instanceof Error ? error.message : '主题保存失败，请重试', 'error')
+    } finally {
+      pending.current = false
+      if (lifetime.current === owner) setSaving(false)
+    }
+  }
+  return { save, saving }
+}
+
 function ThemePanel() {
   const doc = useStore((s) => s.doc)
   const themes = useStore((s) => s.themes)
-  const { commit, notify, refreshThemes } = useStore.getState()
+  const commit = useStore((s) => s.commit)
+  const { save, saving } = useThemeSave()
   const theme = resolveTheme(doc)
   const setOverride = (patch: Partial<ThemeTokens>, key: string) => {
     const o = doc.themeOverrides ?? {}
@@ -100,20 +139,11 @@ function ThemePanel() {
       {num('图片圆角', 'imageRadius', 0, 20)}
       <button
         className="wide"
-        onClick={async () => {
+        disabled={saving}
+        onClick={() => void save(() => {
           const name = prompt('保存为我的主题，名称：', `${getTheme(doc.themeId).name} · 自定义`)
-          if (!name) return
-          const t: Theme = { ...theme, id: `custom-${Date.now().toString(36)}`, name, description: '用户自定义主题' }
-          await api.saveTheme(t)
-          registerTheme(t)
-          refreshThemes()
-          if (useStore.getState().doc !== doc) {
-            notify('主题已保存；文稿已变化，未自动应用')
-            return
-          }
-          commit({ ...doc, themeId: t.id, themeOverrides: undefined })
-          notify('主题已保存')
-        }}
+          return name ? { ...theme, id: `custom-${Date.now().toString(36)}`, name, description: '用户自定义主题' } : null
+        }, () => '主题已保存')}
       >
         保存为我的主题
       </button>
@@ -269,7 +299,8 @@ function ReferencePanel() {
   const [url, setUrl] = useState('')
   const [report, setReport] = useState<StyleReport | null>(null)
   const [authorized, setAuthorized] = useState(false)
-  const { commit, notify, refreshThemes } = useStore.getState()
+  const notify = useStore((s) => s.notify)
+  const { save, saving } = useThemeSave()
   const draft = useMemo(() => (report ? themeFromReport(report, '参考风格主题') : null), [report])
   const analyze = (source: string) => {
     const dom = new DOMParser().parseFromString(source, 'text/html')
@@ -316,20 +347,11 @@ function ReferencePanel() {
           <p>标题样式 {draft.headingVariant} · 引言 {draft.quoteVariant} · 卡片 {draft.cardVariant}</p>
           <button
             className="primary wide"
-            onClick={async () => {
-              const doc = useStore.getState().doc
-              const name = prompt('新主题名称', '我的参考风格') ?? '我的参考风格'
-              const t = { ...draft, name }
-              await api.saveTheme(t)
-              registerTheme(t)
-              refreshThemes()
-              if (useStore.getState().doc !== doc) {
-                notify('主题已保存；文稿已变化，未自动应用')
-                return
-              }
-              commit({ ...doc, themeId: t.id, themeOverrides: undefined })
-              notify(`已创建并应用主题「${name}」`)
-            }}
+            disabled={saving}
+            onClick={() => void save(() => {
+              const name = prompt('新主题名称', '我的参考风格')
+              return name === null ? null : { ...draft, name: name || '我的参考风格' }
+            }, (theme) => `已创建并应用主题「${theme.name}」`)}
           >
             保存并应用为新主题
           </button>

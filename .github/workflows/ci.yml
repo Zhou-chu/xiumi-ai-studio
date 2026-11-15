@@ -10,7 +10,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  strict-unit:
+    uses: ./.github/workflows/strict-unit-stage.yml
   verify:
+    name: Verify Node ${{ matrix.node }}
     strategy:
       fail-fast: false
       matrix:
@@ -28,8 +31,19 @@ jobs:
         with:
           version: 12.6.0
       - run: pnpm install --frozen-lockfile
+      - name: Audit Cloud source and test classification
+        run: node --test tests/quality/sonar-scope.test.mjs
       - run: pnpm check
+      - name: Legacy full-source coverage (mixed layers)
+        run: pnpm test:coverage
+      - run: pnpm quality:smells
+      - name: Isolated Windows deployment coverage
+        run: powershell -NoProfile -File tests/deployment/run-coverage.ps1
       - run: pnpm build
+      - name: Windows PowerShell deployment guard (disposable data)
+        run: powershell -NoProfile -File deploy/test-desktop.ps1
+      - name: PowerShell Core deployment guard (disposable data)
+        run: pwsh -NoProfile -File deploy/test-desktop.ps1
       - run: pnpm exec playwright install chromium
       - run: pnpm sample
       - run: pnpm e2e --update-snapshots=none
@@ -49,4 +63,12 @@ jobs:
             visual-evidence/model-picker/
             test-results-shell/
             visual-evidence/editorial-shell/
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: deployment-coverage-node-${{ matrix.node }}
+          path: |
+            coverage/
+            coverage-deployment/
           retention-days: 7

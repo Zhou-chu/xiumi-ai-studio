@@ -10,12 +10,12 @@ type ImportReceipt = { text: string; assets: Asset[] }
 type Props = Parameters<typeof ImportWizard>[0]
 const h = vi.hoisted(() => ({
   importFile: vi.fn(), upload: vi.fn(), sample: vi.fn(), status: vi.fn(), templates: vi.fn(),
-  outline: vi.fn(), design: vi.fn(), enrich: vi.fn(), save: vi.fn(), saveBeforeLeave: vi.fn(), load: vi.fn(), notify: vi.fn(),
+  outline: vi.fn(), design: vi.fn(), enrich: vi.fn(), save: vi.fn(), read: vi.fn(), saveBeforeLeave: vi.fn(), load: vi.fn(), notify: vi.fn(),
   current: null as unknown as Doc, planner: vi.fn(),
 }))
 vi.mock('../../src/editor/api', () => ({
   api: { importFile: h.importFile, uploadAssets: h.upload, loadSample: h.sample, aiStatus: h.status,
-    templates: h.templates, aiOutline: h.outline, aiDesign: h.design, aiEnrichCopy: h.enrich, saveProject: h.save },
+    templates: h.templates, aiOutline: h.outline, aiDesign: h.design, aiEnrichCopy: h.enrich, saveProject: h.save, project: h.read },
   assetRef: (asset: Asset) => ({ src: '/media/' + asset.file, assetId: asset.id }),
 }))
 vi.mock('../../src/editor/store', () => ({
@@ -93,7 +93,7 @@ const generate = () => press(by('generate'))
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('fetch', vi.fn(() => { throw Error('Unexpected network') }))
-  for (const fn of [h.importFile,h.upload,h.sample,h.status,h.templates,h.outline,h.design,h.enrich,h.save,h.saveBeforeLeave,h.load]) {
+  for (const fn of [h.importFile,h.upload,h.sample,h.status,h.templates,h.outline,h.design,h.enrich,h.save,h.read,h.saveBeforeLeave,h.load]) {
     fn.mockReset().mockImplementation(() => { throw Error('Unexpected collaborator invocation') })
   }
   h.status.mockResolvedValueOnce({ ...enabled, enabled: false })
@@ -401,6 +401,7 @@ it('retries a failed batch without recreating already saved variants', async () 
   await generate()
   h.saveBeforeLeave.mockResolvedValue(true)
   h.save.mockResolvedValueOnce({revision:'second-rev'}).mockRejectedValueOnce(Error('保存失败')).mockResolvedValueOnce({revision:'first-rev'})
+  h.read.mockResolvedValueOnce({ ...current(), id:'second', revision:'second-rev', updatedAt:12 })
   h.load.mockReturnValueOnce(true)
   const all = button('全部保存为项目，并打开第一套')
   await press(all)
@@ -409,6 +410,7 @@ it('retries a failed batch without recreating already saved variants', async () 
   expect(close).not.toHaveBeenCalled()
   expect(h.notify).toHaveBeenCalledExactlyOnceWith('保存失败','error')
   await press(all)
+  expect(h.read).toHaveBeenCalledExactlyOnceWith('second')
   expect(h.save.mock.calls.map(([d]) => d.id)).toEqual(['second','first','first'])
   expect(h.load).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({id:'first',revision:'first-rev'}), expected)
   expect(h.notify).toHaveBeenLastCalledWith('2 套方案均已保存为项目，可在「项目」中切换')
@@ -491,4 +493,43 @@ it('rejects enrichment undo even if later manual edits returned to the same text
   await press(by('enrich-continue'))
   expect(h.outline).toHaveBeenCalledExactlyOnceWith(enrichedCopy.markdown, ['campus'], ['现场机器人展台'])
   expect(host.querySelectorAll('.variant')).toHaveLength(2)
+})
+
+it.each(['edited', 'deleted', 'unavailable'] as const)('keeps the current draft when a previously saved variant is %s during retry', async action => {
+  const expected = h.current
+  await mount({ initialText:'# Ready\n\nBody' })
+  await generate()
+  h.saveBeforeLeave.mockResolvedValue(true)
+  h.save.mockResolvedValueOnce({ revision:'second-rev', updatedAt:1 }).mockRejectedValueOnce(Error('第一次保存失败'))
+  const all = button('全部保存为项目，并打开第一套')
+  await press(all)
+  expect(h.save.mock.calls.map(([d]) => d.id)).toEqual(['second','first'])
+  if (action === 'edited') h.read.mockResolvedValueOnce({ ...current(), id:'second', revision:'another-revision', title:'远端编辑' })
+  else if (action === 'deleted') h.read.mockRejectedValueOnce(Object.assign(Error('missing'), { status:404 }))
+  else h.read.mockRejectedValueOnce(Error('暂时无法读取'))
+  await press(all)
+  expect(h.read).toHaveBeenCalledExactlyOnceWith('second')
+  expect(h.save.mock.calls.map(([d]) => d.id)).toEqual(['second','first'])
+  const error = action === 'edited' ? '已被其他页面修改' : action === 'deleted' ? '已被其他页面删除' : '暂时无法读取'
+  expect(by('variant-save-error').textContent).toContain(error)
+  expect(h.load).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled()
+  expect(h.current).toBe(expected)
+})
+
+it('does not continue a retry after closing while its receipt is being validated', async () => {
+  await mount({ initialText:'# Ready\n\nBody' })
+  await generate()
+  h.saveBeforeLeave.mockResolvedValue(true)
+  h.save.mockResolvedValueOnce({ revision:'second-rev' }).mockRejectedValueOnce(Error('first failed'))
+  const all = button('全部保存为项目，并打开第一套')
+  await press(all)
+  const receipt = deferred<Doc>()
+  h.read.mockReturnValueOnce(receipt.promise)
+  await press(all)
+  await press(by('close-boundary'))
+  await act(async () => receipt.resolve({ ...current(), id:'second', revision:'second-rev' }))
+  expect(h.read).toHaveBeenCalledExactlyOnceWith('second')
+  expect(h.save.mock.calls.map(([d]) => d.id)).toEqual(['second','first'])
+  expect(h.load).not.toHaveBeenCalled()
+  expect(close).toHaveBeenCalledOnce()
 })

@@ -54,11 +54,12 @@ describe('model discovery and reasoning', () => {
     expect(body.reasoning_effort).toBeUndefined()
     expect(body.temperature).toBe(0.4)
   })
-  it('gives reasoning connection probes enough budget for hidden reasoning', async () => {
+  it('keeps explicit reasoning for compatible hosts under the connection-probe cap', async () => {
     let body: any
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] }) })
-    await testConnection({ ...profile, reasoningEffort: 'high' })
-    expect(body.max_tokens).toBe(4096)
+    await expect(testConnection({ ...profile, reasoningEffort: 'high' })).resolves.toMatchObject({ ok: true, stage: 'complete', budgetTokens: 128 })
+    expect(body.max_tokens).toBe(128)
+    expect(body.reasoning_effort).toBe('high')
   })
   it('reports token exhaustion as a responding model, not missing JSON', async () => {
     vi.stubGlobal('fetch', async () => Response.json({ choices: [{ finish_reason: 'length', message: { content: '' } }] }))
@@ -67,12 +68,12 @@ describe('model discovery and reasoning', () => {
 
 })
 
-it('uses a sufficient probe budget even when the model reasons by default', async () => {
+it('distinguishes an accepted default-thinking probe from complete JSON output', async () => {
   let body: any
   vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
     body = JSON.parse(String(init.body))
     return Response.json({ choices: [{ finish_reason: body.max_tokens < 4096 ? 'length' : 'stop', message: { content: body.max_tokens < 4096 ? '' : '{"ok":true}' } }] })
   })
-  await expect(testConnection(profile)).resolves.toEqual({ ok: true })
-  expect(body.max_tokens).toBe(4096)
+  await expect(testConnection(profile)).resolves.toMatchObject({ ok: true, stage: 'budget_limited', budgetTokens: 128 })
+  expect(body.max_tokens).toBe(128)
 })

@@ -120,3 +120,31 @@ it('does not overwrite intervening edits in the same document or report a stale 
  expect(h.notify).not.toHaveBeenCalled();expect(h.setDocFields).not.toHaveBeenCalled();expect(h.close).not.toHaveBeenCalled()
  expect(button('生成并设为封面').disabled).toBe(false)
 })
+it('does not upload a superseded preview if the editor changes it during encoding',async()=>{
+ await mount();h.upload.mockResolvedValue([asset]);await click('生成并设为封面')
+ await click('底部色带')
+ await act(async()=>blobCallback!(new Blob(['obsolete jpeg'])))
+ expect(h.upload).not.toHaveBeenCalled();expect(h.setDocFields).not.toHaveBeenCalled();expect(h.close).not.toHaveBeenCalled()
+ expect(button('生成并设为封面').disabled).toBe(false)
+})
+it('fits a complete long title down to the existing readability floor and blocks an overflowing title',async()=>{
+ const measure=ctx.measureText as ReturnType<typeof vi.fn>
+ measure.mockImplementation((text:string)=>({width:[...text].length*Number(String(ctx.font).match(/(\d+)px/)?.[1]??44)}))
+ const fits='完整长标题'.repeat(8)
+ h.doc={...h.doc,title:fits}
+ await mount()
+ expect((ctx.fillText as ReturnType<typeof vi.fn>).mock.calls.map(([line])=>line).join('')).toContain(fits)
+ expect(Number(String(ctx.font).match(/(\d+)px/)?.[1])).toBeGreaterThanOrEqual(24)
+ expect(button('生成并设为封面').disabled).toBe(false)
+ input('标题','无法完整排版的标题'.repeat(20))
+ expect(Number(String(ctx.font).match(/(\d+)px/)?.[1])).toBe(24)
+ expect(host.querySelector('[role="alert"]')?.textContent).toContain('不会导出截断的标题')
+ expect(button('生成并设为封面').disabled).toBe(true)
+ await click('生成并设为封面');expect(blobCallback).toBeUndefined();expect(h.upload).not.toHaveBeenCalled()
+})
+it('blocks generation when the preview canvas is unavailable',async()=>{
+ vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(null)
+ await mount()
+ expect(h.notify).toHaveBeenCalledExactlyOnceWith('封面预览生成失败，请调整标题或版式后重试。','error')
+ expect(button('生成并设为封面').disabled).toBe(true)
+})

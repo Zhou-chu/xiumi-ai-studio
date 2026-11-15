@@ -31,6 +31,13 @@ function anchoredIndex(doc: Pick<Doc, 'blocks'>, anchor: any): number | null {
   return doc.blocks.indexOf(matches[0]) + (anchor.side === 'after' ? 1 : 0)
 }
 
+function finitePosition(value: unknown, fallback: number): number | undefined {
+  const raw = value ?? fallback
+  if (typeof raw !== 'number' && typeof raw !== 'string') return undefined
+  const numeric = Number(raw)
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : undefined
+}
+
 /** 校验并修复一条 op；非法时返回错误信息 */
 export function validateOp(doc: Doc, op: any): { op?: DocOp; error?: string } {
   if (!op || typeof op !== 'object') return { error: 'op 不是对象' }
@@ -39,8 +46,10 @@ export function validateOp(doc: Doc, op: any): { op?: DocOp; error?: string } {
       const block = freshInsertBlock(op.block)
       if (!block) return { error: '插入模块或子模块的类型无效' }
       const anchored = 'anchor' in op
-      const index = anchored ? anchoredIndex(doc, op.anchor) : Math.max(0, Math.min(doc.blocks.length, Number(op.index ?? doc.blocks.length)))
-      if (index === null || !Number.isInteger(index)) return { error: '插入位置或锚点无效，请重新生成修改建议' }
+      const position = anchored ? anchoredIndex(doc, op.anchor) : finitePosition(op.index, doc.blocks.length)
+      if (position === null) return { error: '插入位置或锚点无效，请重新生成修改建议' }
+      if (position === undefined) return { error: '插入位置必须是有限数字' }
+      const index = Math.max(0, Math.min(doc.blocks.length, position))
       const anchor: InsertAnchor | undefined = anchored ? { id: op.anchor.id, side: op.anchor.side } : undefined
       return { op: { op: 'insert', index, block, ...(anchor && { anchor }), reason: op.reason } }
     }
@@ -64,11 +73,15 @@ export function validateOp(doc: Doc, op: any): { op?: DocOp; error?: string } {
     }
     case 'remove':
       return findBlock(doc.blocks, op.id) ? { op } : { error: `找不到模块 ${op.id}` }
-    case 'move':
-      return doc.blocks.some((x) => x.id === op.id) ? { op: { ...op, to: Number(op.to) || 0 } } : { error: `找不到模块 ${op.id}` }
+    case 'move': {
+      const to = finitePosition(op.to, 0)
+      if (to === undefined) return { error: '移动位置必须是有限数字' }
+      return doc.blocks.some((x) => x.id === op.id) ? { op: { ...op, to } } : { error: `找不到模块 ${op.id}` }
+    }
     case 'setTheme':
       return typeof op.themeId === 'string' ? { op } : { error: '缺少 themeId' }
     case 'setMeta':
+      if (['title', 'author', 'digest'].some(key => op[key] !== undefined && typeof op[key] !== 'string')) return { error: '文章信息必须是文字' }
       return { op }
     default:
       return { error: `未知操作 ${op.op}` }
