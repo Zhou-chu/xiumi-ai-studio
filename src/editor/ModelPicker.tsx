@@ -1,6 +1,25 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 
 type Model = { id: string; contextWindow?: number }
+type NavigationKey = 'ArrowDown' | 'ArrowUp' | 'Home' | 'End'
+
+function isNavigationKey(key: string): key is NavigationKey {
+  return key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End'
+}
+
+export function openingModelIndex(key: NavigationKey, selected: number, modelCount: number): number {
+  if (key === 'Home') return 0
+  if (key === 'End' || (key === 'ArrowUp' && selected < 0)) return modelCount - 1
+  return Math.max(0, selected)
+}
+
+export function movingModelIndex(key: NavigationKey, active: number, modelCount: number): number {
+  if (key === 'Home') return 0
+  if (key === 'End') return modelCount - 1
+  const step = key === 'ArrowDown' ? 1 : -1
+  return Math.max(0, Math.min(modelCount - 1, active + step))
+}
+
 export function ModelPicker({ models, value, disabled, onSelect }: { models: Model[]; value: string; disabled?: boolean; onSelect: (id: string) => void }) {
   const id = useId()
   const root = useRef<HTMLDivElement>(null)
@@ -55,11 +74,14 @@ export function ModelPicker({ models, value, disabled, onSelect }: { models: Mod
   }
   const keys = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close(true); return }
-    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    const key = event.key
+    if (isNavigationKey(key)) {
       event.preventDefault()
-      if (!open) show(event.key === 'End' || (event.key === 'ArrowUp' && selected < 0) ? models.length - 1 : event.key === 'Home' ? 0 : selected >= 0 ? selected : 0)
-      else setActive(index => event.key === 'Home' ? 0 : event.key === 'End' ? models.length - 1 : Math.max(0, Math.min(models.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1))))
-    } else if (open && (event.key === 'Enter' || event.key === ' ') && event.target === list.current) {
+      if (open) setActive(index => movingModelIndex(key, index, models.length))
+      else show(openingModelIndex(key, selected, models.length))
+      return
+    }
+    if (open && (key === 'Enter' || key === ' ') && event.target === list.current) {
       event.preventDefault(); choose(active)
     }
   }

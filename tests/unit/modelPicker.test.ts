@@ -2,7 +2,7 @@
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { ModelPicker } from '../../src/editor/ModelPicker'
+import { ModelPicker, movingModelIndex, openingModelIndex } from '../../src/editor/ModelPicker'
 let host:HTMLDivElement
 let root:Root
 const models=Array.from({length:40},(_,i)=>({id:'model-'+i,contextWindow:128000}))
@@ -85,4 +85,54 @@ it.each(['below','above'] as const)('reveals fractional %s edges with integer sc
   const revealed=offset;key('End');expect(offset).toBe(revealed)
   expect(document.documentElement.scrollTop).toBe(0)
  } finally {bounds.mockRestore()}
+})
+
+it('opens at the selected model, resets its cursor on reopen, and selects only from the listbox', () => {
+ const select = vi.fn()
+ act(() => root.render(createElement(ModelPicker, { models, value: 'model-2', onSelect: select })))
+ const activeLabel = () => host.querySelector('[data-active="true"]')?.getAttribute('title')
+ trigger().focus()
+ key('ArrowUp')
+ expect(activeLabel()).toBe('model-2')
+ key('End')
+ expect(activeLabel()).toBe('model-39')
+ // Unhandled keys (including Tab and printable characters) remain native.
+ for (const nativeKey of ['m', 'Tab']) {
+  const event = new KeyboardEvent('keydown', { key: nativeKey, bubbles: true, cancelable: true })
+  act(() => document.activeElement!.dispatchEvent(event))
+  expect(event.defaultPrevented).toBe(false)
+ }
+ expect(activeLabel()).toBe('model-39')
+ key('Escape')
+ expect(document.activeElement).toBe(trigger())
+ expect(select).not.toHaveBeenCalled()
+ key('ArrowDown')
+ expect(activeLabel()).toBe('model-2')
+ key('Enter')
+ expect(select).toHaveBeenCalledExactlyOnceWith('model-2')
+ expect(document.activeElement).toBe(trigger())
+})
+
+it.each([['ArrowUp', 'model-39'], ['ArrowDown', 'model-0'], ['Home', 'model-0'], ['End', 'model-39']])(
+ 'opens with %s and no saved selection at %s', (openingKey, id) => {
+  const select = vi.fn()
+  act(() => root.render(createElement(ModelPicker, { models, value: 'manual-only', onSelect: select })))
+  trigger().focus()
+  key(openingKey)
+  expect(host.querySelector('[data-active="true"]')?.getAttribute('title')).toBe(id)
+  expect(select).not.toHaveBeenCalled()
+ },
+)
+
+it('calculates opening and movement indices without accessing the DOM', () => {
+ expect(openingModelIndex('ArrowDown', 2, 40)).toBe(2)
+ expect(openingModelIndex('ArrowUp', -1, 40)).toBe(39)
+ expect(openingModelIndex('Home', 2, 40)).toBe(0)
+ expect(openingModelIndex('End', 2, 40)).toBe(39)
+ expect(movingModelIndex('ArrowUp', 0, 40)).toBe(0)
+ expect(movingModelIndex('ArrowDown', 39, 40)).toBe(39)
+ expect(movingModelIndex('ArrowUp', 2, 40)).toBe(1)
+ expect(movingModelIndex('ArrowDown', 2, 40)).toBe(3)
+ expect(movingModelIndex('Home', 39, 40)).toBe(0)
+ expect(movingModelIndex('End', 0, 40)).toBe(39)
 })

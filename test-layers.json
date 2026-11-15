@@ -267,7 +267,7 @@
     "src/editor/KitPicker.tsx": "4577080e8bf814172ffe8d17088361ee9b683466def35e7c2acdaa667bd9836b",
     "src/editor/LeftPanel.tsx": "17fd44ce8cd6b9d36c263ee5a6cb8788544ec71109e73d20c3ca07d41fdfb44d",
     "src/editor/Modal.tsx": "7d3d22e21ff64a5c2a52c5fcaeeeaa98cbfcf47acdba29875ff7246efb7a3efd",
-    "src/editor/ModelPicker.tsx": "e9004ead1ebab650cbe62a0fffa0f4b96eb90b006f2021c823aa1aa4ac4587f4",
+    "src/editor/ModelPicker.tsx": "09199b81ef57902b9566edc153cbe164ee98294073e1ff28e24db50f389f33d6",
     "src/editor/PhotoPlanner.tsx": "09984264304eb49bb5b2cb85478cff47f9bd4850743ff9d49cb241a89a6022b4",
     "src/editor/PlanIssues.tsx": "22777e4ffbec2e645a35d6183cd3887da4b0ffe998c7414e9c1edc74b2bbbcc1",
     "src/editor/PropsForm.tsx": "e5a490502f3c9ac07cc4a9f6a526bb8033a563068f5d325fc2a294e6d50dcc58",
@@ -2008,7 +2008,7 @@
         "src/editor/ModelPicker.tsx"
       ],
       "rationale": "Direct model-picker root interactions and scroll logic; no real dialog/portal composition or browser layout.",
-      "sha256": "dadd46bcef6edab92bae565c2ceaee821e3cf66aeee9995091af7ad3c62959ea"
+      "sha256": "6721292e2c502d80ee240024bae55283cfa70b0164460e11704d9f88bd501bb4"
     },
     {
       "path": "tests/unit/modelPickerCss.test.ts",
