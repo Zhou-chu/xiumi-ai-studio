@@ -31,29 +31,50 @@ const firstNum = (o: any, keys: string[]) => {
 const CONTEXT_KEYS = ['context_length', 'context_window', 'max_context_length', 'max_model_len', 'max_input_tokens', 'input_token_limit', 'inputTokenLimit', 'n_ctx']
 const OUTPUT_KEYS = ['max_output_tokens', 'max_completion_tokens', 'output_token_limit', 'outputTokenLimit', 'max_tokens']
 
+function modelEntries(json: any): any[] {
+  if (Array.isArray(json)) return json
+  if (Array.isArray(json?.data)) return json.data
+  if (Array.isArray(json?.models)) return json.models
+  return []
+}
+
+function modelId(model: any): string {
+  if (typeof model === 'string') return model
+  if (typeof model?.id === 'string') return model.id
+  return typeof model?.name === 'string' ? model.name : ''
+}
+
+function modelDisplayName(model: any, id: string): string | undefined {
+  if (typeof model.display_name === 'string') return model.display_name
+  return typeof model.name === 'string' && model.name !== id ? model.name : undefined
+}
+
+function declaredEfforts(model: any): string[] | undefined {
+  const effort = model.capabilities?.effort
+  if (effort?.supported === true) {
+    return Object.entries(effort)
+      .filter(([k, v]: [string, any]) => k !== 'supported' && v?.supported === true)
+      .map(([k]) => k)
+  }
+  return Array.isArray(model.reasoning_efforts) ? model.reasoning_efforts : undefined
+}
+
 /** 各家的模型列表字段名不一样：OpenAI 兼容服务多数只有 id，OpenRouter、vLLM、Anthropic 等带上下文长度 */
 export function parseModels(json: any): ModelInfo[] {
-  const list: any[] = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : []
   const seen = new Set<string>()
   const out: ModelInfo[] = []
-  for (const m of list) {
+  for (const m of modelEntries(json)) {
     if (out.length >= 500) break
-    const id = typeof m === 'string' ? m : typeof m?.id === 'string' ? m.id : typeof m?.name === 'string' ? m.name : ''
+    const id = modelId(m)
     if (!id.trim() || id.length > 200 || seen.has(id)) continue
     seen.add(id)
     if (typeof m === 'string') {
       out.push({ id })
       continue
     }
-    const effort = m.capabilities?.effort
-    const declared =
-      effort?.supported === true
-        ? Object.entries(effort)
-            .filter(([k, v]: [string, any]) => k !== 'supported' && v?.supported === true)
-            .map(([k]) => k)
-        : Array.isArray(m.reasoning_efforts) ? m.reasoning_efforts : undefined
+    const declared = declaredEfforts(m)
     const efforts = declared ? [...new Set<string>(declared.map(cleanEffort).filter(Boolean))] : undefined
-    const name = typeof m.display_name === 'string' ? m.display_name : typeof m.name === 'string' && m.name !== id ? m.name : undefined
+    const name = modelDisplayName(m, id)
     const contextWindow = firstNum(m, CONTEXT_KEYS) ?? num(m.top_provider?.context_length)
     const maxOutput = firstNum(m, OUTPUT_KEYS) ?? num(m.top_provider?.max_completion_tokens)
     out.push({ id, ...(name && { name: name.slice(0, 80) }), ...(contextWindow && { contextWindow }), ...(maxOutput && { maxOutput }), ...(efforts?.length && { efforts }) })

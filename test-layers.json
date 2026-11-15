@@ -165,7 +165,7 @@
     "scripts/verify-package.ts": "1d68c348da61047f9bb799b0cfcbecbbb396d45ef77fef8c4f01a7fb302df641",
     "server/ai.ts": "59657176f6fc24f2f08c027815c125db3d0fbfbfd1a89bc4c808605ce3737089",
     "server/aiEdit.ts": "ac1a2c73554b9b5d0a66db22313a1cf24f1ea18ccea37107c93d6f6cdbe72306",
-    "server/aiModels.ts": "c073c33c2e1ee217d8cf32db522c8ff97186e066fbbfb834a62994213651b1be",
+    "server/aiModels.ts": "86330318f63df2db15607badfbda9b0b069c9c69b60d634be23e9a3efa520899",
     "server/aiSuggestion.ts": "0e1261a92e61f4daf69f39f9264c62b81b8c59dc5c3ae50cff427d8f90ece409",
     "server/app.ts": "c73b58ac970e4845ea350e36bc9e232baa6e49ef965f33b579ea1db172e720ed",
     "server/articleImages.ts": "c376f0b19a106fa4c287ac4a6230abcdc7bdd133b7f3f7ed351d028e937531d4",
@@ -821,7 +821,7 @@
         "server/aiModels.ts"
       ],
       "rationale": "Original provider adapter protocol cases preserved with fake transport and complete store/paths side-effect guard, no HTTP or filesystem.",
-      "sha256": "73add268a39a02f2f4da4ad36957de0769ccf934df8faa04cb37802361dbce75"
+      "sha256": "9f37f7a60049d90fe7def0d5fbc925d114605d557fc650ef9389365bec51aa56"
     },
     {
       "path": "tests/unit/aiProfiles.test.ts",

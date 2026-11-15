@@ -55,6 +55,19 @@ describe('upstream model list', () => {
     expect(parseModels(['a', 'b', 'a', '', 5, null]).map((m) => m.id)).toEqual(['a', 'b'])
     expect(parseModels({ error: 'nope' })).toEqual([])
   })
+  it('preserves list and metadata precedence, order, and exact ids', () => {
+    expect(parseModels({ data: [], models: ['ignored'] })).toEqual([])
+    expect(parseModels({ models: [
+      { name: 'fallback-id', display_name: 'Display', context_length: 4096, top_provider: { context_length: 8192 }, reasoning_efforts: ['HIGH', 'high', '?'] },
+      { id: '', name: 'do-not-fallback' },
+      { id: 'exact' }, { id: 'exact', display_name: 'ignored duplicate' }, ' exact ',
+      { id: 'declared', capabilities: { effort: { supported: true } }, reasoning_efforts: ['low'] },
+    ] })).toEqual([
+      { id: 'fallback-id', name: 'Display', contextWindow: 4096, efforts: ['high'] },
+      { id: 'exact' }, { id: ' exact ' }, { id: 'declared' },
+    ])
+    expect(parseModels(Array.from({ length: 501 }, (_, i) => 'model-' + i)).at(-1)).toEqual({ id: 'model-499' })
+  })
   it('calls /models with the key, follows anthropic pagination and explains failures', async () => {
     const calls: { url: string; headers: any }[] = []
     const fetcher = (async (url: string, init: any) => {
