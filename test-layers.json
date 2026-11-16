@@ -2243,10 +2243,12 @@
       "runner": "vitest",
       "layer": "static-contract",
       "target": [
-        ".github/workflows/package-verification.yml"
+        ".github/workflows/package-verification.yml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/strict-unit-stage.yml"
       ],
-      "rationale": "Reads the real workflow as text and validates required ordering, branch routing and no publishing steps; does not execute the workflow.",
-      "sha256": "8a5a6095559fb5300e03e7e8d82d7d5ffc0b4742c011b67fe935a655677c6714"
+      "rationale": "Reads the tracked workflows as text and validates package ordering, branch routing, the reusable strict-unit call, and no package publishing; does not execute the workflows.",
+      "sha256": "6dc0a09228ae17cc0ee5ec7ffc8385fe99e102d65f247e8519d4e4315a571365"
     },
     {
       "path": "tests/unit/packagedRuntime.test.ts",

@@ -1,13 +1,11 @@
 name: Strict unit staging gate
 on:
-  push:
-    branches: ['fix/staging-strict-coverage-20261115']
   workflow_dispatch:
   workflow_call:
 permissions:
   contents: read
 concurrency:
-  # Keep the original standalone gate independent of an invocation by CI.
+  # Keep manually dispatched runs independent of calls from CI.
   group: strict-unit-stage-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:

@@ -1,7 +1,7 @@
 name: Isolated Windows package verification
 on:
   push:
-    branches: ['fix/upstream-package-verification-20261114', 'fix/staging-model-catalog-quality-20261115']
+    branches: ['fix/staging-model-catalog-quality-20261115']
   workflow_dispatch:
 permissions:
   contents: read
