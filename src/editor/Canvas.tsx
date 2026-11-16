@@ -315,16 +315,20 @@ function BoxBody({ block, theme }: { block: Block<'box'>; theme: Theme }) {
   )
 }
 
+const interactiveSelectionTarget = (target: EventTarget) => target instanceof Element && !!target.closest('button,input,textarea,select,a,[contenteditable]:not([contenteditable="false"]),[data-image-handle],[role="button"],[role="slider"]')
+
 function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme; gap: number; parentId?: string }) {
-  const selectionButton = useRef<HTMLButtonElement>(null)
+  const blockNode = useRef<HTMLDivElement | null>(null)
   const selected = useStore((s) => s.selectedIds.includes(block.id))
+  const primary = useStore(s => s.selectedId === block.id)
+  const multiple = useStore(s => s.selectedIds.length > 1)
   const editing = useStore((s) => s.editingId === block.id)
   const picking = useStore((s) => s.pickingId === block.id)
   const returnFocus = useRef(false)
   useEffect(() => {
     if (returnFocus.current && !editing && !picking) {
       returnFocus.current = false
-      if (!document.querySelector('[role="dialog"]')) selectionButton.current?.focus({ preventScroll: true })
+      if (!document.querySelector('[role="dialog"]')) blockNode.current?.focus({ preventScroll: true })
     }
   }, [editing, picking])
   const { select, setEditing, setPicking, updateProps, removeBlock, replaceBlock, duplicateBlock, moveBlock, moveBlockTo, notify } = useStore.getState()
@@ -332,6 +336,7 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
   const index = useStore((s) => findBlock(s.doc.blocks, block.id)?.index ?? -1)
   const inBox = !!parentId
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging, isOver } = useSortable({ id: block.id, data: { parentId: parentId ?? null } })
+  const assignBlockNode = useCallback((node: HTMLDivElement | null) => { blockNode.current = node; setNodeRef(node) }, [setNodeRef])
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
@@ -386,31 +391,32 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
 
   return (
     <div
-      ref={setNodeRef}
+      ref={assignBlockNode}
       style={style}
       className={`block ${selected ? 'selected' : ''} ${editing ? 'editing' : ''} ${isOver ? 'over' : ''}`}
       data-block-id={block.id}
       data-block-type={block.type}
       onClick={(e) => {
         e.stopPropagation()
-        if (editing || (e.target as HTMLElement).closest('button,input,textarea,select,[contenteditable="true"],[data-image-handle]')) return
+        if (editing || interactiveSelectionTarget(e.target)) return
         select(block.id, { toggle: e.ctrlKey || e.metaKey })
       }}
-      onDoubleClick={(e) => { e.stopPropagation(); startEdit() }}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        if (!e.ctrlKey && !e.metaKey && !interactiveSelectionTarget(e.target)) startEdit()
+      }}
       {...attributes}
       role="group"
-      tabIndex={-1}
+      aria-label={`模块：${blockLabel(block)}（${block.id}）${selected ? '，已选中' : ''}`}
+      tabIndex={0}
+      onKeyDown={e => {
+        if (e.target !== e.currentTarget || e.altKey || (e.key !== 'Enter' && e.key !== ' ')) return
+        e.preventDefault()
+        e.stopPropagation()
+        if (!e.repeat) select(block.id, { toggle: e.ctrlKey || e.metaKey })
+      }}
     >
-      <button ref={selectionButton} type="button" className="block-select" aria-label={`选择模块：${blockLabel(block)}（${block.id}）`} aria-pressed={selected}
-        onClick={e => { e.stopPropagation(); select(block.id, { toggle: e.ctrlKey || e.metaKey }) }}
-        onKeyDown={e => {
-          if (e.key !== 'Enter' && e.key !== ' ') return
-          e.preventDefault(); e.stopPropagation()
-          if (!e.repeat) select(block.id, { toggle: e.ctrlKey || e.metaKey })
-        }}
-        onKeyUp={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation() } }}
-        onDoubleClick={e => e.stopPropagation()}>{selected ? '✓' : '□'}</button>
-      {selected && !editing && !picking && (
+      {primary && !multiple && !editing && !picking && (
         <div className="block-toolbar" onClick={(e) => e.stopPropagation()}>
           <span className="block-label">{blockLabel(block)}</span>
           <button ref={setActivatorNodeRef} {...listeners} className="drag" title="拖动排序" aria-label="拖动排序">⠿</button>

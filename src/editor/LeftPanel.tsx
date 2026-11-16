@@ -283,6 +283,7 @@ export function LeftPanel() {
               <div key={p.id} className={`list-row ${p.id === docId ? 'current' : ''}`}>
                 <button
                   className="grow"
+                  aria-current={p.id === docId ? 'page' : undefined}
                   onClick={async () => {
                     if (!(await saveBeforeLeave())) return
                     const expected = useStore.getState().doc

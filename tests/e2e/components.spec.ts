@@ -270,7 +270,7 @@ test.describe.serial('组件库', () => {
     const carouselBlock = htmlBlocks.filter({ has: page.locator('svg[viewBox="0 0 1080 720"]') })
     await expect(carouselBlock).toHaveCount(1)
     await expect(carouselBlock.locator('.block-html')).toHaveText('') // Article content stays empty; editor controls are outside it.
-    await expect(carouselBlock.locator('.block-select')).toHaveCount(1)
+    await expect(carouselBlock.locator('.block-select')).toHaveCount(0); await expect(carouselBlock).toHaveAttribute('tabindex','0')
     await expect(htmlBlocks.filter({ hasText: '绿色标题' })).not.toContainText('绿色图注')
 
     // 以前导入的项目里仍是一整个大版块：在它里面按建议拆分或点选
