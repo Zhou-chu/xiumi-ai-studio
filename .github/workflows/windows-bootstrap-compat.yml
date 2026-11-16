@@ -1,0 +1,54 @@
+name: Isolated Windows desktop bootstrap compatibility
+on:
+  push:
+    branches: ['fix/staging-model-catalog-quality-20261115']
+permissions:
+  contents: read
+concurrency:
+  group: windows-bootstrap-compat-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  XIUMI_COMPAT_CANDIDATE_SHA: 'eb5c8318909930b53f43942c97e42f7d1cafb257'
+  XIUMI_COMPAT_CANDIDATE_TREE: '9fbeec169df5e64cd985f09ec1a2e9589cd8b2ea'
+jobs:
+  verify-bootstrap:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Require an immutable source pin
+        shell: pwsh
+        run: |
+          if ($env:XIUMI_COMPAT_CANDIDATE_SHA -cnotmatch '^[a-f0-9]{40}$') { throw 'Runner requires a pinned candidate commit' }
+          if ($env:XIUMI_COMPAT_CANDIDATE_TREE -cnotmatch '^[a-f0-9]{40}$') { throw 'Runner requires a pinned candidate tree' }
+      - name: Check out the exact runner revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          path: runner
+          persist-credentials: false
+      - name: Check out the pinned candidate in a separate path
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.XIUMI_COMPAT_CANDIDATE_SHA }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Verify the existing bootstrap and isolated application lifecycle
+        shell: pwsh
+        run: |
+          foreach ($path in @('./runner/.github/compat/verify-windows-bootstrap.ps1', './runner/.github/compat/windows-bootstrap-smoke.ps1')) {
+            $tokens = $null
+            $errors = $null
+            $null = [Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $path).Path, [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+          & './runner/.github/compat/verify-windows-bootstrap.ps1' -ExpectedSha $env:XIUMI_COMPAT_CANDIDATE_SHA -ExpectedTree $env:XIUMI_COMPAT_CANDIDATE_TREE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: windows-bootstrap-compat
+          path: windows-bootstrap-evidence/summary.json
+          if-no-files-found: ignore
+          retention-days: 7
