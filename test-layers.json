@@ -2246,7 +2246,7 @@
         ".github/workflows/package-verification.yml"
       ],
       "rationale": "Reads the real workflow as text and validates required ordering, branch routing and no publishing steps; does not execute the workflow.",
-      "sha256": "55c17fbf7d23d280f72230e9358dd3b187d338f0a87f55a40f9b8f09a2bef5cd"
+      "sha256": "8a5a6095559fb5300e03e7e8d82d7d5ffc0b4742c011b67fe935a655677c6714"
     },
     {
       "path": "tests/unit/packagedRuntime.test.ts",
