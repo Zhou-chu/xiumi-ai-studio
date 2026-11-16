@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 it('runs isolated Windows package and full packaged browser acceptance without publication', () => {
   const workflow = readFileSync('.github/workflows/package-verification.yml', 'utf8')
   expect(workflow).toContain('runs-on: windows-latest')
-  expect(workflow).toContain("branches: ['fix/upstream-package-verification-20261114']")
+  expect(workflow).toContain("branches: ['fix/upstream-package-verification-20261114', 'fix/staging-model-catalog-quality-20261115']")
   expect(workflow).toContain('contents: read')
   expect(workflow).toContain('persist-credentials: false')
   expect(workflow.indexOf('run: pnpm sample')).toBeLessThan(workflow.indexOf('run: pnpm package:win'))
