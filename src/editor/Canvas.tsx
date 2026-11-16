@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { createContext, lazy, memo, Suspense, useContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { blockTextFields } from '../core/blockTextEditing'
 import { BlockTextEditor } from './BlockTextEditor'
 import { HtmlTypographyControls } from './HtmlTypographyControls'
@@ -287,14 +287,12 @@ function BoxBody({ block, theme }: { block: Block<'box'>; theme: Theme }) {
   )
 }
 
-const MultiSelectMode = createContext(false)
 const interactiveSelectionTarget = (target: EventTarget) => target instanceof Element && !!target.closest('button,input,textarea,select,a,[contenteditable]:not([contenteditable="false"]),[role="button"],[role="slider"]')
 
 function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme; gap: number; parentId?: string }) {
   const selected = useStore((s) => s.selectedIds.includes(block.id))
   const primary = useStore(s => s.selectedId === block.id)
   const multiple = useStore(s => s.selectedIds.length > 1)
-  const selectionMode = useContext(MultiSelectMode)
   const editing = useStore((s) => s.editingId === block.id)
   const picking = useStore((s) => s.pickingId === block.id)
   const { select, setEditing, setPicking, updateProps, removeBlock, replaceBlock, duplicateBlock, moveBlock, moveBlockTo, notify } = useStore.getState()
@@ -401,15 +399,22 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
       onClick={(e) => {
         e.stopPropagation()
         if (interactiveSelectionTarget(e.target)) return
-        select(block.id, { toggle: selectionMode || e.ctrlKey || e.metaKey })
+        select(block.id, { toggle: e.ctrlKey || e.metaKey })
       }}
-      onDoubleClick={(e) => { e.stopPropagation(); if (!selectionMode && !e.ctrlKey && !e.metaKey && !interactiveSelectionTarget(e.target)) startEdit() }}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!e.ctrlKey && !e.metaKey && !interactiveSelectionTarget(e.target)) startEdit() }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || e.altKey || (e.key !== 'Enter' && e.key !== ' ')) return
+        e.preventDefault()
+        e.stopPropagation()
+        if (!e.repeat) select(block.id, { toggle: e.ctrlKey || e.metaKey })
+      }}
       {...attributes}
       role="group"
-      tabIndex={-1}
+      aria-label={`${blockLabel(block)}${selected ? '，已选中' : ''}`}
+      aria-keyshortcuts="Enter Space Control+Enter Control+Space Meta+Enter Meta+Space"
+      tabIndex={0}
     >
-      {selectionMode && <button className="block-select-toggle" data-testid="toggle-block-selection" aria-label={`选择模块：${blockLabel(block)} ${block.id}`} aria-pressed={selected} onClick={e => { e.stopPropagation(); select(block.id, { toggle: true }) }}>{selected ? '已选择' : '选择'}</button>}
-      {primary && !multiple && !selectionMode && !editing && !picking && (
+      {primary && !multiple && !editing && !picking && (
         <div className="block-toolbar" onClick={(e) => e.stopPropagation()}>
           <span className="block-label">{blockLabel(block)}</span>
           <button ref={setActivatorNodeRef} {...listeners} className="drag" title="拖动排序">⠿</button>
@@ -566,19 +571,12 @@ export function Canvas() {
   const doc = useStore((s) => s.doc)
   const theme = useMemo(() => resolveTheme(doc), [doc.themeId, doc.themeOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
   const select = useStore((s) => s.select)
-  const count = useStore(s => s.selectedIds.length)
-  const [selectionMode, setSelectionMode] = useState(false)
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas-end' })
   const scroller = useRef<HTMLDivElement>(null)
   const photoDrag = usePhotoDrag(scroller)
   const [zoom, setZoom] = useCanvasZoom()
   return (
-    <ReviewProvider><MultiSelectMode.Provider value={selectionMode}><div className="canvas-wrap">
-      <div className="selection-bar" role="group" aria-label="模块选择">
-        <button data-testid="multi-select-mode" aria-pressed={selectionMode} onClick={() => setSelectionMode(value => !value)}>{selectionMode ? '完成多选' : '多选模块'}</button>
-        <span role="status">{count ? `已选 ${count} 个模块` : '未选择模块'}</span>
-        {count > 0 && <button onClick={() => select(null)}>取消选择</button>}
-      </div>
+    <ReviewProvider><div className="canvas-wrap">
       <ImageResize />
       <div className="canvas-scroll" ref={scroller} onClick={() => select(null)} {...photoDrag}>
         <div className="phone" style={zoom === 1 ? undefined : { zoom }} data-zoom={zoom}>
@@ -604,6 +602,6 @@ export function Canvas() {
         <button className="zoom-val" title="恢复 100%（Ctrl + 0）" onClick={() => setZoom(1)} data-testid="zoom-reset">{Math.round(zoom * 100)}%</button>
         <button title="放大（Ctrl + 滚轮向上 / Ctrl + +）" onClick={() => setZoom((z) => z + 0.1)} disabled={zoom >= ZOOM_MAX} data-testid="zoom-in">＋</button>
       </div>
-    </div></MultiSelectMode.Provider></ReviewProvider>
+    </div></ReviewProvider>
   )
 }

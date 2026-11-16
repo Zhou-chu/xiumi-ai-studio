@@ -248,7 +248,7 @@
     "src/editor/ArticleImageImport.tsx": "dea0bd67ced63808ac511f7ba9341aaa22646163fb46b2aecc7e34aeaec5808a",
     "src/editor/ArticleImport.tsx": "f6cade4350d28d5707f0619ffb77909289aab193df58db44eb0570441d8513dc",
     "src/editor/BlockTextEditor.tsx": "e55b47156d543e3484d34a615221ce8bf89988ecf323c236c33b4e64fc1331b1",
-    "src/editor/Canvas.tsx": "441174a6c4dae51ba97651474e5cedab78805447e66a5704595d90b5e941635e",
+    "src/editor/Canvas.tsx": "2cf4817380c7e94e33cbac32db9cfad895f96fa2c3c36b2e9a84f2989a4fdf2c",
     "src/editor/CollectModal.tsx": "ff8091f382e6c63a1b7992b5e9c15776cee553308c12d7da6bbe2e578d30264b",
     "src/editor/ColorModeControl.tsx": "674feca66487cccb25277cee14fd0dedb386765fcf1be44650d462ef94d0e56e",
     "src/editor/ColorPicker.tsx": "cad08fcab2dec167454e222be28699b6f2372d97a42457d24e80d32594e3b5e5",
@@ -274,7 +274,7 @@
     "src/editor/ReplayPanel.tsx": "9f1c0b6631f7a636df57ef2a82efaf5372e3eabb5ab6530c6877a00db4bc8db8",
     "src/editor/ReplayPreview.tsx": "b13677d059c1f30b18567d4029d6b8ab742b3a77b311932fa17f13ae482407a6",
     "src/editor/RichEditor.tsx": "a02044076452809a08bdb1db9d870eebf2c30afd0bbf60266efcfea046962e7b",
-    "src/editor/RightPanel.tsx": "89fbb0e71621c0cc41fb5a248535933e96c91652821248c2bbe9eafc0835cc5d",
+    "src/editor/RightPanel.tsx": "868dc1d3327c386c36e9bcf22a01ba8f565aa527a454276d7d7b293dc8db7ca8",
     "src/editor/RoleSelect.tsx": "b6c4c71d02eb85fddfb7cad9aa316377752afe9b74b2a5f9e022c79e56320fd9",
     "src/editor/SuggestionInput.tsx": "3f503b0f84e680f6ef122f8a571799cefeecdd40fb5867f1de6bf97ed171d608",
     "src/editor/TemplateModules.tsx": "bbdb5b98f8c69b7fc5706cfccf74effe9bcdc8257bf8ce99127aa76da1de0b0c",
@@ -556,7 +556,7 @@
         "src/editor/Canvas.tsx"
       ],
       "rationale": "Browser native selection, SVG/iframe layout, delayed image response, editing, screenshots and persisted document ownership under synthetic AI routes.",
-      "sha256": "0cba08f2792bd07391b07ad8a93ee809e5d3b0bf216c5183011dadd7a9df28c9"
+      "sha256": "115a2bf2b8220a14e90560a665e018c89f97e8833d4a956fd46d4460926d3035"
     },
     {
       "path": "tests/e2e/input-suggestions.spec.ts",
@@ -613,7 +613,7 @@
         "src/editor/store.ts"
       ],
       "rationale": "Browser Ctrl/Meta/touch-style/keyboard membership, delete/history/persistence, synthetic AI union scope and delayed ABA rejection; viewport screenshot is browser evidence only if executed.",
-      "sha256": "523235674ac870ef22013d945f9ef7bd5af5c1d5154d245d336a17dae96d192a"
+      "sha256": "268b0aab746ac501d75778b73aa84574fe91fbe683465d17db7ee1b35cbfff9e"
     },
     {
       "path": "tests/e2e/proposal-safety.spec.ts",
@@ -1214,7 +1214,7 @@
         "src/editor/Canvas.tsx"
       ],
       "rationale": "Actual Canvas collection and photo drag decisions using isolated store/API, synthetic transfer, geometry and browser DOM. No native drag, service or persisted state.",
-      "sha256": "266b659b25d189d8368ccb77d27ebea3c445647d53ebf168e930b1e90849fd4b"
+      "sha256": "d8d761e9b8709ba2ccb1842bb4845f1556548ad67bf7596c41584560e82a4ae5"
     },
     {
       "path": "tests/unit/collectModalIsolated.test.ts",
@@ -2150,7 +2150,7 @@
         "src/core/compiler.ts"
       ],
       "rationale": "Real Canvas/store/compiler selection and editing combinations, plus a stylesheet source assertion; synthetic events do not make actual multi-component workflow unit.",
-      "sha256": "6f8d7a0d1df539be4f141ac8dab10057fc0cfcc4047be19e50dc3f7a47d7429f"
+      "sha256": "321bc65d363ecb8be8d0e16c32758f63be66499baaa7232ad8756f77c6a07929"
     },
     {
       "path": "tests/unit/multiSelectionFoundation.test.ts",
@@ -2810,7 +2810,7 @@
         "src/editor/RightPanel.tsx"
       ],
       "rationale": "Actual inspector actions over memory store and mocked transport, theme and style adapters; no real model, resource or article fetch.",
-      "sha256": "e1b1c5b3905e9d5752073af668550c9f04bbb6113dd7e3cea6c9577673029183"
+      "sha256": "5983a6ead646eb027e36887acd202ff3d4bc82e32d50c960563e4144c660af28"
     },
     {
       "path": "tests/unit/roleHeuristicsDirect.test.ts",
@@ -2935,7 +2935,7 @@
         "src/editor/useSelectionScope.ts"
       ],
       "rationale": "Real RightPanel/store/hooks act together across document history, membership ABA and delayed synthetic cause/effects.",
-      "sha256": "2e56883e3890c86f5b3c45cebd72e84b8cb1aaef64c082230eb544715aa2bfbc"
+      "sha256": "a9e387045c1324a77d1001869f4a5bc72003250342b26544722f1abb2bf20fab"
     },
     {
       "path": "tests/unit/selectionTouchCascade.test.ts",
@@ -2946,7 +2946,7 @@
         "src/editor/Canvas.tsx"
       ],
       "rationale": "Reads actual entry stylesheet imports and assembles CSS cascade in JSDOM to check 44px UI contract for both themes; not isolated JS logic or physical touch/browser measurement.",
-      "sha256": "b363bcf9714fe4a9abdde77903a4480789b35ca0314aa9e4afc027321ad71564"
+      "sha256": "92aaebd6d03c74b4c1a185c7fcd0fd0dfefcfc3ac1e3f8d25774cc23f0f52e2e"
     },
     {
       "path": "tests/unit/server.test.ts",

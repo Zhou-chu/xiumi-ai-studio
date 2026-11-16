@@ -134,6 +134,27 @@ afterEach(() => {
   host.remove(); vi.useRealTimers(); vi.unstubAllGlobals();vi.restoreAllMocks()
 })
 
+describe('multi-module properties', () => {
+  it('offers the individual forms in document order and keeps their disclosures independent', async () => {
+    update({ selectedIds: ['c', 'b', 'a'], doc: { ...freshDoc(), blocks: [
+      block('a'),
+      { ...createBlock('box', { children: [block('b')] }), id: 'parent' },
+      block('c'),
+    ] } })
+    await act(async () => root.render(createElement(RightPanel)))
+    const panels = [...host.querySelectorAll<HTMLDetailsElement>('[data-testid="selected-module-properties"]')]
+    expect(panels.map(panel => panel.dataset.moduleId)).toEqual(['a', 'b', 'c'])
+    expect(panels.map(panel => panel.querySelector('[data-testid="props-boundary"]')?.textContent)).toEqual(['a', 'b', 'c'])
+    expect(panels.map(panel => panel.open)).toEqual([true, true, true])
+    await act(async () => panels[1].querySelector('summary')!.click())
+    expect(panels.map(panel => panel.open)).toEqual([true, false, true])
+    await act(async () => update({ doc: { ...h.state.doc, title: 'Updated document' } }))
+    expect(panels.map(panel => panel.open)).toEqual([true, false, true])
+    await act(async () => panels[1].querySelector('summary')!.click())
+    expect(panels.map(panel => panel.open)).toEqual([true, true, true])
+  })
+})
+
 describe('proposal request choreography (scope and store boundaries)', () => {
   it.each(['single', 'multiple', 'whole'] as const)('passes the exact %s scope and proposal revision to collaborators', async scope => {
     if (scope === 'multiple') update({ selectedIds: ['a','b'] }, true)

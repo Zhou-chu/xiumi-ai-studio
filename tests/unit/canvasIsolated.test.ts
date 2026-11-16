@@ -73,19 +73,15 @@ it('empty title/author fallbacks and unrelated dragover remain safe',async()=>{
     const ev=new MouseEvent('dragover',{bubbles:true,cancelable:true});Object.defineProperty(ev,'dataTransfer',{value:{types:[]}});await event(host.querySelector('.canvas-scroll'),ev);expect(ev.defaultPrevented).toBe(false);expect(h.state.commit).not.toHaveBeenCalled();
 });
 
-it('explicit multi mode exposes pressed state, toggles via buttons, and prevents double-click editing', async () => {
+it('uses the module itself for keyboard selection and leaves modifier double-click out of editing', async () => {
   const a = createBlock('heading'), b = createBlock('paragraph')
   await selected(a, [a, b])
-  await click(host.querySelector('[data-testid=multi-select-mode]'))
-  const toggles = host.querySelectorAll('[data-testid=toggle-block-selection]')
-  expect(toggles).toHaveLength(2)
-  expect([...toggles].map(el => el.getAttribute('aria-pressed'))).toEqual(['true', 'false'])
-  await click(toggles[1])
-  await event(blockEl(b), new MouseEvent('dblclick', { bubbles: true }))
+  expect(host.querySelector('[data-testid=toggle-block-selection]')).toBeNull()
+  expect(blockEl(b).getAttribute('tabindex')).toBe('0')
+  await event(blockEl(b), new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ctrlKey: true }))
+  await event(blockEl(b), new MouseEvent('dblclick', { bubbles: true, ctrlKey: true }))
   expect(h.state.select).toHaveBeenCalledExactlyOnceWith(b.id, { toggle: true })
   expect(h.state.setEditing).not.toHaveBeenCalled()
-  expect(host.querySelector('.block-toolbar')).toBeNull()
-  await click(host.querySelector('[data-testid=multi-select-mode]'))
   expect(blockEl(a).querySelector('.block-toolbar')).not.toBeNull()
 })
 

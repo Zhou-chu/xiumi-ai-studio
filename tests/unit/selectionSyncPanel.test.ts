@@ -103,10 +103,21 @@ it('multi selection scope observes membership even when primary identity stays t
  act(()=>state().select('a',{toggle:true}));expect(state().selectedId).toBe('b');expect(scope().value).toBe('selection')
  act(()=>state().select('a',{toggle:true}));expect(scope().selectedOptions[0].textContent).toContain('2')
 })
-it('mixed module panel never exposes the primary single-block props as shared properties',async()=>{
- act(()=>state().select('b',{toggle:true}));await tab('style')
- expect(host.querySelector('[data-testid="multi-selection-properties"]')).not.toBeNull();expect(host.textContent).toContain('Title a');expect(host.textContent).toContain('Title b')
- expect(host.querySelector('.props-form input')).toBeNull()
+it('multi-module properties edit only the intended module, not the primary or entire selection',async()=>{
+ act(()=>{state().select('b'); state().select('a',{toggle:true})});await tab('style')
+ const panel=host.querySelector('[data-testid="multi-selection-properties"]')!
+ const sections=[...panel.querySelectorAll<HTMLDetailsElement>('[data-testid="selected-module-properties"]')]
+ expect(sections.map(section=>section.dataset.moduleId)).toEqual(['a','b'])
+ const title=(section:HTMLDetailsElement)=>[...section.querySelectorAll('label')].find(label=>label.querySelector('span')?.textContent==='标题')!.querySelector('input')!
+ expect(sections.map(section=>title(section).value)).toEqual(['Title a','Title b'])
+ const input=title(sections[1])
+ await act(async()=>{
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Changed B')
+  input.dispatchEvent(new Event('input',{bubbles:true}))
+ })
+ expect(state().selectedId).toBe('a')
+ expect(state().selectedIds).toEqual(['b','a'])
+ expect(state().doc.blocks.map(item=>item.props)).toMatchObject([{title:'Title a'},{title:'Changed B'}])
  const before=state().past.length;act(()=>host.querySelector<HTMLButtonElement>('[data-testid="delete-selected-blocks"]')!.click());expect(state().doc.blocks).toHaveLength(0);expect(state().past).toHaveLength(before+1)
  act(()=>state().undo());expect(state().doc.blocks).toHaveLength(2)
 })

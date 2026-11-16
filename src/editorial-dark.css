@@ -235,8 +235,8 @@
 }
 
 /* Neutral editor selection rings must remain legible on both paper and chrome. */
-:root[data-color-mode='dark'] .canvas-wrap .block:is(.selected,.editing):not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview,.mini-preview *,.comp-preview,.comp-preview *,.paste-box,.paste-box *)) { outline-color:var(--ui-line); }
+:root[data-color-mode='dark'] .canvas-wrap .block.editing:not(.selected):not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview,.mini-preview *,.comp-preview,.comp-preview *,.paste-box,.paste-box *)) { outline-color:var(--ui-line); }
 :root[data-color-mode='dark'] .canvas-wrap .block-toolbar:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview,.mini-preview *,.comp-preview,.comp-preview *,.paste-box,.paste-box *)) { max-width:calc(100% + 12px); flex-wrap:wrap; top:auto; bottom:calc(100% + 6px); }
 
-:root[data-color-mode='dark'] .canvas-wrap .block:hover:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview,.mini-preview *,.comp-preview,.comp-preview *,.paste-box,.paste-box *)) { outline-color:var(--ui-line); }
+:root[data-color-mode='dark'] .canvas-wrap .block:hover:not(.selected):not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview,.mini-preview *,.comp-preview,.comp-preview *,.paste-box,.paste-box *)) { outline-color:var(--ui-line); }
 :root[data-color-mode='dark'] .canvas-wrap :is(.drop-end,.box-drop).over:not(:where(.block-html,.block-html *,.html-editor,.html-editor *,.rich-content,.rich-content *,.mini-preview,.mini-preview *,.comp-preview,.comp-preview *,.paste-box,.paste-box *)) { border-color:var(--ui-line); color:var(--ui-text); background:var(--ui-hover); }

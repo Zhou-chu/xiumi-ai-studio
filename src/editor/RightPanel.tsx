@@ -1,8 +1,8 @@
 import { suggestionContext } from './suggestionContext'
 import { ArticleImageImport } from './ArticleImageImport'
 import { isImageLibraryRequest } from '../core/articleImages'
-import type { Doc } from '../core/types'
-import { findBlock } from '../core/tree'
+import type { Block, Doc } from '../core/types'
+import { flatBlocks } from '../core/tree'
 import { UiIcon } from './UiIcon'
 import { useSelectionScope } from './useSelectionScope'
 import { previewProposal } from './proposalSafety'
@@ -22,6 +22,7 @@ import { instructionSuggestions } from './suggestionQueue'
 import { PropsForm } from './PropsForm'
 import { selectedBlock, useStore } from './store'
 import { PhonePreview } from './Toolbar'
+import './right-panel-properties.css'
 
 type Tab = 'style' | 'theme' | 'ai' | 'reference'
 
@@ -361,6 +362,38 @@ function ReferencePanel() {
   )
 }
 
+function SelectedModuleProperties({ block }: { block: Block }) {
+  const [expanded, setExpanded] = useState(true)
+  const excerpt = summarize(block).replace(/\s+/g, ' ').trim()
+  return (
+    <details
+      className="selected-module-properties"
+      data-testid="selected-module-properties"
+      data-module-id={block.id}
+      open={expanded}
+      onToggle={event => setExpanded(event.currentTarget.open)}
+    >
+      <summary>{blockLabel(block)}{excerpt && <> · {excerpt.slice(0, 80)}{excerpt.length > 80 && '…'}</>}</summary>
+      <PropsForm block={block} />
+    </details>
+  )
+}
+
+function MultiSelectionProperties({ blocks, ids }: { blocks: Doc['blocks']; ids: string[] }) {
+  const selected = useMemo(() => {
+    const membership = new Set(ids)
+    return flatBlocks(blocks).filter(item => membership.has(item.id))
+  }, [blocks, ids])
+  return (
+    <div className="props-form" data-testid="multi-selection-properties">
+      <h4>已选 {selected.length} 个模块</h4>
+      {selected.map(item => <SelectedModuleProperties key={item.id} block={item} />)}
+      <button className="danger" data-testid="delete-selected-blocks" onClick={() => useStore.getState().removeSelected()}>删除所选模块</button>
+      <button onClick={() => useStore.getState().select(null)}>取消选择</button>
+    </div>
+  )
+}
+
 export function RightPanel() {
   const [tab, setTab] = useState<Tab>('style')
   const block = useStore(selectedBlock)
@@ -380,13 +413,9 @@ export function RightPanel() {
         ))}
       </nav>
       <div className="panel-body">
-        {tab === 'style' && (selectedIds.length > 1 ? <div className="props-form" data-testid="multi-selection-properties">
-          <h4>已选 {selectedIds.length} 个模块</h4>
-          <p>当前为多选，属性不混用。单击一个模块后可编辑它的属性。</p>
-          <ul>{selectedIds.map(id => { const item = findBlock(doc.blocks, id)?.block; return item ? <li key={id}>{blockLabel(item)} · {summarize(item).slice(0, 80)}</li> : null })}</ul>
-          <button className="danger" data-testid="delete-selected-blocks" onClick={() => useStore.getState().removeSelected()}>删除所选模块</button>
-          <button onClick={() => useStore.getState().select(null)}>取消选择</button>
-        </div> : block ? <PropsForm key={block.id} block={block} /> : <DocSettings />)}
+        {tab === 'style' && (selectedIds.length > 1
+          ? <MultiSelectionProperties blocks={doc.blocks} ids={selectedIds} />
+          : block ? <PropsForm key={block.id} block={block} /> : <DocSettings />)}
         {tab === 'theme' && <ThemePanel />}
         {tab === 'ai' && <AiPanel />}
         {tab === 'reference' && <ReferencePanel />}
