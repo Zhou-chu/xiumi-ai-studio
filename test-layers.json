@@ -400,7 +400,7 @@
         "src/core/htmlLayout.ts"
       ],
       "rationale": "Real selection, dialogs, review iframe, persistence and reload; collection, provider and remote images synthesized, not real CDN/model proof.",
-      "sha256": "2edb34ef54d5fd8179e2dae92046b214f6eafcbf3de1ae74b660c55df4372fcb"
+      "sha256": "520ba398e2dfcb684f6e3be7e7b2c6ff3420b0ceb0fcd3eb092bc4ce15bae94d"
     },
     {
       "path": "tests/e2e/components.spec.ts",
@@ -450,7 +450,7 @@
         "src/editor/Canvas.tsx"
       ],
       "rationale": "Uses the running browser editor and local persisted state for whitespace, alignment, modal shortcuts, focus return and nested Escape. WeChat configuration is mocked; no external draft is sent.",
-      "sha256": "11925e7c63e94a290893f9193696f5d649f0e2776e05e93e930073bbe43f14ac"
+      "sha256": "862647fbdc357046439e5b37f46dfd6ac90060bd9ea79567b58cc8b8365bd7dd"
     },
     {
       "path": "tests/e2e/enrich.spec.ts",
