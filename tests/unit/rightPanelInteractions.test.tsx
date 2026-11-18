@@ -26,9 +26,24 @@ afterEach(()=>{act(()=>root.unmount());host.remove();vi.clearAllTimers();vi.useR
 it('edits document metadata then keeps single and multi-module properties synchronized',async()=>{
  await mount();const fields=host.querySelectorAll('.props-form input,.props-form textarea');await input(fields[0],'New title');await input(fields[1],'Author');await input(fields[2],'Digest');expect(state().doc).toMatchObject({title:'New title',author:'Author',digest:'Digest'})
  await act(async()=>state().select('a'));await input(host.querySelectorAll('.props-form input')[1],'Edited Alpha');expect(state().doc.blocks[0].props).toMatchObject({title:'Edited Alpha'})
- await act(async()=>state().select('b',{toggle:true}));expect(host.textContent).toContain('已选 2 个模块');expect(host.querySelectorAll('.props-form input')).toHaveLength(0)
+ await act(async()=>{state().select('b');state().select('a',{toggle:true})});expect(host.textContent).toContain('已选 2 个模块')
+ const cards=[...host.querySelectorAll<HTMLDetailsElement>('[data-testid="selected-module-properties"]')]
+ expect(cards.map(c=>c.dataset.moduleId)).toEqual(['a','b']);expect(cards[0].querySelectorAll('input')[1].value).toBe('Edited Alpha')
+ await click(cards[1].querySelector('summary'));expect(cards[0].open).toBe(true);expect(cards[1].open).toBe(false)
  await click(button('取消选择'));expect(state().selectedIds).toEqual([])
  await act(async()=>{state().select('a');state().select('b',{toggle:true})});await click(host.querySelector('[data-testid="delete-selected-blocks"]'));expect(state().doc.blocks).toHaveLength(0)
+})
+it('adds and removes specific children inside the native text box with independent history',async()=>{
+ const box=createBlock('box',{children:[createBlock('paragraph')]})
+ await act(async()=>{state().load({...emptyDoc(),blocks:[box]});state().select(box.id)})
+ await mount()
+ const descendants=()=>{const b=state().doc.blocks[0];if(b.type!=='box')throw Error('missing box');return b.props.children}
+ const first=descendants()[0].id
+ await input(host.querySelector('[data-testid="box-children"] select'),'start')
+ await click(host.querySelector('[data-testid="add-box-heading"]'));expect(descendants().map(b=>b.type)).toEqual(['heading','paragraph'])
+ await click(host.querySelector('[data-testid="remove-box-child"]'));expect(descendants().map(b=>b.id)).toEqual([first])
+ await act(async()=>state().undo());expect(descendants().map(b=>b.type)).toEqual(['heading','paragraph'])
+ await act(async()=>state().redo());expect(descendants().map(b=>b.id)).toEqual([first])
 })
 it('AI scope resets on selection changes and sends actual scope, not stale full-document override',async()=>{
  const edit=vi.spyOn(api,'aiEdit').mockResolvedValue({summary:'Edit',ops:[{op:'update',id:'b',props:{title:'AI'}}]})

@@ -1,0 +1,25 @@
+.panel.right .selected-module-properties {
+  margin-block-end: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.panel.right .selected-module-properties > summary {
+  padding: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.panel.right .selected-module-properties > summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+.panel.right .selected-module-properties > .props-form {
+  padding: 0 8px 8px;
+}
+
+.panel.right .selected-module-properties > .props-form > h4:first-child {
+  display: none;
+}
