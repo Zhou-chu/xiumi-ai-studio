@@ -5,6 +5,15 @@ lint, types, unit/red-team tests, production build, deployment guards and
 Chromium E2E. Screenshot updates are explicitly prohibited. Existing
 baselines are Windows-specific; visual failures require human review.
 
+The Node 24 CI leg additionally runs a short browser smoke against built
+`dist` served by the same Express app as the desktop entry point. It opens
+a synthetic project, edits and saves, reloads, and checks a Markdown download.
+The test uses an ephemeral loopback port and disposable data, not an installed
+desktop, developer `.env`, or existing project. After `pnpm build` and Chromium
+installation:
+
+    pnpm e2e --config=tests/release-smoke/playwright.config.ts --update-snapshots=none
+
 ## Security and isolation
 
 The public repository is **not** given a self-hosted runner or desktop token.

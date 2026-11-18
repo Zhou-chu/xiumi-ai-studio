@@ -122,7 +122,12 @@ function VersionsModal({ onClose }: { onClose: () => void }) {
         </div>
       ))}
       {!currentList && <p className="empty">正在加载版本列表…</p>}
-      {currentList?.failed && <p className="empty">暂时无法加载版本列表</p>}
+      {currentList?.failed && (
+        <p className="empty">
+          <span role="alert">暂时无法加载版本列表。</span>{' '}
+          <button type="button" onClick={() => { void refresh(doc.id) }}>重试</button>
+        </p>
+      )}
       {currentList && !currentList.failed && !currentList.items.length && <p className="empty">还没有保存过版本</p>}
     </Modal>
   )

@@ -119,3 +119,17 @@ it('ignores a pending save acknowledgement after the document leaves and returns
   expect(list).toHaveBeenCalledTimes(1)
   expect(state().toast).toBe(currentToast)
 })
+
+it('keeps a direct history-list retry in the dialog and replaces the error with recovered results', async () => {
+  const versions = vi.spyOn(api, 'versions')
+    .mockRejectedValueOnce(new Error('private retry fixture'))
+    .mockResolvedValueOnce([entry('retried-v', 'Recovered history')])
+  await open()
+  const dialog = host.querySelector('[role="dialog"]')!
+  expect(dialog.querySelector('[role="alert"]')?.textContent ?? '').toContain('暂时无法加载版本列表')
+  expect(dialog.textContent).not.toContain('private retry fixture')
+  await click(button('重试'))
+  expect(versions.mock.calls).toEqual([[state().doc.id], [state().doc.id]])
+  expect(dialog.textContent).toContain('Recovered history')
+  expect(dialog.querySelector('[role="alert"]')).toBeNull()
+})
