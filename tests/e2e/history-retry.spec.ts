@@ -9,11 +9,18 @@ test('retries a failed history list in place and persists a restored version', a
   const versionsPath = `${projectPath}/versions`
   expect((await page.request.put(projectPath, { data: current })).ok()).toBe(true)
   expect((await page.request.post(versionsPath, { data: { doc: prior, label: 'Prior version' } })).ok()).toBe(true)
-  let listRequests = 0
+  let allowList = false
+  let failedLists = 0
+  let retriedLists = 0
   await page.route(`**${versionsPath}`, async (route) => {
-    if (route.request().method() === 'GET' && ++listRequests === 1) {
-      await route.fulfill({ status: 503, json: { error: 'private browser fixture' } })
-      return
+    if (route.request().method() === 'GET') {
+      // The development StrictMode mount can issue more than one initial GET.
+      if (!allowList) {
+        failedLists++
+        await route.fulfill({ status: 503, json: { error: 'private browser fixture' } })
+        return
+      }
+      retriedLists++
     }
     await route.continue()
   })
@@ -27,10 +34,15 @@ test('retries a failed history list in place and persists a restored version', a
   await expect(dialog.getByRole('alert')).toContainText('暂时无法加载版本列表')
   await expect(dialog).not.toContainText('private browser fixture')
   await expect(dialog).not.toContainText('还没有保存过版本')
-  await dialog.getByRole('button', { name: '重试', exact: true }).click()
+  expect(failedLists).toBeGreaterThanOrEqual(1)
+  expect(retriedLists).toBe(0)
+  const retry = dialog.getByRole('button', { name: '重试', exact: true })
+  await expect(retry).toBeVisible()
+  allowList = true
+  await retry.click()
   await expect(dialog.getByText('Prior version', { exact: true })).toBeVisible()
   await expect(dialog.getByRole('alert')).toHaveCount(0)
-  expect(listRequests).toBe(2)
+  expect(retriedLists).toBe(1)
   await dialog.getByRole('button', { name: '恢复', exact: true }).click()
   await expect(title).toHaveValue(prior.title)
   await expect(page.getByTestId('save-status')).toHaveText('已保存')
