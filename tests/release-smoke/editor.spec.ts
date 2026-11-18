@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from './fixture'
 
-test('built editor saves a changed project, reopens it, and exports the edit', async ({ page, origin }) => {
+test('built editor saves title and paragraph edits, reopens them, and exports the new content', async ({ page, origin }) => {
   const id = 'release-smoke'
   const timestamp = Date.now()
   const source = '发布检查的原始正文'
   const original = '发布检查样例'
-  const edited = '发布检查已修改'
+  const editedTitle = '发布检查已修改'
+  const editedBody = '发布检查保存后的新正文'
   const seed = await page.request.put(`${origin}/api/projects/${id}`, { data: {
     id, title: original, author: '', digest: '', themeId: 'minimal-magazine',
     createdAt: timestamp, updatedAt: timestamp,
@@ -26,28 +27,47 @@ test('built editor saves a changed project, reopens it, and exports the edit', a
   expect((await scriptResponse).ok()).toBe(true)
 
   const title = page.getByLabel('文章标题', { exact: true })
+  const paragraph = page.getByTestId('canvas').locator('[data-block-id="release-paragraph"]')
   await expect(title).toHaveValue(original)
-  await expect(page.getByTestId('canvas')).toContainText(source)
+  await expect(paragraph.locator('p').first()).toHaveText(source)
+  await title.fill(editedTitle)
+  await paragraph.click()
+  const field = page.locator('.panel.right').getByRole('textbox', { name: /^正文/ })
+  await expect(field).toHaveValue(source)
   const [save] = await Promise.all([
-    page.waitForResponse(response => response.url() === `${origin}/api/projects/${id}`
-      && response.request().method() === 'PUT'),
-    title.fill(edited),
+    page.waitForResponse(response => {
+      if (response.url() !== `${origin}/api/projects/${id}` || response.request().method() !== 'PUT') return false
+      const draft = response.request().postDataJSON()
+      return draft.title === editedTitle && JSON.stringify(draft.blocks).includes(editedBody)
+    }),
+    field.fill(editedBody),
   ])
   expect(save.ok()).toBe(true)
   await expect(page.getByTestId('save-status')).toHaveText('已保存')
 
   await page.reload()
-  await expect(title).toHaveValue(edited)
-  await expect(page.getByTestId('canvas')).toContainText(source)
+  await expect(title).toHaveValue(editedTitle)
+  await expect(paragraph.locator('p').first()).toHaveText(editedBody)
   await page.getByTestId('open-export').click()
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Markdown', exact: true }).click(),
   ])
-  expect(download.suggestedFilename()).toMatch(/\.md$/)
+  // This project has only a paragraph; the title is metadata, not a cover block.
+  expect(download.suggestedFilename()).toBe(`${editedTitle}.md`)
   const path = await download.path()
   expect(path).not.toBeNull()
-  const markdown = await readFile(path!, 'utf8')
-  expect(markdown).toContain(`# ${edited}`)
-  expect(markdown).toContain(source)
+  expect(await readFile(path!, 'utf8')).toBe(`${editedBody}\n`)
+
+  const [htmlDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '微信 HTML（图片内嵌）', exact: true }).click(),
+  ])
+  expect(htmlDownload.suggestedFilename()).toBe(`${editedTitle}.html`)
+  const htmlPath = await htmlDownload.path()
+  expect(htmlPath).not.toBeNull()
+  const html = await readFile(htmlPath!, 'utf8')
+  expect(html).toContain(`<title>${editedTitle}</title>`)
+  expect(html).toContain(editedBody)
+  expect(html).not.toContain(source)
 })
