@@ -98,6 +98,47 @@ test('kit modules: text box adapts to inserted modules, photos fill slots, layou
   expect(saved.props.children[1].props.pics[0].caption).toBe('慕尼黑工业大学实验楼')
 })
 
+
+for (const route of ['after-photo', 'append-zone'] as const) test(`carousel follows ${route} after the canvas scrolls at release`, async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('tab-projects').click()
+  await page.getByRole('button', { name: '新建空白项目' }).click()
+  await page.getByTestId('tab-blocks').click()
+  await page.getByTestId('kit-box').click()
+  await page.getByTestId('kit-photos2').click()
+  const canvas = page.getByTestId('canvas')
+  const box = canvas.locator('[data-block-type="box"]')
+  const target = route === 'after-photo' ? box.locator('[data-block-type="photos"]') : box.getByTestId('box-drop')
+  const canvasEnd = canvas.locator('.drop-end')
+  await canvasEnd.evaluate(el => el.scrollIntoView({ block: 'center' }))
+  const source = (await page.getByTestId('kit-carousel').boundingBox())!
+  const start = { x: source.x + source.width / 2, y: source.y + source.height / 2 }
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  await page.mouse.move(start.x + 12, start.y + 12, { steps: 4 })
+  const end = (await canvasEnd.boundingBox())!
+  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 12 })
+  await expect(page.getByRole('status').filter({ hasText: /moved over droppable area canvas-end/ })).toHaveCount(1)
+  await target.evaluate(el => {
+    // Apply the scroll during native release before dnd-kit can recalculate its last hover.
+    window.addEventListener('pointerup', e => {
+      const scroller = el.closest('.canvas-scroll')!
+      const rect = el.getBoundingClientRect()
+      scroller.scrollTop += rect.top + rect.height * 0.75 - e.clientY
+      const hit = document.elementsFromPoint(e.clientX, e.clientY).some(point => el.contains(point))
+      el.setAttribute('data-release-over-target', String(hit))
+    }, { capture: true, once: true })
+  })
+  await page.mouse.up()
+  await expect(target).toHaveAttribute('data-release-over-target', 'true')
+  const order = () => box.locator('[data-block-type]').evaluateAll(els => els.map(el => el.getAttribute('data-block-type')))
+  await expect.poll(order).toEqual(['paragraph', 'photos', 'carousel'])
+  await expect(canvas.locator('[data-block-type="carousel"]')).toHaveCount(1)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
+  await page.reload()
+  await expect.poll(order).toEqual(['paragraph', 'photos', 'carousel'])
+})
+
 test('native text box properties insert, edit and delete a child without losing it on reload', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('canvas')).toBeVisible()

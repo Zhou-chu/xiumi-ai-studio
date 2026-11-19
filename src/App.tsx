@@ -1,6 +1,6 @@
 import { ReplayHost } from './editor/ReplayPreview'
 import { DndContext, DragOverlay, MeasuringStrategy, PointerSensor, closestCenter, pointerWithin, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { blockMeta, createBlock } from './core/blocks'
 import type { Block, BlockType } from './core/types'
 import { addPicTo, replacePhoto } from './core/photos'
@@ -41,6 +41,21 @@ function dropTarget(blocks: Block[], over: string, lowerHalf: boolean): { parent
   }
   const at = findBlock(blocks, over)
   return at ? { parentId: at.parent?.id ?? null, index: at.index + (lowerHalf ? 1 : 0), block: at.block } : null
+}
+
+// Auto-scroll can move the nested target under the pointer after dnd-kit's last hover update.
+function nestedReleaseTarget(blocks: Block[], event: DragEndEvent, point: PointerEvent | null) {
+  if (event.over?.id !== 'canvas-end' || !/^(lib|kit|comp):/.test(String(event.active.id))) return null
+  const start = event.activatorEvent
+  if (!point || !(start instanceof PointerEvent) || start.pointerId !== point.pointerId) return null
+  const hit = document.elementsFromPoint(point.clientX, point.clientY).find(el => el.closest('[data-testid="canvas"]'))
+  const block = hit?.closest<HTMLElement>('.block[data-block-id]')
+  const id = block?.dataset.blockId
+  if (!block || !id) return null
+  if (hit?.closest('.box-body > .box-drop')) return dropTarget(blocks, `box:${id}`, false)
+  if (!findBlock(blocks, id)?.parent) return null
+  const rect = block.getBoundingClientRect()
+  return dropTarget(blocks, id, point.clientY > rect.top + rect.height / 2)
 }
 
 /** 文本框不能放进文本框：改为放在外层文本框之后 */
@@ -87,6 +102,13 @@ function useShortcuts(enabled: boolean) {
 }
 
 export default function App() {
+  const release = useRef<PointerEvent | null>(null)
+  useEffect(() => {
+    const rememberRelease = (event: PointerEvent) => { release.current = event }
+    window.addEventListener('pointerup', rememberRelease, true)
+    return () => window.removeEventListener('pointerup', rememberRelease, true)
+  }, [])
+
   useEffect(() => listenForAiSettings(window), [])
   const [ready, setReady] = useState(false)
   const [dragLabel, setDragLabel] = useState<string | null>(null)
@@ -159,6 +181,7 @@ export default function App() {
   }, [])
 
   const onDragStart = (e: DragStartEvent) => {
+    release.current = null
     const id = String(e.active.id)
     setDragLabel(
       id.startsWith('lib:') ? blockMeta(id.slice(4) as BlockType).label
@@ -179,7 +202,7 @@ export default function App() {
     // 新模块落在目标模块下半部分时插到其后
     const dragged = e.active.rect.current.translated
     const lowerHalf = !!dragged && !!e.over && dragged.top + dragged.height / 2 > e.over.rect.top + e.over.rect.height / 2
-    const t = dropTarget(blocks, over, lowerHalf)
+    const t = nestedReleaseTarget(blocks, e, release.current) ?? dropTarget(blocks, over, lowerHalf)
     if (!t) return
     const insert = (b: Block) => {
       const at = b.type === 'box' ? outsideBox(blocks, t) : t
