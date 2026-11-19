@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test'
 
 test('adds an editorial replay, scrubs it, and recovers it after reload', async ({ page }) => {
   await page.goto('/')
+  await page.getByTestId('tab-projects').click()
+  await page.getByRole('button', { name: '新建空白项目' }).click()
+  await page.getByTestId('tab-blocks').click()
   await page.getByTestId('lib-replay').click()
   const open = page.getByTestId('replay-open')
   await expect(open).toHaveCount(1)
@@ -10,8 +13,16 @@ test('adds an editorial replay, scrubs it, and recovers it after reload', async 
   await expect(dialog.getByTestId('replay-stage').locator('svg').first()).toBeVisible()
   const rail = dialog.getByTestId('replay-seek')
   await rail.focus()
-  await rail.press('End')
+  await rail.press('Home')
+  await rail.press('ArrowRight')
   expect(Number(await rail.inputValue())).toBeGreaterThan(0)
+  await rail.press('ArrowLeft')
+  expect(Number(await rail.inputValue())).toBe(0)
+  await rail.press('End')
+  // End must reach the actual duration, even when it is between hundredths.
+  const duration = Number(await rail.getAttribute('max'))
+  expect(duration).toBeGreaterThan(0)
+  expect(Number(await rail.inputValue())).toBe(duration)
   await dialog.getByTestId('replay-toggle').click()
   await expect(dialog.getByTestId('replay-toggle')).toContainText('暂停')
   await page.keyboard.press('Escape')
