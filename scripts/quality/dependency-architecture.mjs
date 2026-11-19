@@ -62,13 +62,19 @@ function assertBaseline(baseline) {
   }
 }
 
+// Keep the existing UTF-16 order independent of the runner's locale.
+function compareArchitectureKeys(left, right) {
+  if (left < right) return -1
+  return left > right ? 1 : 0
+}
+
 export function compareArchitecture(violations, baseline) {
   assertBaseline(baseline)
   const current = new Set(violations.map(architectureKey))
   const known = new Set(baseline)
   return {
-    introduced: [...current].filter(key => !known.has(key)).sort(),
-    stale: [...known].filter(key => !current.has(key)).sort(),
+    introduced: [...current].filter(key => !known.has(key)).sort(compareArchitectureKeys),
+    stale: [...known].filter(key => !current.has(key)).sort(compareArchitectureKeys),
   }
 }
 

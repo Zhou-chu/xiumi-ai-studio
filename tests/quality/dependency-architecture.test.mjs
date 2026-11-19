@@ -29,3 +29,12 @@ test('paths are portable and invalid reports fail closed', () => {
   assert.throws(() => architectureKey({ ...edge('src/a.ts','src/b.ts','no-cycles') }), /cycle/i)
   assert.throws(() => compareArchitecture([edge('src/a.ts','server/b.ts')], ['invalid']), /baseline/i)
 })
+
+test('introduced and stale findings keep deterministic code-unit order', () => {
+  const edgeAt = name => edge(`src/${name}.ts`, 'server/http.ts')
+  const stale = ['ä-old', 'a-old', 'Z-old'].map(name => architectureKey(edgeAt(name)))
+  assert.deepEqual(compareArchitecture(['ä', 'a', 'Z'].map(edgeAt), stale), {
+    introduced: ['Z', 'a', 'ä'].map(name => architectureKey(edgeAt(name))),
+    stale: ['Z-old', 'a-old', 'ä-old'].map(name => architectureKey(edgeAt(name))),
+  })
+})
