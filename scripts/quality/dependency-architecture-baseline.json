@@ -1,0 +1,8 @@
+[
+  "[\"client-no-server\",\"src/editor/ArticleImageImport.tsx\",\"server/articleImages.ts\"]",
+  "[\"client-no-server\",\"src/editor/api.ts\",\"server/articleImages.ts\"]",
+  "[\"no-cycles\",\"server/ai.ts\",\"server/aiModels.ts\",\"server/aiModels.ts\",\"server/ai.ts\"]",
+  "[\"no-cycles\",\"src/core/compiler.ts\",\"src/core/imageResize.ts\",\"src/core/imageResize.ts\",\"src/core/photos.ts\",\"src/core/slots.ts\",\"src/core/compiler.ts\"]",
+  "[\"no-cycles\",\"src/core/imageResize.ts\",\"src/core/slots.ts\",\"src/core/slots.ts\",\"src/core/compiler.ts\",\"src/core/imageResize.ts\"]",
+  "[\"no-cycles\",\"src/editor/proposalSafety.ts\",\"src/editor/store.ts\",\"src/editor/store.ts\",\"src/editor/proposalSafety.ts\"]"
+]
