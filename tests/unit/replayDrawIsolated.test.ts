@@ -94,6 +94,14 @@ it.each([['left','10',null],['center','60','middle'],['right','110','end']] as c
   expect(c.warn).not.toHaveBeenCalled()
 })
 
+it('preserves line order, baseline spacing and the middle-line highlight', () => {
+  const sample = run({ lines: ['First', 'Second verse', 'Third'], starts: [0, 6, 19], marks: [[6, 12]], markColor: '#a63' })
+  const nodes = [...svg(drawRun(sample,ctx()).join('')).querySelectorAll('text')]
+  expect(nodes.map(node => node.textContent)).toEqual(sample.lines)
+  expect(nodes.map(node => Number(node.getAttribute('y')))).toEqual([42.2, 72.2, 102.2])
+  expect(nodes.map(node => node.querySelector('tspan')?.textContent ?? null)).toEqual([null, 'Second', null])
+})
+
 it('maps generated raster URLs and passes exact whole/per-line bounds and mark segments', () => {
   const c=ctx(); c.doc.textMode='image'
   const raster = vi.fn(()=>'data:image/png;base64,AA')

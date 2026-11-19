@@ -64,7 +64,7 @@ export interface SceneLayout {
 
 // ---------- 颜色 ----------
 
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
 /** a、b 按 w 混合（w=1 为 b） */
 export function mix(a: string, b: string, w: number): string {
   const x = rgb(toHex(a) ?? '#000000')

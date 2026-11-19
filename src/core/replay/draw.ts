@@ -143,12 +143,12 @@ export function drawRun(run: TextRun, ctx: RenderCtx, opts: { color?: string; pe
       .map((g) => (g.weight === 700 && run.font.weight !== 700 ? `<tspan font-weight="bold"${g.color !== color ? ` fill="${g.color}"` : ''}>${esc(g.text)}</tspan>` : esc(g.text)))
       .join('')
   }
-  const text = (l: string, i: number) =>
+  return lines.map((line, lineIndex) =>
     el(
       'text',
       {
         x,
-        y: run.y + base + i * lh,
+        y: run.y + base + lineIndex * lh,
         'font-size': run.font.size,
         'font-weight': run.font.weight === 700 ? 'bold' : undefined,
         'font-family': run.font.family ?? FONT_FAMILY,
@@ -156,9 +156,9 @@ export function drawRun(run: TextRun, ctx: RenderCtx, opts: { color?: string; pe
         'text-anchor': anchor,
         fill: color,
       },
-      tspans(l, i),
-    )
-  return lines.map(text)
+      tspans(line, lineIndex),
+    ),
+  )
 }
 
 /** 文字某一行的实际起点与宽度（打字遮挡、选中高亮用） */
