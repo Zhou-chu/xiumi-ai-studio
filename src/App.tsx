@@ -1,3 +1,4 @@
+import { ReplayHost } from './editor/ReplayPreview'
 import { DndContext, DragOverlay, MeasuringStrategy, PointerSensor, closestCenter, pointerWithin, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { useEffect, useState } from 'react'
 import { blockMeta, createBlock } from './core/blocks'
@@ -247,6 +248,7 @@ export default function App() {
     >
       <div className={`app ${dragLabel !== null ? 'dragging' : ''}`}>
         <Toolbar />
+        <ReplayHost />
         <Workspace>
           <LeftPanel />
           {ready ? <Canvas /> : <div className="canvas-scroll loading">加载中…</div>}

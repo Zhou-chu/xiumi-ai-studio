@@ -1,0 +1,22 @@
+import { expect, test } from '@playwright/test'
+
+test('adds an editorial replay, scrubs it, and recovers it after reload', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('lib-replay').click()
+  const open = page.getByTestId('replay-open')
+  await expect(open).toHaveCount(1)
+  await open.click()
+  const dialog = page.getByRole('dialog', { name: '预览编辑回放' })
+  await expect(dialog.getByTestId('replay-stage').locator('svg').first()).toBeVisible()
+  const rail = dialog.getByTestId('replay-seek')
+  await rail.focus()
+  await rail.press('End')
+  expect(Number(await rail.inputValue())).toBeGreaterThan(0)
+  await dialog.getByTestId('replay-toggle').click()
+  await expect(dialog.getByTestId('replay-toggle')).toContainText('暂停')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
+  await page.reload()
+  await expect(open).toHaveCount(1)
+})

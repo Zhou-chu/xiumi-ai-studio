@@ -9,7 +9,7 @@ import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
 import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
-import { compileForWechat, copyRichText, download, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
+import { assertReplayCanPublish, compileForWechat, copyRichText, download, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
 const ImportWizard = lazy(() => import('./ImportWizard').then((m) => ({ default: m.ImportWizard })))
@@ -164,6 +164,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const copy = async () => {
     setBusy('准备中…')
     try {
+      assertReplayCanPublish(doc)
       const compiled = compileForWechat(doc, mode, setBusy).then((r) => (setReport(r), r.html))
       const how = await copyRichText(compiled)
       notify(`已复制（${how === 'clipboard-api' ? '富文本' : '兼容模式'}），到公众号后台编辑器中 Ctrl+V 粘贴`)

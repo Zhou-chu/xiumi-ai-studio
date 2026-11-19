@@ -1,3 +1,4 @@
+import { defaultReplay, normalizeReplay } from './replay/schema'
 import { nanoid } from 'nanoid'
 import { textToRich } from './richtext'
 import type { Block, BlockPropsMap, BlockType } from './types'
@@ -6,13 +7,14 @@ export interface BlockMeta<T extends BlockType = BlockType> {
   type: T
   label: string
   icon: string
-  group: '结构' | '文字' | '图片' | '信息' | '套件'
+  group: '结构' | '文字' | '图片' | '信息' | '套件' | '动效'
   defaults: () => BlockPropsMap[T]
 }
 
 const emptyPics = (n: number) => Array.from({ length: n }, () => ({ caption: '' }))
 
 const META: { [K in BlockType]: BlockMeta<K> } = {
+  replay: { type: 'replay', label: '编辑回放', icon: '▶', group: '动效', defaults: defaultReplay },
   cover: {
     type: 'cover', label: '封面', icon: '▣', group: '结构',
     defaults: () => ({ titleAlign: 'auto', kicker: 'EVENT · 活动回顾', title: '在这里输入推文标题', subtitle: '一句话副标题，说明这篇推文讲了什么', meta: '2026 年 10 月', variant: 'auto' }),
@@ -176,6 +178,7 @@ function imageRef(v: any) {
  * partial=true 时只返回传入的字段（用于 update）。
  */
 export function coerceProps<T extends BlockType>(type: T, raw: unknown, partial = false): Partial<BlockPropsMap[T]> {
+  if (type === 'replay') return (partial && !(raw && typeof raw === 'object') ? {} : normalizeReplay(raw)) as Partial<BlockPropsMap[T]>
   const defaults = META[type].defaults() as Record<string, any>
   const src = raw && typeof raw === 'object' ? (raw as Record<string, any>) : {}
   const out: Record<string, any> = partial ? {} : { ...defaults }
@@ -205,7 +208,7 @@ export function coerceProps<T extends BlockType>(type: T, raw: unknown, partial 
     else if (k === 'count') out[k] = Math.min(4, Math.max(2, Math.round(finiteNumber(v) ?? 0) || 2))
     else if (k === 'pics') out[k] = Array.isArray(v) ? v.slice(0, 30).map((x) => ({ ...(imageRef(x?.image) && { image: imageRef(x.image) }), caption: str(x?.caption) })) : d
     // 文本框不能嵌套：子模块里的文本框直接丢弃
-    else if (k === 'children') out[k] = normalizeBlocks(v).filter((c) => c.type !== 'box')
+    else if (k === 'children') out[k] = normalizeBlocks(v).filter((c) => c.type !== 'box' && c.type !== 'replay')
     else if (typeof d === 'string') out[k] = str(v)
     else out[k] = d
   }

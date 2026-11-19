@@ -1,3 +1,6 @@
+import type { ImageRef } from './imageRef'
+export type { ImageRef } from './imageRef'
+import type { ReplayDoc } from './replay/types'
 // 文档模型：编辑器、AI、编译器共享的唯一事实来源。
 
 /** ProseMirror / tiptap JSON 节点（富文本字段） */
@@ -10,15 +13,6 @@ export interface RichNode {
 }
 export type RichText = RichNode // { type: 'doc', content: [...] }
 
-export interface ImageRef {
-  src: string
-  /** Display width as a percentage of the existing image cell. */
-  displayWidth?: number
-  assetId?: string
-  alt?: string
-  width?: number
-  height?: number
-}
 
 export type BlockType =
   | 'cover'
@@ -39,6 +33,7 @@ export type BlockType =
   | 'carousel'
   | 'frame'
   | 'photos'
+  | 'replay'
 
 /** 套件图片模块的一个图片位：图片可以为空（导出时跳过），图注可以留空 */
 export interface PicItem {
@@ -47,6 +42,7 @@ export interface PicItem {
 }
 
 export interface BlockPropsMap {
+  replay: ReplayDoc
   cover: { titleAlign?: 'auto' | 'left' | 'center' | 'right'; kicker: string; title: string; subtitle: string; meta: string; image?: ImageRef; variant: 'auto' | 'hero' | 'band' | 'minimal' }
   heading: { index: string; title: string; subtitle: string; variant: 'auto' | 'number' | 'bar' | 'pill' | 'underline' }
   paragraph: { content: RichText; align: 'left' | 'justify' | 'center' | 'right' }

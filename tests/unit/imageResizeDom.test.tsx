@@ -33,7 +33,7 @@ it('ignores foreign pointers, right click and zero-sized parent; no-op drag adds
  parentWidth=0;await pointer('pointerdown',0);parentWidth=400;await pointer('pointerdown',0);await pointer('pointermove',90,2);await pointer('pointerup',90,2);expect(img.style.width).toBe('');await pointer('pointerup',0);expect(useStore.getState().past).toHaveLength(0)
 })
 it('keyboard bounds, shift acceleration and direction keys commit only image width',async()=>{
- await pick();await key('ArrowRight');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('51%');await tick();await key('ArrowUp',true);expect((useStore.getState().doc.blocks[0].props as any).html).toContain('60%');await tick();await key('ArrowLeft');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('49%');await tick();await key('ArrowDown',true);expect((useStore.getState().doc.blocks[0].props as any).html).toContain('40%');await tick();await key('Home');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('10%');await tick();await key('End');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('100%');const doc=useStore.getState().doc;await key('x');expect(useStore.getState().doc).toBe(doc)
+ await pick();await key('ArrowRight');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('51%');await tick();await key('ArrowUp',true);expect((useStore.getState().doc.blocks[0].props as any).html).toContain('61%');await tick();await key('ArrowLeft');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('60%');await tick();await key('ArrowDown',true);expect((useStore.getState().doc.blocks[0].props as any).html).toContain('50%');await tick();await key('Home');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('10%');await tick();await key('End');expect((useStore.getState().doc.blocks[0].props as any).html).toContain('100%');const doc=useStore.getState().doc;await key('x');expect(useStore.getState().doc).toBe(doc)
 })
 it('selection/editing/offscreen states hide controls and cancel temporary drag styling',async()=>{
  await pick();await pointer('pointerdown');await pointer('pointermove',50);await act(async()=>useStore.setState({editingId:block.id}));await tick();expect(host.querySelector('button')).toBeNull();expect(img.style.width).toBe('');await act(async()=>useStore.setState({editingId:null}));await tick();rect={...rect,top:600,bottom:700} as DOMRect;await tick();expect(host.querySelector('button')).toBeNull();rect={...rect,top:20,bottom:120} as DOMRect;await tick();await act(async()=>host.querySelector('.image-resize-overlay')!.dispatchEvent(new MouseEvent('click',{bubbles:true})));expect(host.querySelector('button')).toBeTruthy();await act(async()=>document.body.click());expect(host.querySelector('button')).toBeNull()
@@ -43,4 +43,11 @@ it('a simultaneous block edit invalidates drag commit and leaves newer draft int
 })
 it('removed DOM target or changed document cannot be resized by stale events',async()=>{
  await pick();img.remove();await pointer('pointerdown');await tick();expect(host.querySelector('button')).toBeNull()
+})
+
+it('accumulates keyboard changes before layout updates without reusing another document width',async()=>{
+ await pick();await key('ArrowRight');await key('ArrowRight')
+ expect((useStore.getState().doc.blocks[0].props as any).html).toContain('52%')
+ await act(async()=>useStore.setState({doc:{...useStore.getState().doc,blocks:[block]}}));await tick();await key('ArrowRight')
+ expect((useStore.getState().doc.blocks[0].props as any).html).toContain('51%')
 })

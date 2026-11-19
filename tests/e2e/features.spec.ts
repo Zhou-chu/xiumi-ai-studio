@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { diagnosePhotoDrag } from './photoDragDiagnostic'
 
 const MOCK_PORT = 5298
 const PRIMARY = ['#7a1f2b', '#1d4e5f', '#3f3a8c']
@@ -146,7 +147,7 @@ test('粘贴公众号推文，保留原样式导入并保存为模板', async ({
   await expect(page.getByTestId('canvas')).toContainText('社团招新季')
 })
 
-test('AI 写文案、按标准名称套用模板模块并安排照片，再按槽位改字', async ({ page }) => {
+test('AI 写文案、按标准名称套用模板模块并安排照片，再按槽位改字', async ({ page }, testInfo) => {
   page.on('dialog', (d) => d.accept())
   await page.goto('/')
   await page.getByRole('button', { name: '模板', exact: true }).click()
@@ -240,7 +241,9 @@ test('AI 写文案、按标准名称套用模板模块并安排照片，再按�
   const before = await first()
   expect(new Set(before).size).toBe(3)
   // 相邻的大图拖动时页面可能滚动，落点不一定是第二张：只要求恰好有两张互换了位置
-  await photos.nth(0).dragTo(photos.nth(1))
+  const diagnostic = process.env.XIUMI_PHOTO_DRAG_DIAGNOSTIC
+  if (diagnostic === 'observe' || diagnostic === 'native') await diagnosePhotoDrag(page, photos, testInfo, diagnostic)
+  else await photos.nth(0).dragTo(photos.nth(1))
   await expect(page.locator('.toast')).toContainText('已交换两张照片')
   const after = await first()
   expect([...after].sort()).toEqual([...before].sort())

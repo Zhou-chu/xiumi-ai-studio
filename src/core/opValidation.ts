@@ -16,7 +16,7 @@ function position(value: unknown, fallback: number): number | undefined {
 function validateInsert(doc: Doc, op: Candidate): Validation {
   const type = op.block?.type
   if (typeof type !== 'string') return { error: '模块类型必须是字符串' }
-  if (!isBlockType(type) || type === 'html') return { error: `不支持插入模块类型 ${type}` }
+  if (!isBlockType(type) || type === 'html' || type === 'replay') return { error: `不支持插入模块类型 ${type}` }
   const parsed = position(op.index, doc.blocks.length)
   if (parsed === undefined) return { error: '插入位置必须是有限数字' }
   const block = createBlock(type, coerceProps(type, op.block.props) as any)
@@ -41,6 +41,7 @@ function validateNativeUpdate(b: Exclude<Block, Block<'html'>>, op: Candidate): 
 function validateUpdate(doc: Doc, op: Candidate): Validation {
   const block = findBlock(doc.blocks, op.id)?.block
   if (!block) return { error: `找不到模块 ${op.id}` }
+  if (block.type === 'replay') return { error: '编辑回放模块不支持 AI 修改' }
   return block.type === 'html' ? validateHtmlUpdate(block, op) : validateNativeUpdate(block, op)
 }
 
