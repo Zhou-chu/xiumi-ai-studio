@@ -4,19 +4,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Server } from 'node:http'
 import { test as base } from '@playwright/test'
+import { exercisePortable } from './portable'
 
 export { expect } from '@playwright/test'
 
 const isolatedEnv = ['DATA_DIR', 'NODE_ENV', 'AI_API_KEY', 'WECHAT_APPID', 'WECHAT_APPSECRET'] as const
 
-export const test = base.extend<object, { origin: string }>({
-  origin: [async ({ browserName }, provide) => {
+export const test = base.extend<object, { origin: string; smoke: { origin: string; distPath: string } }>({
+  smoke: [async ({ browserName }, provide) => {
     if (browserName !== 'chromium') throw new Error('Release smoke requires Chromium')
-    await access('dist/index.html')
     const data = await mkdtemp(join(tmpdir(), 'xiumi-release-smoke-'))
     const previous = new Map(isolatedEnv.map(key => [key, process.env[key]]))
     let server: Server | undefined
     try {
+      if (process.env.XIUMI_PORTABLE_ROOT) {
+        await exercisePortable(process.env.XIUMI_PORTABLE_ROOT, data, (origin, distPath) => provide({ origin, distPath }))
+        return
+      }
+      await access('dist/index.html')
       process.env.DATA_DIR = data
       process.env.NODE_ENV = 'production'
       delete process.env.AI_API_KEY
@@ -28,7 +33,7 @@ export const test = base.extend<object, { origin: string }>({
       await once(server, 'listening')
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('Missing smoke server address')
-      await provide(`http://127.0.0.1:${address.port}`)
+      await provide({ origin: `http://127.0.0.1:${address.port}`, distPath: 'dist/index.html' })
     } finally {
       try {
         if (server?.listening) {
@@ -46,6 +51,7 @@ export const test = base.extend<object, { origin: string }>({
       }
     }
   }, { scope: 'worker' }],
+  origin: [async ({ smoke }, provide) => provide(smoke.origin), { scope: 'worker' }],
   context: async ({ context, origin }, provide) => {
     await context.route('**/*', route => new URL(route.request().url()).origin === origin
       ? route.continue()

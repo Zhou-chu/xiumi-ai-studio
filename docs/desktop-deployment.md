@@ -81,3 +81,15 @@ review; never delete the production data directory.
 Windows deployment/install/rollback and full E2E must be executed on the final
 combined commit before calling this deployment operational. These files alone
 do not indicate that the scheduled task is installed or that a service is live.
+
+## 独立的 Windows x64 便携验证
+
+`Windows portable package` 另行构建并验证 **实际的 Windows 可执行程序**，不是
+源代码目录中的浏览器冒烟；它不安装到现有台式机，也不会发布 GitHub Release。
+仅当验证通过才上传 ZIP、SHA-256 和包含源提交/树标识的回执。
+
+在 Windows x64 runner 上，该工作流从 Node.js 官方发布中提取并校验固定版本运行时，
+从冻结锁文件独立安装生产依赖，构建一个只负责运行相邻应用的本机 EXE，并将它们
+和前端、示例打包到同一个 ZIP。测试核对归档和两个 EXE 的摘要，从仓库外的解压目录
+启动便携程序，使用临时数据与本地浏览器验证编辑、保存、重新加载、导出以及 Sharp
+图片处理。该验证不是代码签名、安装器验证、真机安装或自动更新的证明。

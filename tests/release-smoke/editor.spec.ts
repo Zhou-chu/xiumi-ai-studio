@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { expect, test } from './fixture'
 
-test('built editor saves title and paragraph edits, reopens them, and exports the new content', async ({ page, origin }) => {
+test('built editor saves title and paragraph edits, reopens them, and exports the new content', async ({ page, origin, smoke }) => {
   const id = 'release-smoke'
   const timestamp = Date.now()
   const source = '发布检查的原始正文'
@@ -23,7 +24,7 @@ test('built editor saves title and paragraph edits, reopens them, and exports th
     && response.request().resourceType() === 'script')
   const document = await page.goto(origin)
   expect(document?.ok()).toBe(true)
-  expect(await document?.text()).toBe(await readFile('dist/index.html', 'utf8'))
+  expect(await document?.text()).toBe(await readFile(smoke.distPath, 'utf8'))
   expect((await scriptResponse).ok()).toBe(true)
 
   const title = page.getByLabel('文章标题', { exact: true })
@@ -70,4 +71,18 @@ test('built editor saves title and paragraph edits, reopens them, and exports th
   expect(html).toContain(`<title>${editedTitle}</title>`)
   expect(html).toContain(editedBody)
   expect(html).not.toContain(source)
+})
+
+test('the release app decodes and serves an image through Sharp', async ({ page, origin, smoke }) => {
+  const image = await readFile(join(dirname(smoke.distPath), '..', 'samples', 'photo-01.jpg'))
+  const added = await page.request.post(`${origin}/api/assets`, { multipart: {
+    files: { name: 'portable-image.jpg', mimeType: 'image/jpeg', buffer: image },
+  } })
+  expect(added.ok()).toBe(true)
+  const [asset] = await added.json()
+  expect(asset.width).toBeGreaterThan(0)
+  expect(asset.height).toBeGreaterThan(0)
+  const served = await page.request.get(`${origin}/media/${asset.file}`)
+  expect(served.ok()).toBe(true)
+  expect(served.headers()['content-type']).toMatch(/^image\//)
 })

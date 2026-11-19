@@ -26,7 +26,7 @@ export function PhonePreview({ html, title, onClose }: { html: string; title: st
   )
 }
 
-function VersionsModal({ onClose }: { onClose: () => void }) {
+export function VersionsModal({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const { commit, notify } = useStore.getState()
   const active = useRef(true)
