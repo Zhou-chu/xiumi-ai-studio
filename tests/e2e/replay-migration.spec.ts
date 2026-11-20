@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 test('adds an editorial replay, scrubs it, and recovers it after reload', async ({ page }) => {
   await page.goto('/')
@@ -30,4 +31,41 @@ test('adds an editorial replay, scrubs it, and recovers it after reload', async 
   await expect(page.getByTestId('save-status')).toHaveText('已保存')
   await page.reload()
   await expect(open).toHaveCount(1)
+})
+
+test('offers a local animated HTML download without unverified platform actions', async ({ page }) => {
+  let publicationRequests = 0
+  await page.route('**/api/wechat/status', route => route.fulfill({ json: { configured: true, appid: 'fixture' } }))
+  await page.route(/\/api\/wechat\/(?:upload-images|draft)$/, route => {
+    publicationRequests++
+    return route.abort()
+  })
+  await page.goto('/')
+  await page.getByTestId('tab-projects').click()
+  await page.getByRole('button', { name: '新建空白项目' }).click()
+  const openExport = page.getByTestId('open-export')
+  await openExport.click()
+  const dialog = page.getByRole('dialog', { name: '导出与发布' })
+  const draft = dialog.getByRole('button', { name: '推送到草稿箱…' })
+  await expect(draft).toBeEnabled()
+  await expect(dialog.getByTestId('copy-wechat')).toBeEnabled()
+  await expect(dialog.getByTestId('xiumi-package')).toBeEnabled()
+  await page.keyboard.press('Escape')
+  await page.getByTestId('tab-blocks').click()
+  await page.getByTestId('lib-replay').click()
+  await openExport.click()
+  await expect(dialog.getByRole('status')).toContainText('公众号与秀米导出尚未验证')
+  await expect(draft).toBeDisabled()
+  await expect(dialog.getByTestId('copy-wechat')).toBeDisabled()
+  await expect(dialog.getByTestId('xiumi-package')).toBeDisabled()
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: '本地 HTML（保留回放）' }).click(),
+  ])
+  expect(download.suggestedFilename()).toMatch(/\.html$/)
+  const html = await readFile((await download.path())!, 'utf8')
+  expect(html).toContain('把写作过程做成回放')
+  expect(html).toContain('<svg')
+  expect(html).toContain('<animate')
+  expect(publicationRequests).toBe(0)
 })

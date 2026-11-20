@@ -30,7 +30,7 @@ jobs:
         with:
           version: 11.23.0
       - run: pnpm install --frozen-lockfile
-      - run: node --test tests/deployment/portable-bundle.test.mjs
+      - run: node --test tests/deployment/portable-bundle.test.mjs tests/deployment/project-backup-restore.test.mjs
       - run: pnpm build
       - name: Build and seal actual Windows EXE and ZIP
         shell: pwsh

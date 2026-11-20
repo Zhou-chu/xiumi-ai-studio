@@ -22,12 +22,13 @@ describe('migrated editorial replay', () => {
 })
 
 it('does not offer unverified platform publishing for replay articles', async () => {
-  const { assertReplayCanPublish, compileForWechat, xiumiPackage } = await import('../../src/editor/wechatOutput')
+  const { assertReplayCanPublish, compileForWechat, xiumiPackage, xiumiUploaded } = await import('../../src/editor/wechatOutput')
   const doc: Doc = { id: 'ordinary', title: '普通文章', blocks: [], themeId: 'modern', author: '', digest: '', createdAt: 0, updatedAt: 0 }
   expect(() => assertReplayCanPublish(doc)).not.toThrow()
   const replay = { ...doc, blocks: normalizeBlocks([{ id: 'replay-one', type: 'replay', props: defaultReplay() }]) }
   await expect(compileForWechat(replay, 'wechat')).rejects.toThrow('暂只支持本地 HTML')
   await expect(xiumiPackage(replay)).rejects.toThrow('暂只支持本地 HTML')
+  await expect(xiumiUploaded(replay)).rejects.toThrow('暂只支持本地 HTML')
 })
 
 

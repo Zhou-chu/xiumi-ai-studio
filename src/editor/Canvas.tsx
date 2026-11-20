@@ -409,6 +409,7 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
       {...attributes}
       role="group"
       aria-label={`模块：${blockLabel(block)}（${block.id}）${selected ? '，已选中' : ''}`}
+      aria-keyshortcuts="Enter Space Control+Enter Control+Space Meta+Enter Meta+Space"
       tabIndex={0}
       onKeyDown={e => {
         if (e.target !== e.currentTarget || e.altKey || (e.key !== 'Enter' && e.key !== ' ')) return

@@ -4,4 +4,4 @@
 
 回放作为顶层模块；不进入大型文本框。素材只接受当前管理的本地图片。回放的插入和属性编辑使用人工编辑路径，不开放给 AI 结构化操作。
 
-验证：`pnpm exec vitest run tests/unit/replayMigration.test.ts tests/unit/historyActionAlignment.test.tsx`，现有类型、架构及构建门禁，浏览器验收 `pnpm e2e tests/e2e/replay-migration.spec.ts`。浏览器用独立数据目录，不接触用户项目或第三方服务。
+验证：`pnpm exec vitest run tests/unit/replayMigration.test.ts tests/unit/historyActionAlignment.test.tsx`，现有类型、架构及构建门禁，浏览器验收 `pnpm e2e tests/e2e/replay-migration.spec.ts`。浏览器用独立数据目录，不接触用户项目或第三方服务。支持范围见 [兼容性](COMPAT.md)。

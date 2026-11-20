@@ -39,6 +39,9 @@ try {
   foreach ($entry in @('package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'dist', 'samples')) {
     Copy-Item -LiteralPath (Join-Path $repo $entry) -Destination $app -Recurse
   }
+  $appScripts = Join-Path $app 'scripts'
+  $null = New-Item -ItemType Directory -Path $appScripts
+  Copy-Item -LiteralPath (Join-Path $repo 'scripts/restore-project-backup.mjs') -Destination $appScripts
   Copy-Item -LiteralPath (Join-Path $repo 'THIRD_PARTY_NOTICES.md') -Destination $layout
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.txt') -Destination $layout
 

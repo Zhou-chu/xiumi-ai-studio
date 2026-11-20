@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { readFile, realpath } from 'node:fs/promises'
 import { createServer } from 'node:net'
-import { join, sep } from 'node:path'
+import { tmpdir } from 'node:os'
+import { join, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline'
 import process from 'node:process'
 
@@ -20,7 +21,12 @@ async function sha256(file: string) {
   return createHash('sha256').update(await readFile(file)).digest('hex')
 }
 
-export async function exercisePortable(root: string, data: string, provide: (origin: string, distPath: string) => Promise<void>) {
+export async function exercisePortable(
+  root: string,
+  data: string | undefined,
+  provide: (origin: string, distPath: string) => Promise<void>,
+  launchCwd = data ?? tmpdir(),
+) {
   if (process.platform !== 'win32') throw new Error('Windows portable smoke cannot substitute a non-Windows runner')
   const checkout = (await realpath(process.cwd())).toLowerCase()
   const unpacked = await realpath(root)
@@ -39,11 +45,12 @@ export async function exercisePortable(root: string, data: string, provide: (ori
 
   const port = await freePort()
   const origin = `http://127.0.0.1:${port}`
-  const env = { ...process.env, API_PORT: String(port), DATA_DIR: data }
+  const env: NodeJS.ProcessEnv = { ...process.env, API_PORT: String(port) }
   for (const key of Object.keys(env)) {
-    if (/^(?:AI_|WECHAT_|NODE_(?:PATH|OPTIONS)$)/i.test(key)) delete (env as NodeJS.ProcessEnv)[key]
+    if (/^(?:AI_|WECHAT_|NODE_(?:PATH|OPTIONS)$|DATA_DIR$)/i.test(key)) delete env[key]
   }
-  const child = spawn(executable, [], { cwd: data, env, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+  if (data !== undefined) env.DATA_DIR = resolve(data)
+  const child = spawn(executable, [], { cwd: launchCwd, env, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
   try {
     await new Promise<void>((done, reject) => {
       const lines = createInterface({ input: child.stdout })

@@ -6,10 +6,14 @@ import { asciiHtml, makeZip, replaceLocalImages, checkedXiumiParts } from '../co
 import type { Doc } from '../core/types'
 import { api } from './api'
 
+export const REPLAY_LOCAL_ONLY = '编辑回放暂只支持本地 HTML，请下载保留回放的 HTML 文件；公众号与秀米导出尚未验证。'
+
+export function hasReplay(doc: Doc): boolean {
+  return doc.blocks.some(block => block.type === 'replay')
+}
+
 export function assertReplayCanPublish(doc: Doc): void {
-  if (doc.blocks.some(block => block.type === 'replay')) {
-    throw new Error('编辑回放暂只支持本地 HTML，请下载 HTML 文件；公众号与秀米导出尚未验证。')
-  }
+  if (hasReplay(doc)) throw new Error(REPLAY_LOCAL_ONLY)
 }
 
 export type ImageMode = 'embed' | 'wechat' | 'absolute'
