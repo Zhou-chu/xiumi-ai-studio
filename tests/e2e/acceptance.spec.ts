@@ -9,9 +9,81 @@ async function waitSaved(page: Page) {
   await expect(page.getByTestId('save-status')).toHaveText('已保存', { timeout: 10_000 })
 }
 
-async function waitImages(page: Page) {
-  await page.waitForFunction(() => [...document.querySelectorAll('[data-testid=canvas] img')].every((i) => (i as HTMLImageElement).complete))
+const canvasImages = '[data-testid=canvas] img'
+
+async function waitImages(page: Page, transientFailures: Set<string>) {
+  const images = page.locator(canvasImages)
+  await expect(images.first()).toBeAttached()
+  await page.waitForFunction(selector => [...document.querySelectorAll<HTMLImageElement>(selector)].every(i => i.complete), canvasImages, { timeout: 10_000 })
+  const { broken, retried } = await images.evaluateAll(async (elements, failed) => {
+    const retried = new Set<string>()
+    const hasPixels = async (image: HTMLImageElement) => {
+      try {
+        await image.decode()
+        return image.naturalWidth > 0 && image.naturalHeight > 0
+      } catch {
+        return false
+      }
+    }
+    const bad = await Promise.all((elements as HTMLImageElement[]).map(async image => {
+      if (await hasPixels(image)) return null
+      const source = image.currentSrc || image.src
+      const url = new URL(source, location.href)
+      // A broken image is also "complete". Retry only the observed loopback
+      // socket fault, never a 404, invalid body or ordinary decode failure.
+      if (url.origin === location.origin && url.pathname.startsWith('/media/')
+        && !url.searchParams.has('e2e-image-retry') && failed.includes(url.href)) {
+        retried.add(url.href)
+        url.searchParams.set('e2e-image-retry', '1')
+        image.src = url.href
+        if (await hasPixels(image)) return null
+      }
+      return source
+    }))
+    return { broken: bad.filter(src => src !== null), retried: [...retried] }
+  }, [...transientFailures])
+  for (const url of retried) {
+    transientFailures.delete(url)
+    console.warn('Retried a canvas image after a transient runner socket error:', url)
+  }
+  expect(broken, 'Canvas images failed to decode').toEqual([])
 }
+
+test('canvas readiness retries only the observed transient media failure and requires real pixels', async ({ page }) => {
+  const path = '/media/snapshot-image-fixture.jpg'
+  const attempts = new Map<string, number>()
+  await page.route(/\/media\/snapshot-image-fixture\.jpg(?:\?|$)/, route => {
+    const url = new URL(route.request().url())
+    const scenario = url.searchParams.get('scenario')!
+    attempts.set(scenario, (attempts.get(scenario) ?? 0) + 1)
+    if (scenario === 'missing') return route.fulfill({ status: 404, body: 'not found' })
+    if (scenario === 'corrupt') return route.fulfill({ contentType: 'image/jpeg', body: 'no image pixels' })
+    if (scenario === 'persistent') return route.abort()
+    // Chromium cannot deterministically exhaust Windows sockets on demand. Abort the
+    // actual request and inject the observation the runner made for ERR_NO_BUFFER_SPACE.
+    return attempts.get(scenario) === 1
+      ? route.abort()
+      : route.fulfill({ contentType: 'image/jpeg', body: readFileSync('samples/photo-01.jpg') })
+  })
+  await page.route(/\/snapshot-image-fixture\/(?:recoverable|missing|corrupt|persistent)$/, route => {
+    const scenario = new URL(route.request().url()).pathname.split('/').at(-1)
+    return route.fulfill({ contentType: 'text/html', body: `<main data-testid="canvas"><img src="${path}?scenario=${scenario}"></main>` })
+  })
+  await page.goto('/snapshot-image-fixture/recoverable')
+  const before = new URL(`${path}?scenario=recoverable`, page.url()).href
+  await waitImages(page, new Set([before]))
+  expect(await page.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+  expect(attempts.get('recoverable')).toBe(2)
+  for (const scenario of ['missing', 'corrupt']) {
+    await page.goto(`/snapshot-image-fixture/${scenario}`)
+    await expect(waitImages(page, new Set())).rejects.toThrow('Canvas images failed to decode')
+    expect(attempts.get(scenario)).toBe(1)
+  }
+  await page.goto('/snapshot-image-fixture/persistent')
+  const persistent = new URL(`${path}?scenario=persistent`, page.url()).href
+  await expect(waitImages(page, new Set([persistent]))).rejects.toThrow('Canvas images failed to decode')
+  expect(attempts.get('persistent')).toBe(2)
+})
 
 async function importSample(page: Page) {
   await page.goto('/')
@@ -23,6 +95,12 @@ async function importSample(page: Page) {
 }
 
 test('三种排版结构不同，且都使用了全部 10 张图', async ({ page }) => {
+  const transientFailures = new Set<string>()
+  page.on('requestfailed', request => {
+    if (request.resourceType() === 'image' && request.failure()?.errorText === 'net::ERR_NO_BUFFER_SPACE') {
+      transientFailures.add(request.url())
+    }
+  })
   await importSample(page)
   const signatures: string[] = []
   for (const id of ['narrative', 'cards', 'photo']) {
@@ -40,10 +118,10 @@ test('三种排版结构不同，且都使用了全部 10 张图', async ({ page
     await page.getByTestId(`choose-${id}`).click()
     await waitSaved(page)
     signatures.push((await blockTypes(page)).join(','))
-    await waitImages(page)
     // 视觉回归：展开滚动容器、隐藏面板与提示，画布完整渲染后与基线比较（首次运行生成基线）
     const printCss = await page.addStyleTag({ content: '.app{height:auto}.workspace{display:block}.panel,.toast,.toolbar{display:none!important}.canvas-scroll{overflow:visible}' })
     await page.mouse.move(0, 0)
+    await waitImages(page, transientFailures)
     await expect(page.getByTestId('canvas')).toHaveScreenshot(`layout-${id}.png`, { animations: 'disabled' })
     await printCss.evaluate((el) => (el as HTMLElement).remove())
   }
