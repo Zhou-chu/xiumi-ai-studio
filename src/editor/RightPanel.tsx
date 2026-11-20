@@ -2,7 +2,7 @@ import { blockLabel } from '../core/blocks'
 import { flatBlocks } from '../core/tree'
 import { summarize } from '../core/operationDescriptions'
 import './right-panel-properties.css'
-import { selectionIdentity, useSelectionScope } from './useSelectionScope'
+import { useSelectionLifetime, useSelectionScope } from './useSelectionScope'
 import { ArticleImageImport } from './ArticleImageImport'
 import { isImageLibraryRequest } from '../core/articleImages'
 import { UiIcon } from './UiIcon'
@@ -149,14 +149,25 @@ function ThemePanel() {
 function AiPanel() {
   const selected = useStore(selectedBlock)
   const selectedIds = useStore(s => s.selectedIds)
-  const selectionKey = selectionIdentity(selectedIds)
   const doc = useStore((s) => s.doc)
   const proposal = useStore((s) => s.proposal)
-  const { scope, setScope } = useSelectionScope(doc.id, selectedIds)
+  const { epoch, owns } = useSelectionLifetime()
+  const { scope, setScope } = useSelectionScope(doc.id, selectedIds, epoch)
   const { propose, notify } = useStore.getState()
   const [ai, setAi] = useState<AiStatus | null>(null)
   const [instruction, setInstruction] = useState('')
   const [collectImages, setCollectImages] = useState(false)
+  const collectionOpen = useRef(false)
+  const suggestionController = useRef<AbortController | null>(null)
+  const openCollection = () => {
+    collectionOpen.current = true
+    suggestionController.current?.abort()
+    setCollectImages(true)
+  }
+  const closeCollection = () => {
+    collectionOpen.current = false
+    setCollectImages(false)
+  }
   const imageCommand = isImageLibraryRequest(instruction)
   const [busy, setBusy] = useState(false)
   const [autoSuggest, setAutoSuggest] = useState(readSuggestionPreference)
@@ -166,15 +177,25 @@ function AiPanel() {
   const context = useMemo(() => aiContext(doc, selectedId), [doc, selectedId])
   const contextKey = JSON.stringify([doc.id, context, selectedId, ai?.profileId, ai?.model, ai?.provider, instructionSuggestions.revision])
   useEffect(() => {
-    if (!autoSuggest || !ai?.enabled || instruction || busy || !context.blocks.length) return
+    if (collectImages || !autoSuggest || !ai?.enabled || instruction || busy || !context.blocks.length) return
     const controller = new AbortController()
+    suggestionController.current = controller
+    const active = () => !collectionOpen.current && owns(epoch) && !controller.signal.aborted
     const timer = setTimeout(() => {
-      instructionSuggestions.get(contextKey, () => api.aiSuggestInstruction(context, ai.profileId, selectedId, controller.signal), controller.signal)
-        .then((text) => { if (!controller.signal.aborted) setSuggestion({ key: contextKey, text, error: '' }) })
-        .catch(() => { if (!controller.signal.aborted) setSuggestion({ key: contextKey, text: '', error: '自动建议暂不可用，可以直接输入修改要求。' }) })
+      if (!active()) return
+      instructionSuggestions.get(contextKey, () => {
+        if (!active()) { controller.abort(); return Promise.resolve({ suggestion: '' }) }
+        return api.aiSuggestInstruction(context, ai.profileId, selectedId, controller.signal)
+      }, controller.signal)
+        .then((text) => { if (active()) setSuggestion({ key: contextKey, text, error: '' }) })
+        .catch(() => { if (active()) setSuggestion({ key: contextKey, text: '', error: '自动建议暂不可用，可以直接输入修改要求。' }) })
     }, 1500)
-    return () => { clearTimeout(timer); controller.abort() }
-  }, [autoSuggest, ai, instruction, busy, context, contextKey, selectedId])
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+      if (suggestionController.current === controller) suggestionController.current = null
+    }
+  }, [collectImages, autoSuggest, ai, instruction, busy, context, contextKey, selectedId, epoch, owns])
   useEffect(() => {
     const load = () => api.aiStatus().then(setAi).catch(() => setAi(null))
     void load()
@@ -192,23 +213,22 @@ function AiPanel() {
       setBusy(false)
       notify('选择范围已变化，旧请求结果将被忽略，请重新生成建议。', 'error')
     }
-  }, [doc.id, selectionKey, scope, notify])
+  }, [doc.id, epoch, scope, notify])
   const run = async () => {
-    if (!instruction.trim() || requesting.current) return
-    if (imageCommand) { setCollectImages(true); return }
+    if (!instruction.trim() || requesting.current || !owns(epoch)) return
+    if (imageCommand) { openCollection(); return }
     requesting.current = true
     const generation = ++request.current
     setBusy(true)
     try {
       const r = await api.aiEdit(aiContext(doc, selectedId), instruction, undefined, selectedId)
-      if (generation !== request.current) return
-      if (selectionIdentity(useStore.getState().selectedIds) !== selectionKey) throw new Error('选择范围已变化，请重新生成建议')
+      if (generation !== request.current || !owns(epoch)) return
       if (useStore.getState().doc !== doc) throw new Error('文档已在请求期间发生变化，请重新生成修改建议')
       propose(r.summary ?? 'AI 修改建议', Array.isArray(r.ops) ? r.ops : [], selectedId)
     } catch (e: any) {
-      if (generation === request.current) notify(e.message, 'error')
+      if (generation === request.current && owns(epoch)) notify(e.message, 'error')
     } finally {
-      if (generation === request.current) { requesting.current = false; setBusy(false) }
+      if (generation === request.current && owns(epoch)) { requesting.current = false; setBusy(false) }
     }
   }
   return (
@@ -230,8 +250,8 @@ function AiPanel() {
       <SuggestionInput value={instruction} onChange={setInstruction} disabled={busy} suggestion={autoSuggest && suggestion.key === contextKey ? suggestion.text : ''} />
       {autoSuggest && suggestion.key === contextKey && suggestion.error && <p className="hint" role="status">{suggestion.error}</p>}
       <button className="primary wide" data-testid={imageCommand ? 'ai-image-library-command' : undefined} disabled={(!ai?.enabled && !imageCommand) || busy} onClick={run}>{imageCommand ? '收集图片到素材库' : busy ? 'AI 思考中…' : '生成修改建议'}</button>
-      <button disabled={busy} onClick={() => setCollectImages(true)} data-testid="collect-article-images">收集当前范围图片到素材库</button>
-      {collectImages && <ArticleImageImport doc={doc} selectedId={selectedId} onClose={() => setCollectImages(false)} />}
+      <button disabled={busy} onClick={openCollection} data-testid="collect-article-images">收集当前范围图片到素材库</button>
+      {collectImages && <ArticleImageImport doc={doc} selectedId={selectedId} onClose={closeCollection} />}
       <h4>规则动作</h4>
       <div className="quick-grid">
         {QUICK_ACTIONS.map((a) => (
