@@ -20,6 +20,7 @@ test('downloads the current saved project and local assets without configuration
   await page.getByRole('button', { name: '项目和素材备份' }).click()
   const dialog = page.getByRole('dialog', { name: '项目和素材备份' })
   await expect(dialog).toContainText('不包含历史版本')
+  await expect(dialog).toContainText('缺少已引用的素材时，离线恢复会停止，不修改原数据目录')
   const gettingDownload = page.waitForEvent('download')
   await dialog.getByRole('button', { name: '下载 ZIP 备份' }).click()
   const download = await gettingDownload

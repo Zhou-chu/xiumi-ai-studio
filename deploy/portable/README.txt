@@ -20,6 +20,8 @@ Offline recovery of the project-and-indexed-images subset:
 2. From the extracted portable root, in PowerShell run:
    .\runtime\node.exe .\app\scripts\restore-project-backup.mjs "D:\data-copy" "D:\unpacked-backup" "D:\restored-data"
    The last directory must not exist. The inputs are never edited.
+   Each input and the merged output have separate limits of 128 MiB
+   and 2,000 files (project and asset records plus their metadata).
 3. After success, use the restored project-and-asset subset only with
    an explicit per-session override, for example:
    $env:DATA_DIR = 'D:\restored-data'
@@ -27,7 +29,10 @@ Offline recovery of the project-and-indexed-images subset:
    Close that shell to leave the default launch unchanged.
 
 On a same-ID project, the existing snapshot wins. A different same-ID
-image stops the operation. The output does not contain settings,
+image stops the operation. Before making a backup, confirm that all
+managed originals referenced by your projects are still in the asset
+library. A missing referenced image stops recovery before creating
+the output; neither input directory is changed. The output does not contain settings,
 credentials, history, templates, components, or custom theme files.
 Keep the original data directory unchanged. This is not automatic
 migration or in-app restore. Unindexed legacy resources are not

@@ -41,6 +41,7 @@ export default function ProjectBackupModal({ onClose }: { onClose: () => void })
   return <Modal title="项目和素材备份" onClose={close}>
     <p>将已保存的项目和本机素材下载为 ZIP。不包含历史版本、模板、组件、自定义主题或账户配置。</p>
     <p className="hint">仅下载到本机，不上传。此版本不支持从这里恢复或迁移备份。</p>
+    <p className="hint">备份前请确认项目引用的本机原图仍在素材库中。缺少已引用的素材时，离线恢复会停止，不修改原数据目录。</p>
     {error && <p role="alert" className="warn">{error}</p>}
     <div className="modal-actions">
       <button onClick={close}>关闭</button>

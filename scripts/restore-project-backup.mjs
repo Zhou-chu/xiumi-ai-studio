@@ -21,8 +21,8 @@ const within = (root, path) => {
   return !rel || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
 }
 
-function budgetReader() {
-  let remaining = maxBytes
+function budgetReader(limits) {
+  let remaining = limits.bytes
   let entries = 0
   return async (path, optional = false) => {
     const info = await lstat(path).catch((e) => {
@@ -30,7 +30,7 @@ function budgetReader() {
       throw e
     })
     if (!info) return null
-    if (!info.isFile() || ++entries > maxEntries || info.size > remaining) throw new Error('备份输入不是普通文件，或超出容量与数量限制。')
+    if (!info.isFile() || ++entries > limits.entries || info.size > remaining) throw new Error('备份输入不是普通文件，或超出容量与数量限制。')
     const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
     try {
       const actual = await file.stat()
@@ -119,7 +119,7 @@ function assertManagedReferences(docs, images) {
 }
 
 /** Restore to a fresh destination, leaving both input snapshots untouched. */
-export async function stageProjectRestore({ base, incoming, output }) {
+export async function stageProjectRestore({ base, incoming, output }, limits = { bytes: maxBytes, entries: maxEntries }) {
   const roots = await Promise.all([base, incoming].map(async (path) => {
     if (!(await lstat(path)).isDirectory()) throw new Error('输入必须是离线快照目录。')
     return realpath(path)
@@ -128,16 +128,21 @@ export async function stageProjectRestore({ base, incoming, output }) {
   if (roots.some((root) => within(root, target) || within(target, root))) throw new Error('输出目录必须与输入目录隔离。')
   const knownTarget = await lstat(target).catch((err) => { if (err.code === 'ENOENT') return null; throw err })
   if (knownTarget) throw new Error('输出目录已存在，请选择新目录。')
-  const read = budgetReader()
-  const manifest = JSON.parse(await read(join(roots[1], 'xiumi-backup.json')))
+  if (!Number.isSafeInteger(limits.bytes) || limits.bytes < 1 || limits.bytes > maxBytes ||
+    !Number.isSafeInteger(limits.entries) || limits.entries < 1 || limits.entries > maxEntries) {
+    throw new Error('恢复限制无效。')
+  }
+  const readCurrent = budgetReader(limits)
+  const readIncoming = budgetReader(limits)
+  const manifest = JSON.parse(await readIncoming(join(roots[1], 'xiumi-backup.json')))
   const legacy = record(manifest) && !Object.hasOwn(manifest, 'scope') && manifest.version === '0.2.0' &&
     typeof manifest.createdAt === 'string' && Number.isFinite(Date.parse(manifest.createdAt))
   if (manifest?.app !== 'xiumi-ai-studio' || (manifest.scope !== 'projects-and-assets' && !legacy)) {
     throw new Error('只支持已解包的项目和素材备份或 Xiumi v0.2.0 自有备份。')
   }
 
-  const current = await readSnapshot(roots[0], read)
-  const source = await readSnapshot(roots[1], read, true)
+  const current = await readSnapshot(roots[0], readCurrent)
+  const source = await readSnapshot(roots[1], readIncoming, true)
   assertManagedReferences(current.docs, current.images)
   assertManagedReferences(source.docs, source.images)
   let preserved = 0
@@ -151,17 +156,25 @@ export async function stageProjectRestore({ base, incoming, output }) {
     else if (old.meta.file !== item.meta.file || !old.image.equals(item.image)) throw new Error('素材冲突，未生成恢复目录。')
   }
 
+  // Both inputs are independently bounded; bound the deduplicated output before any writes.
+  // Pre-serialize exactly what will be written so JSON normalization counts toward that limit.
+  if (current.docs.size + current.images.size + 1 > limits.entries) throw new Error('恢复输出超出容量或数量限制。')
+  const projectRecords = [...current.docs.values()].map((doc) => [doc.id, JSON.stringify(doc)])
+  const assetIndex = JSON.stringify(Object.fromEntries([...current.images.values()].map(({ meta }) => [meta.id, meta])))
+  let outputBytes = Buffer.byteLength(assetIndex)
+  for (const [, project] of projectRecords) outputBytes += Buffer.byteLength(project)
+  for (const { image } of current.images.values()) outputBytes += image.length
+  if (outputBytes > limits.bytes) throw new Error('恢复输出超出容量或数量限制。')
+
   await mkdir(target)
   try {
     await mkdir(join(target, 'projects'))
     await mkdir(join(target, 'assets'))
-    for (const doc of current.docs.values()) await writeFile(join(target, 'projects', `${doc.id}.json`), JSON.stringify(doc), { flag: 'wx' })
-    const assetIndex = []
+    for (const [id, project] of projectRecords) await writeFile(join(target, 'projects', `${id}.json`), project, { flag: 'wx' })
     for (const { meta, image } of current.images.values()) {
       await writeFile(join(target, 'assets', meta.file), image, { flag: 'wx' })
-      assetIndex.push([meta.id, meta])
     }
-    await writeFile(join(target, 'assets', '_index.json'), JSON.stringify(Object.fromEntries(assetIndex)), { flag: 'wx' })
+    await writeFile(join(target, 'assets', '_index.json'), assetIndex, { flag: 'wx' })
   } catch (error) {
     throw new Error('输出生成失败。请勿使用未完成的新目录；两个输入未被修改。', { cause: error })
   }

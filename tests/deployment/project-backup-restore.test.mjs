@@ -87,3 +87,45 @@ test('takes only projects and indexed images from a manually unpacked upstream v
   await assert.rejects(readFile(join(output, 'settings.json')), { code: 'ENOENT' })
   await assert.rejects(readFile(join(output, 'templates', 'one.json')), { code: 'ENOENT' })
 })
+
+test('deduplicates two individually within-budget snapshots into one bounded output', async () => {
+  const options = await roots()
+  for (const dir of [options.base, options.incoming]) {
+    await json(join(dir, 'projects', 'kept.json'), draft('kept', 'Current version', 'photo'))
+    await asset(dir, 'photo', '#0000ff')
+  }
+  const result = await stageProjectRestore(options, { bytes: 1024 * 1024, entries: 4 })
+  assert.deepEqual(result, { projects: 1, assets: 1, preserved: 1 })
+  assert.deepEqual(
+    await readFile(join(options.output, 'assets', 'photo.png')),
+    await readFile(join(options.base, 'assets', 'photo.png')),
+  )
+})
+
+test('rejects a combined output that exceeds the stage budget before creating a directory', async () => {
+  const options = await roots()
+  await json(join(options.base, 'projects', 'kept.json'), draft('kept', 'Current version', 'local'))
+  await asset(options.base, 'local', '#ff0000')
+  await json(join(options.incoming, 'projects', 'new.json'), draft('new', 'From backup', 'photo'))
+  await asset(options.incoming, 'photo', '#0000ff')
+  await assert.rejects(stageProjectRestore(options, { bytes: 1024 * 1024, entries: 4 }), /输出.*超出/)
+  await assert.rejects(readFile(join(options.output, 'projects', 'kept.json')), { code: 'ENOENT' })
+})
+
+test('rejects a union whose actual bytes exceed the stage limit even when both inputs fit', async () => {
+  const { base, incoming, output } = await roots()
+  await json(join(base, 'projects', 'kept.json'), draft('kept', 'Current version', 'local'))
+  await asset(base, 'local', '#ff0000')
+  await json(join(incoming, 'projects', 'new.json'), draft('new', 'From backup', 'photo'))
+  await asset(incoming, 'photo', '#0000ff')
+  const sizes = async (root, files) => {
+    const data = await Promise.all(files.map(file => readFile(join(root, file))))
+    return data.reduce((sum, bytes) => sum + bytes.length, 0)
+  }
+  const bytes = Math.max(
+    await sizes(base, ['projects/kept.json', 'assets/local.png', 'assets/_index.json']),
+    await sizes(incoming, ['xiumi-backup.json', 'projects/new.json', 'assets/photo.png', 'assets/_index.json']),
+  )
+  await assert.rejects(stageProjectRestore({ base, incoming, output }, { bytes, entries: 10 }), /输出.*超出/)
+  await assert.rejects(readFile(join(output, 'assets', '_index.json')), { code: 'ENOENT' })
+})

@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot,type Root } from 'react-dom/client'
+import { Color, FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
+import { EditorState, TextSelection } from '@tiptap/pm/state'
+import StarterKit from '@tiptap/starter-kit'
 import { beforeEach,afterEach,it,expect,vi } from 'vitest'
 import type { Mock } from 'vitest'
 import { getTheme } from '../../src/core/themes'
@@ -16,7 +19,14 @@ beforeEach(()=>{(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;host=document.
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.restoreAllMocks()})
 it('handles unavailable editor and configured update/keyboard lifecycle',async()=>{h.editor=null;await render();expect(host.textContent).toBe('');expect(h.options.autofocus).toBe('end');expect(h.options.editorProps.handleKeyDown(null,new KeyboardEvent('keydown',{key:'Escape'}))).toBe(true);expect(done).toHaveBeenCalled();expect(h.options.editorProps.handleKeyDown(null,new KeyboardEvent('keydown',{key:'Enter'}))).toBe(false);h.options.onUpdate({editor:{getJSON:()=>value}});expect(change).toHaveBeenCalledWith(value)})
 it('exposes existing custom typography and changes/reset font size and explicit color',async()=>{
- h.attrs={fontFamily:'Custom Face',fontSize:'17px',color:'invalid'};h.editor.state.selection.empty=false;await render(22)
+ h.attrs={fontFamily:'Custom Face',fontSize:'17px',color:'invalid'}
+ const { getSchema } = await vi.importActual<typeof import('@tiptap/react')>('@tiptap/react')
+ const schema = getSchema([StarterKit, TextStyle, FontFamily, FontSize, Color])
+ const doc = schema.node('doc', null, [schema.node('paragraph', null, [
+  schema.text('Original', [schema.mark('textStyle', h.attrs)]),
+ ])])
+ h.editor.state = EditorState.create({ doc, selection: TextSelection.create(doc, 1, doc.content.size - 1) })
+ await render(22)
  expect(host.textContent).toContain('原字体');expect(host.textContent).toContain('17px');expect(host.textContent).toContain('选中文字');expect((host.querySelector('[data-content]') as HTMLElement).style.fontSize).toBe('22px')
  set('[aria-label="正文字体"]',TEXT_FONTS[0].value);expect(h.chain.setFontFamily).toHaveBeenCalledWith(TEXT_FONTS[0].value);set('[aria-label="正文字体"]','');expect(h.chain.unsetFontFamily).toHaveBeenCalled()
  set('[aria-label="正文字号"]','20px');expect(h.chain.setFontSize).toHaveBeenCalledWith('20px');set('[aria-label="正文字号"]','');expect(h.chain.unsetFontSize).toHaveBeenCalled()

@@ -41,3 +41,10 @@ it('reports an incomplete backup rather than downloading missing media', async (
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
   await expect(createProjectBackup()).rejects.toThrow(/素材/)
 })
+
+it('refuses a browser backup whose projects and metadata would exceed the offline file limit', async () => {
+  vi.mocked(api.projects).mockResolvedValue(Array.from({ length: 1999 }, (_, i) => ({ ...project, id: `project${i}`, blockCount: 0 })))
+  vi.mocked(api.assets).mockResolvedValue([])
+  await expect(createProjectBackup()).rejects.toThrow(/2000/)
+  expect(api.project).not.toHaveBeenCalled()
+})

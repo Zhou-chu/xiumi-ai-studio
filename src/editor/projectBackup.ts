@@ -5,6 +5,8 @@ import { api, type Asset } from './api'
 const validId = /^[\w-]{1,64}$/
 const managedImage = /^[\w-]{1,64}\.(?:jpg|png)$/
 const maxBytes = 128 * 1024 * 1024
+// Keep the file cap aligned with the portable offline reader.
+const maxEntries = 2000
 
 const projectData = ({ id, title, author, digest, themeId, themeOverrides, cover, blocks, createdAt, updatedAt, revision }: Doc) =>
   ({ id, title, author, digest, themeId, themeOverrides, cover, blocks, createdAt, updatedAt, revision })
@@ -14,6 +16,9 @@ const assetData = ({ id, file, name, width, height, size, createdAt }: Asset) =>
 /** Read only already exposed application records; no filesystem paths or settings. */
 export async function createProjectBackup(): Promise<ArrayBuffer> {
   const [projects, assets] = await Promise.all([api.projects(), api.assets()])
+  if (projects.length + assets.length + 2 > maxEntries) {
+    throw new Error('项目和素材超过 2000 个备份文件，无法生成浏览器备份。')
+  }
   const zip = new JSZip()
   const assetIndex = new Map<string, Asset>()
   let byteCount = 0
