@@ -105,14 +105,30 @@ test('kit modules: text box adapts to inserted modules, photos fill slots, layou
 
 for (const route of ['after-photo', 'append-zone'] as const) test(`carousel follows ${route} after the canvas scrolls at release`, async ({ page }) => {
   await page.goto('/')
+  const canvas = page.getByTestId('canvas')
+  const blankTypes = ['cover', 'heading', 'paragraph', 'ending']
+  await expect(canvas).toBeVisible()
   await page.getByTestId('tab-projects').click()
+  // The click starts by saving the open document. Wait for the *new* document's
+  // revisionless initial write; editing the old one meanwhile correctly cancels navigation.
+  const blankSaved = page.waitForResponse(response => {
+    const request = response.request()
+    if (request.method() !== 'PUT' || !response.ok() || !new URL(response.url()).pathname.startsWith('/api/projects/')) return false
+    const doc = request.postDataJSON()
+    return doc.revision === undefined && Array.isArray(doc.blocks) && doc.blocks.map((block: { type: string }) => block.type).join(',') === blankTypes.join(',')
+  })
   await page.getByRole('button', { name: '新建空白项目' }).click()
+  await blankSaved
+  await expect.poll(() => canvas.locator('[data-block-type]').evaluateAll(els => els.map(el => el.getAttribute('data-block-type')))).toEqual(blankTypes)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
   await page.getByTestId('tab-blocks').click()
   await page.getByTestId('kit-box').click()
   await page.getByTestId('kit-photos2').click()
-  const canvas = page.getByTestId('canvas')
   const box = canvas.locator('[data-block-type="box"]')
-  const target = route === 'after-photo' ? box.locator('[data-block-type="photos"]') : box.getByTestId('box-drop')
+  const photos = box.locator('[data-block-type="photos"]')
+  await expect(box).toHaveCount(1)
+  await expect(photos).toHaveCount(1)
+  const target = route === 'after-photo' ? photos : box.getByTestId('box-drop')
   const canvasEnd = canvas.locator('.drop-end')
   await canvasEnd.evaluate(el => el.scrollIntoView({ block: 'center' }))
   const source = (await page.getByTestId('kit-carousel').boundingBox())!
