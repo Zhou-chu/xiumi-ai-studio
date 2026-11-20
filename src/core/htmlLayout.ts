@@ -23,7 +23,11 @@ export function restructureImportedHtml(html: string, layout: HtmlLayout, theme:
   const nodes: Node[] = [], opaque: string[] = []
   let safe = 0
   function visit(node: Node) {
-    if (node.nodeType !== 1) { nodes.push(node); if(node.textContent?.trim()) safe++; return }
+    if (node.nodeType !== 1) {
+      nodes.push(node)
+      if (node.nodeType === 3 && node.textContent?.trim()) safe++
+      return
+    }
     const el = node as HTMLElement
     if (transparent(el)) { Array.from(el.childNodes).forEach(visit); return }
     if (SIMPLE.test(el.tagName) && !/position\s*:|url\(|display\s*:\s*(grid|flex)/i.test(el.getAttribute('style') ?? '')) safe++

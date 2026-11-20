@@ -3,6 +3,18 @@ import type { Parse } from './slots'
 import type { Theme } from './types'
 
 const defaultParse: Parse = html => new DOMParser().parseFromString(html, 'text/html')
+/** Preserve explicit or inherited foregrounds on authored background panels. */
+function hasBackgroundIsland(el: HTMLElement): boolean {
+  for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+    const color = node.style?.backgroundColor
+    if (color && color !== 'transparent' && !/^rgba\([^)]*,\s*0(?:\.0+)?\)$/.test(color)) return true
+    const shorthand = node.style?.getPropertyValue('background')
+    if (shorthand && shorthand !== 'none' && shorthand !== 'transparent') return true
+    const image = node.style?.backgroundImage
+    if ((image && image !== 'none') || node.hasAttribute('bgcolor')) return true
+  }
+  return false
+}
 /** Explicit proposal only: never runs merely because the application/document theme changes.
  * Preserve the DOM, media, links and text; normalize editorial typography and chromatic accents.
  * Raster artwork and SVG geometry are retained, not falsely advertised as regenerated.
@@ -17,7 +29,7 @@ export function restyleImportedHtml(html: string, theme: Theme, parse: Parse = d
     if (heading) {
       el.style.fontFamily = theme.fontHeading
       el.style.fontSize = `${el.tagName === 'H1' ? theme.h1Size : theme.h2Size}px`
-      el.style.color = theme.colors.primary
+      if (!hasBackgroundIsland(el)) el.style.color = theme.colors.primary
       el.style.lineHeight = '1.5'
     } else if (/^(P|LI|TD|TH|BLOCKQUOTE|FIGCAPTION)$/.test(el.tagName)) {
       el.style.fontFamily = theme.fontBody

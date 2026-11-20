@@ -17,6 +17,16 @@ describe('explicit imported HTML theme adaptation',()=>{
   expect(after.querySelector('span')?.style.fontSize).toBe('')
   expect(after.querySelectorAll('table tr td')).toHaveLength(1)
  })
+ it('does not force the primary heading color in authored background panels',()=>{
+  const html='<section style="background-color:#111;color:#fff"><h2>Inherited white</h2><section><h3 style="color:#fff">Explicit white</h3></section></section><table bgcolor="#111" style="color:#fff"><tbody><tr><td><h2>Legacy panel</h2></td></tr></tbody></table><section style="background-color:transparent"><h2>Transparent</h2></section>'
+  const after=parse(restyleImportedHtml(html,purple,parse))
+  const [inherited, explicit, legacy, transparent]=[...after.querySelectorAll<HTMLElement>('h2,h3')]
+  expect(inherited.style.color).toBe('')
+  expect(inherited.parentElement?.style.color).toBe('rgb(255, 255, 255)')
+  expect(explicit.style.color).toBe('rgb(255, 255, 255)')
+  expect(legacy.style.color).toBe('')
+  expect(transparent.style.color).toBe('rgb(102, 8, 116)')
+ })
  it('preserves SVG geometry, raster URLs, code and semantic emphasis',()=>{
   const html='<svg><text style="font-size:8px">图内文字</text><path d="M0 0" fill="#cc3300"/></svg><pre style="font-size:9px">x</pre><p><em>斜体</em><u>下划线</u><img src="/media/x.png"></p>'
   const after=parse(restyleImportedHtml(html,purple,parse))
