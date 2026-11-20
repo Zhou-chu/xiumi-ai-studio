@@ -43,7 +43,10 @@ jobs:
       - run: pwsh -NoProfile -File deploy/test-desktop.ps1
       - run: pnpm exec playwright install chromium
       - run: pnpm sample
-      - run: pnpm e2e --update-snapshots=none
+      - name: Playwright on built (Node 24) or development (Node 22)
+        run: pnpm e2e --update-snapshots=none
+        env:
+          XIUMI_E2E_TARGET: ${{ matrix.node == '24' && 'built' || 'dev' }}
       - name: Browser smoke on built desktop app
         if: matrix.node == '24'
         run: pnpm e2e --config=tests/release-smoke/playwright.config.ts --update-snapshots=none

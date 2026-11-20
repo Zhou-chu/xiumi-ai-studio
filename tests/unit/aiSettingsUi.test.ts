@@ -86,6 +86,20 @@ it('imports the selected model limits and clears them for an unknown model', asy
   expect(input('ai-max-output').value).toBe('')
   expect(input('ai-effort').value).toBe('')
 })
+it('keeps an explicit context value when discovery completes for the same model', async () => {
+  let finish!: (models: Awaited<ReturnType<typeof api.aiModels>>) => void
+  vi.mocked(api.aiModels).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+  act(() => fetchButton().click())
+  changeInput(input('ai-context'), '64000')
+  await act(async () => finish([{ id: 'old-model', contextWindow: 128000 }]))
+  expect(input('ai-model').value).toBe('old-model')
+  expect(input('ai-context').value).toBe('64000')
+
+  changeInput(input('ai-context'), '')
+  vi.mocked(api.aiModels).mockResolvedValue([{ id: 'old-model', contextWindow: 128000 }])
+  await act(async () => fetchButton().click())
+  expect(input('ai-context').value).toBe('128000')
+})
 it('ignores probe results after the model changes on the same profile', async () => {
   let finish!: (r: any) => void
   vi.mocked(api.probeEffort).mockReturnValue(new Promise((resolve) => { finish = resolve }))

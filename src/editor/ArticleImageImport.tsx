@@ -5,11 +5,13 @@ import { api } from './api'
 import type { ArticleImageResult } from '../../server/articleImages'
 import { Modal } from './Modal'
 import { useStore } from './store'
+import { selectionIdentity } from './useSelectionScope'
 
 /** Snapshot-only library operation: never patches the document, even if the user navigates away. */
 export function ArticleImageImport({ doc, selectedId, onClose }: { doc: Doc; selectedId?: string | string[]; onClose: () => void }) {
   const [snapshot] = useState(doc)
   const [scopeId] = useState(selectedId)
+  const [selectionKey] = useState(() => selectionIdentity(useStore.getState().selectedIds))
   const [urls] = useState(() => collectArticleImages(doc, selectedId))
   const [chosen, setChosen] = useState(() => new Set(urls))
   const [results, setResults] = useState<ArticleImageResult[]>([])
@@ -19,9 +21,16 @@ export function ArticleImageImport({ doc, selectedId, onClose }: { doc: Doc; sel
   const running = useRef(false)
   useEffect(() => () => { cancelled.current = true }, [])
   const close = () => { cancelled.current = true; onClose() }
+  const changeReason = () => {
+    const current = useStore.getState()
+    if (current.doc !== snapshot) return '文稿已变化'
+    if (selectionIdentity(current.selectedIds) !== selectionKey) return '选择范围已变化'
+    return ''
+  }
   const run = async () => {
     if (running.current) return
-    if (useStore.getState().doc !== snapshot) { setError('文稿已变化，请关闭后重新收集图片。'); return }
+    const changed = changeReason()
+    if (changed) { setError(`${changed}，请关闭后重新收集图片。`); return }
     running.current = true; cancelled.current = false; setBusy(true); setError('')
     // One image per request provides visible progress and stops remaining downloads on dismissal.
     const done = new Set(results.filter(r => r.status !== 'failed').map(r => r.url))
@@ -29,6 +38,8 @@ export function ArticleImageImport({ doc, selectedId, onClose }: { doc: Doc; sel
       for (const url of chosen) {
         if (cancelled.current) break
         if (done.has(url)) continue
+        const changedDuringImport = changeReason()
+        if (changedDuringImport) { setError(`${changedDuringImport}，已停止剩余图片，请关闭后重新收集。`); break }
         let result: ArticleImageResult
         try {
           const response = await api.importArticleImages([url])
