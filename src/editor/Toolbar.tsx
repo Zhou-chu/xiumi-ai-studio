@@ -12,6 +12,7 @@ import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
 import { assertReplayCanPublish, compileForWechat, copyRichText, download, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
+const ProjectBackupModal = lazy(() => import('./ProjectBackupModal'))
 const ImportWizard = lazy(() => import('./ImportWizard').then((m) => ({ default: m.ImportWizard })))
 
 export function PhonePreview({ html, title, onClose }: { html: string; title: string; onClose: () => void }) {
@@ -332,7 +333,7 @@ export function Toolbar() {
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
   const { undo, redo, setDocFields } = useStore.getState()
-  const [modal, setModal] = useState<'' | 'preview' | 'versions' | 'export' | 'import' | 'ai' | 'article'>('')
+  const [modal, setModal] = useState<'' | 'preview' | 'versions' | 'export' | 'import' | 'ai' | 'article' | 'project-backup'>('')
   const [wizardTemplates, setWizardTemplates] = useState<string[] | undefined>()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -390,6 +391,7 @@ export function Toolbar() {
         <div className="toolbar-secondary" id="toolbar-secondary">
           <ColorModeControl />
           <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
+          <button onClick={() => setModal('project-backup')}>项目和素材备份</button>
           <button onClick={() => setModal('ai')} data-testid="open-ai-settings"><span className="toolbar-legacy-icon" aria-hidden="true">⚙ </span>AI 模型</button>
         </div>
       </div>
@@ -398,6 +400,11 @@ export function Toolbar() {
       {modal === 'versions' && <VersionsModal onClose={() => setModal('')} />}
       {modal === 'export' && <ExportModal onClose={() => setModal('')} />}
       {modal === 'ai' && <AiSettingsModal onClose={() => setModal('')} />}
+      {modal === 'project-backup' && (
+        <Suspense fallback={null}>
+          <ProjectBackupModal onClose={() => setModal('')} />
+        </Suspense>
+      )}
       {modal === 'article' && (
         <Suspense fallback={null}>
           <ArticleImportModal onClose={() => setModal('')} />
