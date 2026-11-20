@@ -1,6 +1,6 @@
 import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
 import { displayHtml } from '../core/images'
@@ -9,9 +9,10 @@ import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
 import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
-import { compileForWechat, copyRichText, download, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
+import { assertReplayCanPublish, compileForWechat, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
+const ProjectBackupModal = lazy(() => import('./ProjectBackupModal'))
 const ImportWizard = lazy(() => import('./ImportWizard').then((m) => ({ default: m.ImportWizard })))
 
 export function PhonePreview({ html, title, onClose }: { html: string; title: string; onClose: () => void }) {
@@ -26,77 +27,109 @@ export function PhonePreview({ html, title, onClose }: { html: string; title: st
   )
 }
 
-function VersionsModal({ onClose }: { onClose: () => void }) {
-  const active = useRef(true)
-  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
+export function VersionsModal({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const { commit, notify } = useStore.getState()
-  const [list, setList] = useState<VersionSummary[]>([])
+  const active = useRef(true)
+  const listRequest = useRef(0)
+  const restoreRequest = useRef(0)
+  const contextVersion = useRef(0)
   const pendingSave = useRef(false)
   const [saving, setSaving] = useState(false)
-  const refresh = () => api.versions(doc.id).then(items => {
-    if (active.current && useStore.getState().doc.id === doc.id) setList(items)
-  }).catch(() => {})
+  const [loaded, setLoaded] = useState<{ docId: string; items: VersionSummary[]; failed: boolean } | null>(null)
   useEffect(() => {
-    void refresh()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    active.current = true
+    return () => { active.current = false }
+  }, [])
+  useEffect(() => useStore.subscribe((next, previous) => {
+    if (next.doc !== previous.doc) ++contextVersion.current
+  }), [])
+
+  const refresh = useCallback(async (id: string) => {
+    const generation = ++listRequest.current
+    const stillCurrent = () => active.current && generation === listRequest.current && useStore.getState().doc.id === id
+    try {
+      const items = await api.versions(id)
+      if (stillCurrent()) setLoaded({ docId: id, items, failed: false })
+    } catch {
+      if (!stillCurrent()) return
+      setLoaded((prior) => ({ docId: id, items: prior?.docId === id ? prior.items : [], failed: true }))
+      notify('加载版本列表失败，请重试。', 'error')
+    }
+  }, [notify])
+  useEffect(() => { void refresh(doc.id) }, [doc.id, refresh])
+
+  const close = () => {
+    active.current = false
+    onClose()
+  }
+  const ownsContext = (expected: typeof doc, generation: number) =>
+    active.current && generation === contextVersion.current && useStore.getState().doc === expected
+  const saveVersion = async () => {
+    if (pendingSave.current || !active.current || useStore.getState().doc !== doc) return
+    const generation = contextVersion.current
+    pendingSave.current = true
+    try {
+      const label = prompt('版本说明', `手动保存 ${new Date().toLocaleTimeString()}`)
+      if (label === null || !ownsContext(doc, generation)) return
+      setSaving(true)
+      await api.saveVersion(doc, label || '手动保存')
+      if (!ownsContext(doc, generation)) return
+      notify('版本已保存')
+      void refresh(doc.id)
+    } catch {
+      if (ownsContext(doc, generation)) notify('版本保存失败，当前文稿未改变，请重试。', 'error')
+    } finally {
+      pendingSave.current = false
+      if (active.current) setSaving(false)
+    }
+  }
+  const restoreVersion = async (version: VersionSummary) => {
+    if (!active.current || useStore.getState().doc !== doc) return
+    const generation = ++restoreRequest.current
+    const versionContext = contextVersion.current
+    try {
+      const { doc: old } = await api.version(doc.id, version.id)
+      if (!active.current || generation !== restoreRequest.current) return
+      if (!ownsContext(doc, versionContext)) {
+        if (useStore.getState().doc.id === doc.id) {
+          notify('等待期间文稿已变化，已保留当前内容。请重新选择恢复版本。', 'error')
+        }
+        return
+      }
+      commit(normalizeDoc({ ...old, id: doc.id }))
+      notify(`已恢复「${version.label}」`)
+      close()
+    } catch {
+      if (generation === restoreRequest.current && ownsContext(doc, versionContext)) {
+        notify('版本恢复失败，当前文稿未改变，请重试。', 'error')
+      }
+    }
+  }
+  const currentList = loaded?.docId === doc.id ? loaded : null
   return (
-    <Modal title="历史版本" onClose={onClose}>
-      <button
-        className="primary wide"
-        disabled={saving}
-        onClick={async () => {
-          if (pendingSave.current) return
-          const label = prompt('版本说明', `手动保存 ${new Date().toLocaleTimeString()}`)
-          if (label === null) return
-          pendingSave.current = true
-          setSaving(true)
-          const expected = useStore.getState().doc
-          try {
-            await api.saveVersion(expected, label || '手动保存')
-            if (!active.current || useStore.getState().doc !== expected) return
-            await refresh()
-            if (active.current && useStore.getState().doc === expected) notify('版本已保存')
-          } catch {
-            if (active.current && useStore.getState().doc === expected) notify('版本保存失败，当前文稿未改变，请重试。', 'error')
-          } finally {
-            pendingSave.current = false
-            if (active.current) setSaving(false)
-          }
-        }}
-      >
+    <Modal title="历史版本" onClose={close}>
+      <button className="primary wide" disabled={saving} onClick={saveVersion}>
         保存当前为新版本
       </button>
       <Help title="历史版本">恢复版本后可用 Ctrl+Z 撤回恢复操作；每个项目保留最近 50 个版本。</Help>
-      {list.map((v) => (
+      {currentList?.items.map((v) => (
         <div key={v.id} className="list-row">
           <div className="grow">
             <b>{v.label}</b>
             <small>{new Date(v.createdAt).toLocaleString()} · {v.blockCount} 个模块</small>
           </div>
-          <button
-            onClick={async () => {
-              const expected = useStore.getState().doc
-              try {
-                const { doc: old } = await api.version(expected.id, v.id)
-                if (!active.current) return
-                if (useStore.getState().doc !== expected) {
-                  notify('等待期间文稿已变化，已保留当前内容。请重新选择恢复版本。', 'error')
-                  return
-                }
-                commit(normalizeDoc({ ...old, id: expected.id }))
-                notify(`已恢复「${v.label}」`)
-                onClose()
-              } catch (e: any) {
-                if (active.current) notify(e.message, 'error')
-              }
-            }}
-          >
-            恢复
-          </button>
+          <button onClick={() => { void restoreVersion(v) }}>恢复</button>
         </div>
       ))}
-      {!list.length && <p className="empty">还没有保存过版本</p>}
+      {!currentList && <p className="empty">正在加载版本列表…</p>}
+      {currentList?.failed && (
+        <p className="empty">
+          <span role="alert">暂时无法加载版本列表。</span>{' '}
+          <button type="button" onClick={() => { void refresh(doc.id) }}>重试</button>
+        </p>
+      )}
+      {currentList && !currentList.failed && !currentList.items.length && <p className="empty">还没有保存过版本</p>}
     </Modal>
   )
 }
@@ -114,8 +147,9 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   }, [])
   const base = compileDoc(doc)
   const safeName = (doc.title || 'article').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)
-  const xiumi = xiumiReport(base.html)
-  const xiumiParts = splitForXiumi(xiumiSvgBoxes(base.html)).length
+  const replayOnly = hasReplay(doc)
+  const xiumi = replayOnly ? null : xiumiReport(base.html)
+  const xiumiParts = replayOnly ? 0 : splitForXiumi(xiumiSvgBoxes(base.html)).length
   /** 超出秀米一次导入的上限时先提示会导出多份文件；用户取消就不下载 */
   const confirmParts = (parts: number) =>
     parts <= 1 || confirm(`这篇超出秀米一次导入的上限（约 13 万字符，超出部分会被秀米丢掉），将导出 ${parts} 份文件（打包为 zip）。\n\n请下载后解压，按「导入秀米-1.txt」到「导入秀米-${parts}.txt」的顺序依次导入秀米。\n\n点“确定”继续导出（上传模式会先上传图片）。`)
@@ -132,6 +166,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const copy = async () => {
     setBusy('准备中…')
     try {
+      assertReplayCanPublish(doc)
       const compiled = compileForWechat(doc, mode, setBusy).then((r) => (setReport(r), r.html))
       const how = await copyRichText(compiled)
       notify(`已复制（${how === 'clipboard-api' ? '富文本' : '兼容模式'}），到公众号后台编辑器中 Ctrl+V 粘贴`)
@@ -144,9 +179,10 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="导出与发布" onClose={onClose} width={620}>
+      {replayOnly && <p className="warn" role="status">{REPLAY_LOCAL_ONLY}</p>}
       <section className="export-section">
         <h4>复制到公众号后台</h4>
-        <div className="seg">
+        {!replayOnly && <><div className="seg">
           <button className={mode === 'embed' ? 'on' : ''} onClick={() => setMode('embed')}>内嵌图片</button>
           <button className={mode === 'wechat' ? 'on' : ''} disabled={!wx?.configured} onClick={() => setMode('wechat')} title={wx?.configured ? '' : '需在 .env 配置公众号 AppID/AppSecret'}>上传到微信图床</button>
           <button className={mode === 'absolute' ? 'on' : ''} onClick={() => setMode('absolute')}>原图链接</button>
@@ -155,8 +191,8 @@ function ExportModal({ onClose }: { onClose: () => void }) {
           {mode === 'embed' && '图片以 base64 内嵌在剪贴板中，无需公网图床。是否被公众号后台自动转存尚未在真实后台验证，粘贴后请检查图片。'}
           {mode === 'wechat' && '先调用 media/uploadimg 把图片上传到微信，正文使用 mmbiz 域名图片，最稳妥。'}
           {mode === 'absolute' && '使用本机地址，仅适合部署到公网服务器后使用；localhost 地址在微信中无法显示。'}
-        </p>
-        <button className="primary wide" disabled={!!busy} onClick={copy} data-testid="copy-wechat">{busy || '复制到剪贴板'}</button>
+        </p></>}
+        <button className="primary wide" disabled={!!busy || replayOnly} onClick={copy} data-testid="copy-wechat">{busy || '复制到剪贴板'}</button>
         {report && (
           <div className="report">
             <p>HTML 长度 {report.charCount.toLocaleString()} 字符</p>
@@ -167,19 +203,19 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
       <section className="export-section">
         <h4>推送到草稿箱</h4>
-        <p className="hint">{wx?.configured ? '已配置公众号接口。推送前会再次确认，只会创建草稿，不会群发。' : '未配置：在项目根目录 .env 中填写 WECHAT_APPID / WECHAT_APPSECRET 并在公众号后台添加 IP 白名单后重启服务。'}</p>
-        <button className="wide" disabled={!wx?.configured} onClick={() => setDraftOpen(true)}>推送到草稿箱…</button>
+        {!replayOnly && <p className="hint">{wx?.configured ? '已配置公众号接口。推送前会再次确认，只会创建草稿，不会群发。' : '未配置：在项目根目录 .env 中填写 WECHAT_APPID / WECHAT_APPSECRET 并在公众号后台添加 IP 白名单后重启服务。'}</p>}
+        <button className="wide" disabled={replayOnly || !wx?.configured} onClick={() => setDraftOpen(true)}>推送到草稿箱…</button>
       </section>
 
       <section className="export-section" data-testid="xiumi-section">
         <h4>导入秀米</h4>
-        <p className="hint">秀米不接受内嵌图片，但能显示微信图床的图片。{xiumi.localImages ? `这篇有 ${xiumi.localImages} 张本地图片需要处理。` : '这篇没有本地图片，可以直接导入。'}</p>
-        {xiumi.backgrounds > 0 && <p className="hint">有 {xiumi.backgrounds} 处背景图（如轮播）：导入后能显示，但在秀米里不能单独选中编辑。</p>}
+        {xiumi && <p className="hint">秀米不接受内嵌图片，但能显示微信图床的图片。{xiumi.localImages ? `这篇有 ${xiumi.localImages} 张本地图片需要处理。` : '这篇没有本地图片，可以直接导入。'}</p>}
+        {xiumi && xiumi.backgrounds > 0 && <p className="hint">有 {xiumi.backgrounds} 处背景图（如轮播）：导入后能显示，但在秀米里不能单独选中编辑。</p>}
         {xiumiParts > 1 && <p className="warn" data-testid="xiumi-parts">⚠ 这篇超出秀米一次导入的上限（约 13 万字符，超出部分会被秀米丢掉），将导出 {xiumiParts} 份文件，请下载后依次导入秀米。</p>}
-        {xiumi.dataImages > 0 && <p className="warn">⚠ 有 {xiumi.dataImages} 处导入时自带的内嵌图片，秀米会换成占位图。</p>}
-        {xiumi.localBackgrounds > 0 && !wx?.configured && <p className="warn">⚠ 有 {xiumi.localBackgrounds} 处背景图用了本地素材。不配置微信接口的话，它们在秀米里无法替换。</p>}
+        {xiumi && xiumi.dataImages > 0 && <p className="warn">⚠ 有 {xiumi.dataImages} 处导入时自带的内嵌图片，秀米会换成占位图。</p>}
+        {xiumi && xiumi.localBackgrounds > 0 && !wx?.configured && <p className="warn">⚠ 有 {xiumi.localBackgrounds} 处背景图用了本地素材。不配置微信接口的话，它们在秀米里无法替换。</p>}
         <div className="row gap">
-          {xiumi.localImages > 0 && (
+          {xiumi && xiumi.localImages > 0 && (
             <button
               className="primary"
               disabled={!!busy || !wx?.configured}
@@ -199,7 +235,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             </button>
           )}
           <button
-            disabled={!!busy}
+            disabled={!!busy || replayOnly}
             data-testid="xiumi-package"
             onClick={() =>
               runXiumi(async () => {
@@ -211,17 +247,17 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               })
             }
           >
-            {xiumi.localImages ? '下载 HTML 和图片包（手动替换）' : '下载 HTML'}
+            {xiumi?.localImages ? '下载 HTML 和图片包（手动替换）' : '下载 HTML'}
           </button>
         </div>
-        <p className="hint">
+        {!replayOnly && <p className="hint">
           {wx?.configured ? '“上传”会把本地图片发送到微信服务器，只存图片，不创建草稿，也不群发。' : '未配置微信接口时，只能导入后在秀米里手动替换图片。配置方法见上方“推送到草稿箱”。'}
-        </p>
+        </p>}
       </section>
 
       <section className="export-section">
         <h4>下载文件</h4>
-        <p className="hint">当前 HTML 长度 {base.charCount.toLocaleString()} 字符{base.charCount >= 20000 ? '（超过草稿箱接口 2 万字符上限，可用复制方式发布）' : ''}。“图片内嵌”的文件不适合导入秀米。</p>
+        <p className="hint">当前 HTML 长度 {base.charCount.toLocaleString()} 字符{!replayOnly && base.charCount >= 20000 ? '（超过草稿箱接口 2 万字符上限，可用复制方式发布）' : ''}。{replayOnly ? '在桌面浏览器打开本地文件查看回放。' : '“图片内嵌”的文件不适合导入秀米。'}</p>
         <div className="row gap">
           <button onClick={() => download(`${safeName}.md`, docToMarkdown({ ...doc, blocks: doc.blocks }).replace(/\]\(\/media\//g, `](${location.origin}/media/`), 'text/markdown')}>Markdown</button>
           <button onClick={() => download(`${safeName}.json`, JSON.stringify(doc, null, 2), 'application/json')}>编辑器 JSON</button>
@@ -236,7 +272,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               }
             }}
           >
-            微信 HTML（图片内嵌）
+            {replayOnly ? '本地 HTML（保留回放）' : '微信 HTML（图片内嵌）'}
           </button>
         </div>
       </section>
@@ -299,7 +335,7 @@ export function Toolbar() {
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
   const { undo, redo, setDocFields } = useStore.getState()
-  const [modal, setModal] = useState<'' | 'preview' | 'versions' | 'export' | 'import' | 'ai' | 'article'>('')
+  const [modal, setModal] = useState<'' | 'preview' | 'versions' | 'export' | 'import' | 'ai' | 'article' | 'project-backup'>('')
   const [wizardTemplates, setWizardTemplates] = useState<string[] | undefined>()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -357,6 +393,7 @@ export function Toolbar() {
         <div className="toolbar-secondary" id="toolbar-secondary">
           <ColorModeControl />
           <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
+          <button onClick={() => setModal('project-backup')}>项目和素材备份</button>
           <button onClick={() => setModal('ai')} data-testid="open-ai-settings"><span className="toolbar-legacy-icon" aria-hidden="true">⚙ </span>AI 模型</button>
         </div>
       </div>
@@ -365,6 +402,11 @@ export function Toolbar() {
       {modal === 'versions' && <VersionsModal onClose={() => setModal('')} />}
       {modal === 'export' && <ExportModal onClose={() => setModal('')} />}
       {modal === 'ai' && <AiSettingsModal onClose={() => setModal('')} />}
+      {modal === 'project-backup' && (
+        <Suspense fallback={null}>
+          <ProjectBackupModal onClose={() => setModal('')} />
+        </Suspense>
+      )}
       {modal === 'article' && (
         <Suspense fallback={null}>
           <ArticleImportModal onClose={() => setModal('')} />

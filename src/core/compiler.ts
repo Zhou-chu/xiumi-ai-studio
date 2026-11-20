@@ -1,3 +1,5 @@
+import { normalizeReplay } from './replay/schema'
+import { renderReplay, type ReplayOutput } from './replay/render'
 import { applyImageWidths } from './imageResize'
 // 微信 HTML 编译器：文档 JSON → 全内联样式 HTML。
 // 画布、手机预览、复制、草稿箱都使用同一份输出，保证所见即所得。
@@ -195,7 +197,7 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
 // ---------- 模块 ----------
 
 type Renderer<T extends Block['type']> = (b: Extract<Block, { type: T }>, ctx: Ctx) => string
-type Renderers = { [K in Exclude<Block['type'], 'html' | (typeof KIT_TYPES)[number]>]: Renderer<K> }
+type Renderers = { [K in Exclude<Block['type'], 'html' | 'replay' | (typeof KIT_TYPES)[number]>]: Renderer<K> }
 
 const R: Renderers = {
   cover(b, ctx) {
@@ -501,6 +503,7 @@ function renderHtml(b: Extract<Block, { type: 'html' }>, ctx: Ctx): string {
 export const BOX_GAP = 16
 
 export function compileBlock(block: Block, theme: Theme, opts: CompileOptions = {}): string {
+  if (block.type === 'replay') return compileReplay(block, opts).html
   // 文本框内的模块统一使用文本框的字号、颜色和间距
   const t = opts.inBox ? boxTheme(theme) : theme
   const ctx = new Ctx(t, opts)
@@ -540,13 +543,24 @@ export function blockGap(block: Block, next: Block | undefined, theme: Theme): n
   return block.type === 'html' && next.type === 'html' ? 0 : theme.blockSpacing
 }
 
+export const REPLAY_ERROR = '编辑回放 ✕'
+
+export function compileReplay(block: Extract<Block, { type: 'replay' }>, opts: CompileOptions = {}, showCursors?: boolean): ReplayOutput {
+  return renderReplay({ ...normalizeReplay(block.props), textMode: 'svg-text' }, { mapImage: opts.mapImage, showCursors, idPrefix: 'rp'+block.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })
+}
+
 export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {
   const theme = resolveTheme(doc)
   const failed: number[] = []
+  const replayIssues: string[] = []
   const parts = doc.blocks.map((b, i) => {
     let inner: string
     try {
-      inner = compileBlock(b, theme, opts)
+      if (b.type === 'replay') {
+        const replay = compileReplay(b, opts)
+        inner = replay.html
+        replayIssues.push(...replay.errors.map(e => REPLAY_ERROR+' '+e), ...replay.warnings)
+      } else inner = compileBlock(b, theme, opts)
     } catch {
       // 单个模块数据损坏时跳过，不影响整篇输出
       failed.push(i + 1)
@@ -558,7 +572,7 @@ export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {
     `<section style="${rootStyle(theme)}">` +
     parts.join('') +
     `</section>`
-  const warnings = lintWechatHtml(html)
+  const warnings = [...lintWechatHtml(html), ...new Set(replayIssues)]
   const empty = flatBlocks(doc.blocks).reduce((n, b) => n + kitEmptySlots(b), 0)
   if (empty) warnings.push(`有 ${empty} 个图片位置还没放图片，导出时会留空`)
   if (failed.length) warnings.unshift(`第 ${failed.join('、')} 个模块数据异常，已跳过输出`)

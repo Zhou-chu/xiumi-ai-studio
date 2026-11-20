@@ -17,14 +17,16 @@ beforeEach(()=>{
  host=document.createElement('div');document.body.append(host);root=createRoot(host)
 })
 afterEach(()=>{act(()=>root.unmount());host.remove();vi.restoreAllMocks();vi.unstubAllGlobals();localStorage.clear()})
-it('switches panels by controls and valid external events, revealing focused panel on resize/theme only when switcher visible',async()=>{
+it('remembers focused regions before resize and still switches by controls and valid external events',async()=>{
  await mount();expect(workspace().dataset.workspaceView).toBe('canvas')
  for(const view of ['left','right','canvas']){await event(host.querySelector(`[data-testid="workspace-${view}"]`)!,'click');expect(workspace().dataset.workspaceView).toBe(view);expect(host.querySelector(`[data-testid="workspace-${view}"]`)?.getAttribute('aria-pressed')).toBe('true')}
+ ;(host.querySelector('.workspace-switcher') as HTMLElement).style.display='none'
+ for(const view of ['left','right','canvas']){
+  const input=host.querySelector(`[aria-label="${view} input"]`) as HTMLElement
+  await act(async()=>{input.focus();input.blur()})
+  expect(workspace().dataset.workspaceView).toBe(view)
+ }
  await act(async()=>{window.dispatchEvent(new CustomEvent('workspace-view',{detail:'right'}));window.dispatchEvent(new CustomEvent('workspace-view',{detail:'invalid'}))});expect(workspace().dataset.workspaceView).toBe('right')
- for(const view of ['left','right','canvas']){(host.querySelector(`[aria-label="${view} input"]`) as HTMLElement).focus();await event(window,'resize');expect(workspace().dataset.workspaceView).toBe(view)}
- const left=host.querySelector('[aria-label="left input"]') as HTMLElement;left.focus();await act(async()=>{document.documentElement.setAttribute('data-color-mode','dark')});expect(workspace().dataset.workspaceView).toBe('left')
- ;(host.querySelector('.workspace-switcher') as HTMLElement).style.display='none';(host.querySelector('[aria-label="right input"]') as HTMLElement).focus();await event(window,'resize');expect(workspace().dataset.workspaceView).toBe('left')
- left.blur();await event(window,'resize');expect(workspace().dataset.workspaceView).toBe('left')
 })
 it('restores bounded widths, keyboard resizes both directions, resets and persists; non-arrow keys leave widths alone',async()=>{
  localStorage.setItem('xiumi-panel-widths',JSON.stringify({left:999,right:20}));await mount()

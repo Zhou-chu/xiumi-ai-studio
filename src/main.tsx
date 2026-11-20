@@ -1,3 +1,4 @@
+import { canvasEnv, setReplayEnv } from './core/replay'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
@@ -34,6 +35,8 @@ function Crashed({ error, reset }: { error: Error; reset: () => void }) {
     </div>
   )
 }
+
+setReplayEnv(canvasEnv(document))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

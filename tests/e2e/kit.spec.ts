@@ -8,11 +8,13 @@ const upload = (page: Page, n: number) =>
 /** 用鼠标拖动（dnd-kit 需要先移动几像素才开始拖） */
 async function drag(page: Page, from: Locator, to: Locator, yRatio = 0.8) {
   // 共享的测试文档可能很长：目标滚到画布中间（贴着边缘会触发拖动时的自动滚动）
+  await expect.poll(() => to.evaluate((el) => [...el.querySelectorAll('img')].every(img => img.complete && img.naturalWidth > 0))).toBe(true)
   await to.evaluate((el) => el.scrollIntoView({ block: 'center' }))
   const a = (await from.boundingBox())!
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
   await page.mouse.down()
   await page.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2 + 12, { steps: 4 })
+  await expect(page.locator('.app.dragging')).toHaveCount(1)
   // Activating a drag expands the box drop zone and may scroll the canvas.
   // Measure the live target after that layout change, not before activation.
   await to.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
@@ -22,6 +24,7 @@ async function drag(page: Page, from: Locator, to: Locator, yRatio = 0.8) {
   b = (await to.boundingBox())!
   await page.mouse.move(b.x + b.width / 2, b.y + b.height * yRatio, { steps: 4 })
   await page.mouse.up()
+  await expect(page.locator('.app.dragging')).toHaveCount(0)
 }
 
 test('kit modules: text box adapts to inserted modules, photos fill slots, layout persists', async ({ page }) => {
@@ -34,6 +37,7 @@ test('kit modules: text box adapts to inserted modules, photos fill slots, layou
     files.push((await res.json())[0].file)
   }
   await page.reload()
+  await expect(page.getByTestId('canvas')).toBeVisible()
   // 新建空白项目，不受其他用例留下的内容影响
   await page.getByTestId('tab-projects').click()
   await page.getByRole('button', { name: '新建空白项目' }).click()
@@ -96,6 +100,63 @@ test('kit modules: text box adapts to inserted modules, photos fill slots, layou
   const saved = doc.blocks.find((b: any) => b.type === 'box')
   expect(saved.props.children.map((c: any) => c.type)).toEqual(['paragraph', 'photos'])
   expect(saved.props.children[1].props.pics[0].caption).toBe('慕尼黑工业大学实验楼')
+})
+
+
+for (const route of ['after-photo', 'append-zone'] as const) test(`carousel follows ${route} after the canvas scrolls at release`, async ({ page }) => {
+  await page.goto('/')
+  const canvas = page.getByTestId('canvas')
+  const blankTypes = ['cover', 'heading', 'paragraph', 'ending']
+  await expect(canvas).toBeVisible()
+  await page.getByTestId('tab-projects').click()
+  // The click starts by saving the open document. Wait for the *new* document's
+  // revisionless initial write; editing the old one meanwhile correctly cancels navigation.
+  const blankSaved = page.waitForResponse(response => {
+    const request = response.request()
+    if (request.method() !== 'PUT' || !response.ok() || !new URL(response.url()).pathname.startsWith('/api/projects/')) return false
+    const doc = request.postDataJSON()
+    return doc.revision === undefined && Array.isArray(doc.blocks) && doc.blocks.map((block: { type: string }) => block.type).join(',') === blankTypes.join(',')
+  })
+  await page.getByRole('button', { name: '新建空白项目' }).click()
+  await blankSaved
+  await expect.poll(() => canvas.locator('[data-block-type]').evaluateAll(els => els.map(el => el.getAttribute('data-block-type')))).toEqual(blankTypes)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
+  await page.getByTestId('tab-blocks').click()
+  await page.getByTestId('kit-box').click()
+  await page.getByTestId('kit-photos2').click()
+  const box = canvas.locator('[data-block-type="box"]')
+  const photos = box.locator('[data-block-type="photos"]')
+  await expect(box).toHaveCount(1)
+  await expect(photos).toHaveCount(1)
+  const target = route === 'after-photo' ? photos : box.getByTestId('box-drop')
+  const canvasEnd = canvas.locator('.drop-end')
+  await canvasEnd.evaluate(el => el.scrollIntoView({ block: 'center' }))
+  const source = (await page.getByTestId('kit-carousel').boundingBox())!
+  const start = { x: source.x + source.width / 2, y: source.y + source.height / 2 }
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  await page.mouse.move(start.x + 12, start.y + 12, { steps: 4 })
+  const end = (await canvasEnd.boundingBox())!
+  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 12 })
+  await expect(page.getByRole('status').filter({ hasText: /moved over droppable area canvas-end/ })).toHaveCount(1)
+  await target.evaluate(el => {
+    // Apply the scroll during native release before dnd-kit can recalculate its last hover.
+    window.addEventListener('pointerup', e => {
+      const scroller = el.closest('.canvas-scroll')!
+      const rect = el.getBoundingClientRect()
+      scroller.scrollTop += rect.top + rect.height * 0.75 - e.clientY
+      const hit = document.elementsFromPoint(e.clientX, e.clientY).some(point => el.contains(point))
+      el.setAttribute('data-release-over-target', String(hit))
+    }, { capture: true, once: true })
+  })
+  await page.mouse.up()
+  await expect(target).toHaveAttribute('data-release-over-target', 'true')
+  const order = () => box.locator('[data-block-type]').evaluateAll(els => els.map(el => el.getAttribute('data-block-type')))
+  await expect.poll(order).toEqual(['paragraph', 'photos', 'carousel'])
+  await expect(canvas.locator('[data-block-type="carousel"]')).toHaveCount(1)
+  await expect(page.getByTestId('save-status')).toHaveText('已保存')
+  await page.reload()
+  await expect.poll(order).toEqual(['paragraph', 'photos', 'carousel'])
 })
 
 test('native text box properties insert, edit and delete a child without losing it on reload', async ({ page }) => {

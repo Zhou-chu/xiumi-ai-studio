@@ -1,3 +1,4 @@
+import { ReplayPanel } from './ReplayPanel'
 import './accessibility-controls.css'
 import { Help } from './Help'
 import { CoverTitleAlignment } from './CoverTitleAlignment'
@@ -502,6 +503,9 @@ export function PropsForm({ block }: { block: Block }) {
       break
     case 'divider':
       body = variant('divider')
+      break
+    case 'replay':
+      body = <ReplayPanel block={block} />
       break
     case 'html':
       body = <>{t('名称', 'label')}<HtmlFields blockId={block.id} html={p.html} upd={upd} /></>

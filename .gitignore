@@ -12,3 +12,11 @@ coverage/
 audit-results/
 /coverage-*/
 /test-results-*/
+
+data-e2e-built/
+
+release/
+
+.cache/
+
+data-e2e-pkg/

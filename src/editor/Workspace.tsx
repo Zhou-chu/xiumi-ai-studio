@@ -49,26 +49,6 @@ const save = (w: Widths) => {
 export function Workspace({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLElement>(null)
   const [view, setView] = useState<'left' | 'canvas' | 'right'>('canvas')
-  // Preserve keyboard editing when resize/theme changes collapse the surrounding UI.
-  useEffect(() => {
-    const revealFocusedPanel = () => {
-      const workspace = ref.current
-      const switcher = workspace?.querySelector('.workspace-switcher')
-      const active = document.activeElement
-      if (!workspace || !switcher || !active || !workspace.contains(active) || getComputedStyle(switcher).display === 'none') return
-      const region = Array.from(workspace.children).find((child) => child.contains(active))
-      if (region?.matches('.panel.left')) setView('left')
-      else if (region?.matches('.panel.right')) setView('right')
-      else if (region?.matches('.canvas-wrap,.canvas-scroll')) setView('canvas')
-    }
-    window.addEventListener('resize', revealFocusedPanel)
-    const observer = new MutationObserver(revealFocusedPanel)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-color-mode'] })
-    return () => {
-      window.removeEventListener('resize', revealFocusedPanel)
-      observer.disconnect()
-    }
-  }, [])
   useEffect(() => {
     const show = (event: Event) => {
       const next = (event as CustomEvent).detail
@@ -160,6 +140,13 @@ export function Workspace({ children }: { children: ReactNode }) {
     <main
       className="workspace" data-workspace-view={view}
       ref={ref}
+      onFocusCapture={({ currentTarget, target }) => {
+        // Remember the region before a breakpoint or theme change can hide it and blur the control.
+        const region = Array.from(currentTarget.children).find((child) => child.contains(target))
+        if (region?.matches('.panel.left')) setView('left')
+        else if (region?.matches('.panel.right')) setView('right')
+        else if (region?.matches('.canvas-wrap,.canvas-scroll')) setView('canvas')
+      }}
       style={{ ...(shown.left !== undefined && { ['--left-w' as string]: `${shown.left}px` }), ...(shown.right !== undefined && { ['--right-w' as string]: `${shown.right}px` }) }}
     >
       <nav className="workspace-switcher" aria-label="编辑工作区">

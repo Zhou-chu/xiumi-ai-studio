@@ -35,3 +35,13 @@ it('keeps dark-background islands opaque so white text stays visible',()=>{
  expect(result.html).toContain(dark)
  expect(restructureImportedHtml(dark,'chapters',theme).error).toBeTruthy()
 })
+
+it('does not treat an editorial comment as visible content eligible for regrouping',()=>{
+ const opaque='<table><tbody><tr><td>Keep as one table</td></tr></tbody></table>'
+ const comment='<!-- Editor note: preserve table -->'
+ expect(restructureImportedHtml('<div>'+comment+opaque+'</div>','editorial',theme)).toEqual({ error: expect.any(String), preserved: 1 })
+ const mixed=restructureImportedHtml('<div>'+comment+'<div>Visible article text</div>'+opaque+'</div>','chapters',theme)
+ expect(mixed.error).toBeUndefined()
+ expect(mixed.html).toContain(comment)
+ expect(mixed.html).toContain(opaque)
+})

@@ -9,7 +9,7 @@ import {api} from '../../src/editor/api'
 vi.mock('../../src/editor/api',()=>({api:{importArticleImages:vi.fn()}}))
 const initial=useStore.getState(),close=vi.fn();let host:HTMLDivElement,root:Root
 const urls=['https://img.xiumi.us/one.png','https://img.xiumi.us/two.png']
-async function render(empty=false,scope=false){const block=createBlock('html',{html:empty?'<p>no image</p>':urls.map(u=>`<img src="${u}">`).join('')});const doc={...emptyDoc(),blocks:[block]};useStore.setState({doc});await act(async()=>root.render(<ArticleImageImport doc={doc} selectedId={scope?[block.id]:undefined} onClose={close}/>));return doc}
+async function render(empty=false,scope=false){const block=createBlock('html',{html:empty?'<p>no image</p>':urls.map(u=>`<img src="${u}">`).join('')});const doc={...emptyDoc(),blocks:[block]};useStore.setState({doc,selectedIds:scope?[block.id]:[]});await act(async()=>root.render(<ArticleImageImport doc={doc} selectedId={scope?[block.id]:undefined} onClose={close}/>));return doc}
 async function click(selector:string){await act(async()=>host.querySelector<HTMLElement>(selector)!.click())}
 beforeEach(()=>{(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;vi.resetAllMocks();useStore.setState(initial,true);host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(async()=>{await act(async()=>root.unmount());host.remove()})
@@ -26,4 +26,19 @@ it('close stops remaining requests but honestly allows current transfer to finis
 })
 it('unmount during transfer stops remaining batch and double-click starts only one loop',async()=>{
  await render();let finish!:(value:any)=>void;vi.mocked(api.importArticleImages).mockReturnValue(new Promise(r=>{finish=r}));await act(async()=>{const button=host.querySelector<HTMLElement>('button.primary')!;button.click();button.click()});expect(api.importArticleImages).toHaveBeenCalledTimes(1);await act(async()=>root.render(null));await act(async()=>finish([]));expect(api.importArticleImages).toHaveBeenCalledTimes(1)
+})
+
+it.each(['document', 'selection'] as const)('stops unsent images when the %s changes during an import', async (change) => {
+  await render(false, true)
+  const request = vi.mocked(api.importArticleImages)
+  let finish!: (value: Awaited<ReturnType<typeof api.importArticleImages>>) => void
+  request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  await click('button.primary')
+  expect(request.mock.calls).toEqual([[[urls[0]]]])
+  if (change === 'document') useStore.setState({ doc: emptyDoc() })
+  else useStore.setState({ selectedIds: [] })
+  await act(async () => finish([{ url: urls[0], status: 'existing' }]))
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('已停止剩余图片')
+  expect(host.textContent).toContain('已存在 1 张')
 })

@@ -59,14 +59,16 @@ function updateParentOf(blocks: Block[], childId: string, fn: (kids: Block[]) =>
   })
 }
 
-/** 插入到顶层（parentId 为 null）或某个文本框内；文本框不能放进文本框 */
+export const requiresTopLevel = (block: Block): boolean => block.type === 'box' || block.type === 'replay'
+
+/** 插入到顶层或某个文本框内；文本框和编辑回放不能放进文本框。 */
 export function insertBlocksAt(blocks: Block[], parentId: string | null, index: number, list: Block[]): Block[] {
   if (!parentId) {
     const out = [...blocks]
     out.splice(Math.max(0, Math.min(out.length, index)), 0, ...list)
     return out
   }
-  if (list.some((b) => b.type === 'box')) return blocks
+  if (list.some(requiresTopLevel)) return blocks
   return blocks.map((b) => {
     if (b.id !== parentId || b.type !== 'box') return b
     const kids = [...b.props.children]
@@ -78,7 +80,7 @@ export function insertBlocksAt(blocks: Block[], parentId: string | null, index: 
 /** 把模块移到某个位置（同层排序、移入或移出文本框）；index 指移除该模块之后的位置 */
 export function moveBlockTo(blocks: Block[], id: string, parentId: string | null, index: number): Block[] {
   const at = findBlock(blocks, id)
-  if (!at || (parentId && at.block.type === 'box') || parentId === id) return blocks
+  if (!at || (parentId && requiresTopLevel(at.block)) || parentId === id) return blocks
   return insertBlocksAt(removeBlockById(blocks, id), parentId, index, [at.block])
 }
 
@@ -92,20 +94,21 @@ export function replaceBlockWith(blocks: Block[], id: string, list: Block[]): Bl
     return out
   }
   if (!at.parent) return swap(blocks)
+  if (list.some(b => b.type === 'replay')) return blocks
   return updateParentOf(blocks, id, (kids) => swap(kids).filter((b) => b.type !== 'box'))
 }
 
 /**
  * 点击添加模块时的插入位置：选中大型文本框 → 插到框内末尾；选中框内模块 → 插到它后面（仍在框内）；
- * 文本框不能嵌套，插入文本框时总是放在顶层。
+ * 顶层模块总是插入顶层。
  */
-export function insertionPoint(blocks: Block[], selectedId: string | null, isBox: boolean): { parentId: string | null; index: number } {
+export function insertionPoint(blocks: Block[], selectedId: string | null, topLevel: boolean): { parentId: string | null; index: number } {
   const sel = findBlock(blocks, selectedId)
   if (!sel) return { parentId: null, index: blocks.length }
   if (sel.parent) {
-    if (!isBox) return { parentId: sel.parent.id, index: sel.index + 1 }
+    if (!topLevel) return { parentId: sel.parent.id, index: sel.index + 1 }
     return { parentId: null, index: blocks.findIndex((b) => b.id === sel.parent!.id) + 1 }
   }
-  if (sel.block.type === 'box' && !isBox) return { parentId: sel.block.id, index: sel.block.props.children.length }
+  if (sel.block.type === 'box' && !topLevel) return { parentId: sel.block.id, index: sel.block.props.children.length }
   return { parentId: null, index: sel.index + 1 }
 }

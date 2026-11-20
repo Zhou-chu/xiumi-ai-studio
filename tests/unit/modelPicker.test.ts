@@ -53,6 +53,32 @@ it('keeps DOM focus on listbox while virtual option focus moves and closes witho
  expect([...list.querySelectorAll<HTMLElement>('[role="option"]')].every(option=>option.tabIndex<0)).toBe(true);
  const outside=document.createElement('button');document.body.append(outside);act(()=>outside.focus());expect(host.querySelector('[role="listbox"]')).toBeNull();expect(document.activeElement).toBe(outside);outside.remove()
 })
+it('readonly cannot expand and outside pointer closes without stealing focus',()=>{
+ act(()=>root.render(createElement(ModelPicker,{models,value:'model-2',disabled:true,onSelect:vi.fn()})))
+ expect(trigger().disabled).toBe(true);act(()=>trigger().click());expect(host.querySelector('[role="listbox"]')).toBeNull()
+ act(()=>root.render(createElement(ModelPicker,{models,value:'model-2',onSelect:vi.fn()})))
+ act(()=>trigger().click());act(()=>document.body.dispatchEvent(new Event('pointerdown',{bubbles:true})))
+ expect(host.querySelector('[role="listbox"]')).toBeNull()
+})
+it('virtual cursor is independent of the selected item and long accessible names are intact',()=>{
+ const long='a'.repeat(300)
+ act(()=>root.render(createElement(ModelPicker,{models:[{id:long},{id:'other'}],value:long,onSelect:vi.fn()})))
+ expect(trigger().getAttribute('aria-label')).toContain(long)
+ trigger().focus();key('ArrowDown');key('End')
+ expect(host.querySelector('[aria-selected="true"]')?.textContent).toBe(long)
+ expect(host.querySelector('[data-active="true"]')?.textContent).toBe('other')
+})
+it('nested dialog takes focus away from the picker and receives Escape without closing its parent',()=>{
+ const outerClose=vi.fn(),innerClose=vi.fn()
+ const picker=createElement(ModelPicker,{models,value:'model-0',onSelect:vi.fn()})
+ const outer=createElement(Modal,{title:'Outer',onClose:outerClose,children:picker})
+ act(()=>root.render(createElement('div',{},outer)));act(()=>trigger().click())
+ act(()=>root.render(createElement('div',{},outer,createElement(Modal,{title:'Inner',onClose:innerClose,children:createElement('button',{},'Inner action')}))))
+ expect(host.querySelector('[data-model-picker-open]')).toBeNull()
+ expect(document.activeElement?.textContent).toBe('✕')
+ key('Escape');expect(innerClose).toHaveBeenCalledTimes(1);expect(outerClose).not.toHaveBeenCalled()
+})
+
 it.each(['below','above'] as const)('reveals fractional %s edges with integer scroll offsets and available local scroll range', direction=>{
  let offset=200
  const max=1000

@@ -76,7 +76,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       if (request !== modelRequest.current.generation) return
       setModelList(models)
       const matched = models.find((m) => m.id === p.model)
-      if (matched?.contextWindow) setProfiles((list) => list.map((x) => x.id === p.id && x.model === p.model ? { ...x, contextWindow: matched.contextWindow } : x))
+      // Discovery fills an empty field; it must not silently replace a configured value.
+      if (matched?.contextWindow) setProfiles((list) => list.map((x) => x.id === p.id && x.model === p.model && !x.contextWindow ? { ...x, contextWindow: matched.contextWindow } : x))
       setModelStatus(models.length ? `已获取 ${models.length} 个模型；未提供的参数请查阅服务商文档。` : '服务未返回模型，可手动填写。')
     } catch (e: any) {
       if (request === modelRequest.current.generation) setModelStatus(`${e.message}；可继续手动填写。`)

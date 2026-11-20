@@ -67,3 +67,55 @@ for (const width of [1440,390]) test(`model picker folds and scrolls 40 models w
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
+
+test.describe('model picker touch targets', () => {
+  test.use({ hasTouch: true })
+
+  for (const [width, height, theme] of [[390, 844, 'dark'], [1024, 768, 'light'], [1440, 900, 'dark']] as const) {
+    test(`keeps the long-label picker usable at ${width}px in ${theme}`, async ({ page }) => {
+      const longId = `model-${'long-name-'.repeat(16)}last`
+      await page.setViewportSize({ width, height })
+      await page.addInitScript(mode => {
+        if (window.top === window) localStorage.setItem('xiumi-color-mode', mode)
+      }, theme)
+      await page.route('**/api/settings/ai', route => route.fulfill({
+        json: { activeId: 'touch-picker', profiles: [{ id: 'touch-picker', name: 'Touch picker', provider: 'openai', baseUrl: 'https://example.invalid/v1', apiKey: '', model: 'model-0', jsonMode: true }] },
+      }))
+      await page.route('**/api/settings/ai/models', route => route.fulfill({
+        json: [...Array.from({ length: 39 }, (_, i) => `model-${i}`), longId].map(id => ({ id })),
+      }))
+      await page.goto('/')
+      if (theme === 'dark') await page.getByTestId('toolbar-more').tap()
+      await page.getByTestId('open-ai-settings').tap()
+      await page.getByRole('button', { name: '编辑模型：Touch picker', exact: true }).tap()
+      await page.getByTestId('ai-load-models').tap()
+
+      const trigger = page.getByTestId('ai-model-picker')
+      const list = page.getByRole('listbox', { name: '可用模型' })
+      await trigger.tap()
+      await expect(list.getByRole('option')).toHaveCount(40)
+      const longOption = list.getByRole('option', { name: longId, exact: true })
+      expect(await trigger.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44)
+      expect(await longOption.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44)
+      const isEllipsized = (el: HTMLElement | SVGElement) => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis'
+      expect(await longOption.evaluate(isEllipsized)).toBe(true)
+
+      const listGeometry = await list.evaluate(el => ({
+        height: el.getBoundingClientRect().height,
+        verticalScroll: el.scrollHeight > el.clientHeight,
+        horizontalScroll: el.scrollWidth > el.clientWidth,
+      }))
+      expect(listGeometry.height).toBeLessThanOrEqual(250)
+      expect(listGeometry.verticalScroll).toBe(true)
+      expect(listGeometry.horizontalScroll).toBe(false)
+      const modalBody = page.getByRole('dialog').locator('.modal-body')
+      expect(await modalBody.evaluate(el => el.scrollWidth)).toBe(await modalBody.evaluate(el => el.clientWidth))
+      await longOption.tap()
+      await expect(page.getByTestId('ai-model')).toHaveValue(longId)
+      await expect(list).toHaveCount(0)
+      const selectedLabel = trigger.locator('.model-picker-value')
+      await expect(selectedLabel).toHaveText(longId)
+      expect(await selectedLabel.evaluate(isEllipsized)).toBe(true)
+    })
+  }
+})

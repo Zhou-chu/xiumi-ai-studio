@@ -49,6 +49,8 @@ pnpm check   # ESLint + TypeScript + Vitest 单元测试
 pnpm e2e     # Playwright：验收流程 + 剪贴板 + 截图回归（首次运行生成基线）
 ```
 
+CI 的 Node 22 运行开发版 E2E，Node 24 对构建后的前端和 API 在同一个本地地址上运行相同的 E2E 套件。要在本地复跑构建版，先运行 `pnpm build` 和 `pnpm sample`，再以 `XIUMI_E2E_TARGET=built` 运行 `pnpm e2e --update-snapshots=none`。此模式使用临时数据目录，不读取项目的 `.env` 或继承 AI、公众号配置。
+
 **微信兼容性**：自动化测试只覆盖静态规则、HTML 结构与剪贴板内容；**在微信公众号平台验证过部分功能，目前最建议的方法是在xiumi-ai-studio平台导出HTML文件，然后导入xiumi平台，之后同步到微信公众号**，。请按 [docs/03-wechat-compat-test.md](docs/03-wechat-compat-test.md) 人工测试并记录。
 
 ## 目录

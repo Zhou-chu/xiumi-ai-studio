@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { clampImageWidth, resizePhoto } from '../core/imageResize'
 import { findBlock } from '../core/tree'
-import type { Block } from '../core/types'
+import type { Block, Doc } from '../core/types'
 import { useStore } from './store'
 import './ImageResize.css'
 
@@ -14,6 +14,12 @@ export function ImageResize() {
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [width, setWidth] = useState(100)
   const handle = useRef<HTMLButtonElement>(null)
+  // Keep our own committed width while layout catches up, never reuse it after an unrelated edit.
+  const committed = useRef<{ doc: Doc; target: NonNullable<typeof target>; width: number } | null>(null)
+  const committedWidth = (current: Doc) => {
+    const prior = committed.current
+    return prior?.doc === current && prior.target === target ? prior.width : undefined
+  }
   const drag = useRef<{ img: HTMLImageElement; original: string | null; block: Block; parentWidth: number; startX: number; startWidth: number; percent: number; pointer: number; docId: string } | null>(null)
   const image = () => target ? Array.from(document.querySelectorAll<HTMLElement>('.article [data-block-id]')).find((b) => b.dataset.blockId === target.blockId)?.querySelectorAll<HTMLImageElement>('.block-html img')[target.index] : null
   const cancel = () => {
@@ -43,7 +49,9 @@ export function ImageResize() {
         const scroll = img.closest('.canvas-scroll')!.getBoundingClientRect()
         const visible = r.bottom > scroll.top && r.top < scroll.bottom ? r : null
         setRect((old) => old?.left === visible?.left && old?.top === visible?.top && old?.width === visible?.width && old?.height === visible?.height ? old : visible)
-        if (!drag.current) setWidth(clampImageWidth(r.width / parent.width * 100))
+        if (!drag.current && Number.isFinite(parent.width) && parent.width > 0) {
+          setWidth(committedWidth(useStore.getState().doc) ?? clampImageWidth(r.width / parent.width * 100))
+        }
       }
       frame = requestAnimationFrame(tick)
     }
@@ -56,7 +64,15 @@ export function ImageResize() {
       s.notify('图片所在模块已变化，请重新选择后调整')
       return
     }
-    s.commit(resizePhoto(s.doc, target, percent))
+    const next = resizePhoto(s.doc, target, percent)
+    if (next === s.doc) return
+    s.commit(next)
+    const actual = useStore.getState().doc
+    if (actual.id === next.id && actual.blocks === next.blocks) {
+      const nextWidth = clampImageWidth(percent)
+      committed.current = { doc: actual, target, width: nextWidth }
+      setWidth(nextWidth)
+    }
   }
   if (!rect || !target || selected !== target.blockId || editing) return null
   return <div className="image-resize-overlay" style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }} data-testid="image-resize-overlay" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -97,7 +113,8 @@ export function ImageResize() {
         const s = useStore.getState(); const block = findBlock(s.doc.blocks, target.blockId)?.block
         if (!block) return
         const step = e.shiftKey ? 10 : 1
-        commit(e.key === 'Home' ? 10 : e.key === 'End' ? 100 : width + (e.key === 'ArrowRight' || e.key === 'ArrowUp' ? step : -step), block, s.doc.id)
+        const currentWidth = committedWidth(s.doc) ?? width
+        commit(e.key === 'Home' ? 10 : e.key === 'End' ? 100 : currentWidth + (e.key === 'ArrowRight' || e.key === 'ArrowUp' ? step : -step), block, s.doc.id)
       }}>↘</button>
   </div>
 }

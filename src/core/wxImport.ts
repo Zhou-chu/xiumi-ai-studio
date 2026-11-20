@@ -33,14 +33,37 @@ export function detectSource(doc: Document, url = ''): SourceKind {
   return Array.from(doc.querySelectorAll('[powered-by]')).some((e) => /xiumi/i.test(e.getAttribute('powered-by') ?? '')) ? 'xiumi' : 'other'
 }
 
+// Reader-page copies include the source site's header/footer and a width compensation
+// wrapper. Only recognize the explicit body marker; opaque article HTML is unchanged.
+function stripReaderHorizontalFrame(root: Element) {
+  let outer = root
+  for (let depth = 0; depth < 16 && outer.children.length === 1; depth++) {
+    if ([...outer.childNodes].some(node => node.nodeType === 3 && node.textContent?.trim())) break
+    outer = outer.children[0]
+    if (!['section', 'div'].includes(outer.tagName.toLowerCase())) break
+    const style = outer.getAttribute('style') ?? ''
+    const horizontal = /^\s*(?:margin|padding)-(?:left|right)\s*:/i
+    const negativeMargin = /^\s*margin-(?:left|right)\s*:\s*-\d+(?:\.\d+)?px\s*$/i
+    const parts = splitDecls(style)
+    if (!parts.some(part => negativeMargin.test(part))) continue
+    const remaining = parts.filter(part => !horizontal.test(part)).map(part => part.trim()).join('; ')
+    if (remaining) outer.setAttribute('style', remaining)
+    else outer.removeAttribute('style')
+  }
+}
+
 /** doc 可以是完整文章页，也可以是只包含正文的片段；url 是抓取时的链接，粘贴时没有 */
 export function extractArticle(doc: Document, url = ''): ImportedArticle {
   const kind = detectSource(doc, url)
-  const content = doc.querySelector('#js_content') ?? doc.querySelector('.rich_media_content') ?? doc.body
+  const wechatBody = doc.querySelector('#js_content') ?? doc.querySelector('.rich_media_content')
+  const readerBody = wechatBody ? null : doc.querySelector('.tn-article-body')
+  const content = wechatBody ?? readerBody ?? doc.body
   const root = content.cloneNode(true) as Element
   sanitizeTree(root)
+  if (readerBody) stripReaderHorizontalFrame(root)
+  const readerTitle = readerBody ? text(doc.querySelector('.tn-board-head h1, .tn-board-head h2, .tn-board-head h3')) : ''
   const scriptTitle = doc.documentElement.innerHTML.match(/var\s+msg_title\s*=\s*['"]([^'"]+)['"]/)?.[1]
-  const title = meta(doc, 'meta[property="og:title"]') || text(doc.querySelector('#activity-name')) || scriptTitle || text(doc.querySelector('h1')) || ''
+  const title = meta(doc, 'meta[property="og:title"]') || text(doc.querySelector('#activity-name')) || scriptTitle || readerTitle || text(doc.querySelector('h1')) || ''
   const account = text(doc.querySelector('#js_name')) || meta(doc, 'meta[property="og:article:author"]')
   return {
     title,

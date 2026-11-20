@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { once } from 'node:events'
-import { createServer, type Server } from 'node:http'
+import { createServer, request as sendHttp, type Server } from 'node:http'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -298,14 +298,81 @@ it('preserves uploads larger than the generic 8 MB recommendation',async()=>{
  const actual=boundary.assets.saveAsset.mock.calls[0][0] as Buffer
  expect(actual.length).toBe(bytes.length);expect(actual[0]).toBe(17);expect(actual.at(-1)).toBe(29)
 },30000)
-it('rejects a third real upload while two business handlers are still processing',async()=>{
- const completed:Array<()=>void>=[]
- boundary.assets.saveAsset.mockImplementation(()=>new Promise(resolve=>completed.push(()=>resolve({id:'uploaded'}))))
- const first=upload('/api/assets','one.png'),second=upload('/api/assets','two.png')
- await vi.waitFor(()=>expect(completed).toHaveLength(2))
- const third=await upload('/api/assets','three.png');expect(third.status).toBe(429);expect(third.headers.get('retry-after')).toBe('1')
- completed.forEach(done=>done());expect((await first).status).toBe(200);expect((await second).status).toBe(200)
- boundary.assets.saveAsset.mockResolvedValue({id:'next'});expect((await upload('/api/assets','next.png')).status).toBe(200)
+async function withTwoHeldUploads(verify: () => Promise<void>) {
+  const completed: Array<() => void> = []
+  let released = false
+  boundary.assets.saveAsset.mockImplementation(() => new Promise(resolve => {
+    const finish = () => resolve({ id: 'uploaded' })
+    if (released) finish()
+    else completed.push(finish)
+  }))
+  const started = ['one.png', 'two.png'].map(async (name) => {
+    const response = await upload('/api/assets', name)
+    await response.arrayBuffer()
+    return response.status
+  })
+  const drained = Promise.allSettled(started)
+  try {
+    await vi.waitFor(() => expect(completed).toHaveLength(2))
+    await verify()
+  } finally {
+    released = true
+    completed.forEach(done => done())
+    await drained
+  }
+  return Promise.all(started)
+}
+
+function thirdMultipartUpload() {
+  const marker = 'xiumi-test-multipart'
+  const body = [
+    `--${marker}`,
+    'Content-Disposition: form-data; name="files"; filename="three.png"',
+    'Content-Type: application/octet-stream',
+    '',
+    'file contents',
+    `--${marker}--`,
+    '',
+  ].join('\r\n')
+  return new Promise<{ status: number | undefined; retryAfter: string | undefined; connection: string | undefined }>((resolve, reject) => {
+    // Admission rejects before parsing the body and closes the connection.
+    // Supply the complete small multipart body in one write on a fresh socket
+    // instead of racing that early response against a streamed fetch upload.
+    const pending = sendHttp(url + '/api/assets', {
+      method: 'POST',
+      agent: false,
+      headers: { 'Content-Type': `multipart/form-data; boundary=${marker}`, 'Content-Length': Buffer.byteLength(body), Connection: 'keep-alive' },
+    }, response => {
+      response.once('error', reject)
+      response.once('end', () => resolve({ status: response.statusCode, retryAfter: response.headers['retry-after'], connection: response.headers.connection }))
+      response.resume()
+    })
+    pending.once('error', reject)
+    pending.end(body)
+  })
+}
+
+it('rejects a third real upload while two business handlers are still processing', async () => {
+  const finished = await withTwoHeldUploads(async () => {
+    const third = await thirdMultipartUpload()
+    expect(third.status).toBe(429)
+    expect(third.retryAfter).toBe('1')
+    expect(third.connection).toBe('close')
+    expect(boundary.assets.saveAsset).toHaveBeenCalledTimes(2)
+  })
+  expect(finished).toEqual([200, 200])
+  boundary.assets.saveAsset.mockResolvedValue({ id: 'next' })
+  expect((await upload('/api/assets', 'next.png')).status).toBe(200)
+})
+
+it('drains both held uploads after an early failure without replacing the original error', async () => {
+  const original = new Error('synthetic third-request write error')
+  await expect(withTwoHeldUploads(async () => { throw original })).rejects.toBe(original)
+  expect(boundary.assets.saveAsset).toHaveBeenCalledTimes(2)
+  boundary.assets.saveAsset.mockResolvedValue({ id: 'next' })
+  const next = await upload('/api/assets', 'next.png')
+  expect(next.status).toBe(200)
+  expect(await next.json()).toEqual([{ id: 'next' }])
 })
 it('aborting a sent suggestion disconnect propagates to the model and does not block the next request', async () => {
  let started!:()=>void;const ready=new Promise<void>(r=>started=r)

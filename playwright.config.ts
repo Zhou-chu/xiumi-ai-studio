@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const built = process.env.XIUMI_E2E_TARGET === 'built'
+
 // E2E 使用独立端口与数据目录，不影响日常使用的 data/
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -19,7 +21,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     permissions: ['clipboard-read', 'clipboard-write'],
   },
-  webServer: [
+  webServer: built ? [{
+    command: 'node --import tsx tests/fixtures/start-built-e2e.ts',
+    env: { API_PORT: '5273' },
+    url: 'http://127.0.0.1:5273/api/ai/status',
+    reuseExistingServer: false,
+  }] : [
     {
       // 每次运行前清空 E2E 数据目录
       command: `node -e "require('fs').rmSync('data-e2e',{recursive:true,force:true})" && npx tsx server/index.ts`,

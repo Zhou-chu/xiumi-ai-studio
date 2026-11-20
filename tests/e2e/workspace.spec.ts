@@ -188,3 +188,23 @@ for (const mode of ['light','dark'] as const) test(`AI 模型设置：从上游�
   await page.getByRole('button', { name: '保存' }).click()
   await expect.poll(() => saved?.profiles?.find((p: any) => p.model === 'big-model')).toMatchObject({ model: 'big-model', reasoningEffort: 'high', efforts: ['low', 'high'], contextWindow: 262144, maxOutputTokens: 32768, extraBody: '{"enable_thinking": false}' })
 })
+
+test('keyboard focus stays on the active workspace region when it narrows again', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('xiumi-color-mode', 'dark'))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await seed(page, '响应式键盘焦点', [para('focus', '焦点测试')])
+  const switcher = page.getByRole('navigation', { name: '编辑工作区' })
+  await page.getByTestId('workspace-left').click()
+  await expect(page.getByTestId('tab-blocks')).toBeVisible()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(switcher).toBeHidden()
+  const zoom = page.getByTestId('zoom-in')
+  await zoom.focus()
+  await expect(zoom).toBeFocused()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByTestId('workspace-canvas')).toHaveAttribute('aria-pressed', 'true')
+  await expect(zoom).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('zoom-reset')).toHaveText('110%')
+})

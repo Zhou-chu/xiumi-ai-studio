@@ -6,6 +6,16 @@ import { asciiHtml, makeZip, replaceLocalImages, checkedXiumiParts } from '../co
 import type { Doc } from '../core/types'
 import { api } from './api'
 
+export const REPLAY_LOCAL_ONLY = '编辑回放暂只支持本地 HTML，请下载保留回放的 HTML 文件；公众号与秀米导出尚未验证。'
+
+export function hasReplay(doc: Doc): boolean {
+  return doc.blocks.some(block => block.type === 'replay')
+}
+
+export function assertReplayCanPublish(doc: Doc): void {
+  if (hasReplay(doc)) throw new Error(REPLAY_LOCAL_ONLY)
+}
+
 export type ImageMode = 'embed' | 'wechat' | 'absolute'
 
 /** 收集文档编译后用到的全部图片地址 */
@@ -29,6 +39,7 @@ async function toDataUrl(url: string): Promise<string> {
 }
 
 export async function compileForWechat(doc: Doc, mode: ImageMode, onProgress?: (msg: string) => void): Promise<CompileResult> {
+  if (mode === 'wechat') assertReplayCanPublish(doc)
   const urls = collectImageUrls(doc).filter((u) => u.startsWith('/media/'))
   const map: Record<string, string> = {}
   if (mode === 'embed') {
@@ -177,6 +188,7 @@ function xiumiZip(files: { name: string; data: Uint8Array }[], images: number): 
 
 /** 导出给秀米（不需要公众号接口）：本地图片换成占位图，另附按出现顺序编号的图片包 */
 export async function xiumiPackage(doc: Doc, onProgress?: (msg: string) => void): Promise<XiumiDownload> {
+  assertReplayCanPublish(doc)
   checkedXiumiParts(compileDoc(doc).html)
   const replaced = replaceLocalImages(compileDoc(doc).html, (url, i) => placeholder(i + 1, fitRatio(url)))
   const { urls } = replaced
@@ -193,6 +205,7 @@ export async function xiumiPackage(doc: Doc, onProgress?: (msg: string) => void)
 
 /** 导出给秀米（已配置公众号接口）：本地图片先传到微信图床，全部变成秀米能接受的地址 */
 export async function xiumiUploaded(doc: Doc, onProgress?: (msg: string) => void): Promise<XiumiDownload> {
+  assertReplayCanPublish(doc)
   checkedXiumiParts(compileDoc(doc).html)
   const { html } = await compileForWechat(doc, 'wechat', onProgress)
   if (/(?:src="|url\((?:&quot;|["']?))\/media\//.test(html)) throw new Error('有图片没有上传成功，请重试')
