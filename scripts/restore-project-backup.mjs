@@ -54,17 +54,19 @@ function budgetReader() {
   }
 }
 
-async function directory(root, name) {
+async function directory(root, name, optional) {
   const path = join(root, name)
-  if (!(await lstat(path)).isDirectory()) throw new Error('项目和素材目录必须是真实目录。')
+  const info = await lstat(path).catch((err) => { if (optional && err.code === 'ENOENT') return null; throw err })
+  if (!info) return null
+  if (!info.isDirectory()) throw new Error('项目和素材目录必须是真实目录。')
   return path
 }
 
-async function readSnapshot(root, read) {
-  const projects = await directory(root, 'projects')
-  const assets = await directory(root, 'assets')
+async function readSnapshot(root, read, optionalGroups = false) {
+  const projects = await directory(root, 'projects', optionalGroups)
+  const assets = await directory(root, 'assets', optionalGroups)
   const docs = new Map(), images = new Map()
-  const entries = await readdir(projects)
+  const entries = projects ? await readdir(projects) : []
   if (entries.length > maxEntries) throw new Error('项目数量超过恢复限制。')
   for (const name of entries) {
     const match = projectName.exec(name)
@@ -78,7 +80,7 @@ async function readSnapshot(root, read) {
     }
     docs.set(key, Object.fromEntries(docFields.filter((field) => Object.hasOwn(doc, field)).map((field) => [field, doc[field]])))
   }
-  const bytes = await read(join(assets, '_index.json'), true)
+  const bytes = assets ? await read(join(assets, '_index.json'), true) : null
   const index = bytes ? JSON.parse(bytes) : {}
   if (!record(index) || Object.keys(index).length > maxEntries) throw new Error('素材索引无效。')
   for (const [id, item] of Object.entries(index)) {
@@ -128,10 +130,14 @@ export async function stageProjectRestore({ base, incoming, output }) {
   if (knownTarget) throw new Error('输出目录已存在，请选择新目录。')
   const read = budgetReader()
   const manifest = JSON.parse(await read(join(roots[1], 'xiumi-backup.json')))
-  if (manifest?.app !== 'xiumi-ai-studio' || manifest.scope !== 'projects-and-assets') throw new Error('只支持已解包的新版项目和素材备份。')
+  const legacy = record(manifest) && !Object.hasOwn(manifest, 'scope') && manifest.version === '0.2.0' &&
+    typeof manifest.createdAt === 'string' && Number.isFinite(Date.parse(manifest.createdAt))
+  if (manifest?.app !== 'xiumi-ai-studio' || (manifest.scope !== 'projects-and-assets' && !legacy)) {
+    throw new Error('只支持已解包的项目和素材备份或 Xiumi v0.2.0 自有备份。')
+  }
 
   const current = await readSnapshot(roots[0], read)
-  const source = await readSnapshot(roots[1], read)
+  const source = await readSnapshot(roots[1], read, true)
   assertManagedReferences(current.docs, current.images)
   assertManagedReferences(source.docs, source.images)
   let preserved = 0
@@ -165,7 +171,7 @@ export async function stageProjectRestore({ base, incoming, output }) {
 if (import.meta.main) {
   const [base, incoming, output, extra] = process.argv.slice(2)
   if (!base || !incoming || !output || extra) {
-    console.error('用法：node restore-project-backup.mjs <当前数据的离线副本> <已解包的新备份> <尚不存在的输出目录>')
+    console.error('用法：node restore-project-backup.mjs <当前数据的离线副本> <已解包的自有备份> <尚不存在的输出目录>')
     process.exitCode = 2
   } else {
     try {

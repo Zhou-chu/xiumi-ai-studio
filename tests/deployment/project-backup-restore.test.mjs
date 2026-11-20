@@ -68,3 +68,22 @@ test('refuses a project whose backup-managed image is missing before creating ou
   await assert.rejects(stageProjectRestore(options), /缺少素材/)
   await assert.rejects(readFile(join(options.output, 'projects', 'brought.json')), { code: 'ENOENT' })
 })
+
+test('takes only projects and indexed images from a manually unpacked upstream v0.2.0 backup', async () => {
+  const options = await roots()
+  const { incoming, output } = options
+  await json(join(incoming, 'xiumi-backup.json'), {
+    app: 'xiumi-ai-studio', version: '0.2.0', createdAt: '2026-11-20T00:00:00.000Z',
+    note: '不含 AI 密钥与 .env（公众号 AppSecret）',
+  })
+  await json(join(incoming, 'settings.json'), { legacyPreference: 'excluded' })
+  await mkdir(join(incoming, 'templates'))
+  await json(join(incoming, 'templates', 'one.json'), { id: 'one', name: 'Excluded legacy template' })
+  await json(join(incoming, 'projects', 'legacy.json'), draft('legacy', 'Legacy project', 'photo'))
+  const image = await asset(incoming, 'photo', '#FF6600')
+  assert.equal((await stageProjectRestore(options)).projects, 1)
+  assert.equal(JSON.parse(await readFile(join(output, 'projects', 'legacy.json'), 'utf8')).cover.src, '/media/photo.png')
+  assert.deepEqual(await readFile(join(output, 'assets', 'photo.png')), image)
+  await assert.rejects(readFile(join(output, 'settings.json')), { code: 'ENOENT' })
+  await assert.rejects(readFile(join(output, 'templates', 'one.json')), { code: 'ENOENT' })
+})
