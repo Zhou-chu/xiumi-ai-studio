@@ -37,7 +37,7 @@ export async function createProjectBackup(): Promise<ArrayBuffer> {
   for (const asset of assets) {
     if (!validId.test(asset.id) || !managedImage.test(asset.file)) throw new Error('素材标识无效，未生成备份。')
     if (asset.size > maxBytes - byteCount) throw new Error('项目和素材超过 128 MB，无法生成浏览器备份。')
-    const res = await fetch(`/media/${asset.file}`, { mode: 'same-origin', redirect: 'error', cache: 'no-store' })
+    const res = await fetch(`/media/${asset.file}?w=2400`, { mode: 'same-origin', redirect: 'error', cache: 'no-store' })
     if (!res.ok) throw new Error('有素材无法读取，未生成备份。')
     const bytes = await res.arrayBuffer()
     count(bytes.byteLength)

@@ -32,7 +32,7 @@ it('packs saved drafts and indexed local assets in the old ZIP layout without se
   expect(JSON.parse(await zip.file('projects/project1.json')!.async('string'))).toEqual(project)
   expect(JSON.parse(await zip.file('assets/_index.json')!.async('string'))).toEqual({ asset1: asset })
   expect(await zip.file('assets/asset1.png')!.async('uint8array')).toEqual(new Uint8Array([1, 2, 3]))
-  expect(fetchMedia.mock.calls.map(([url]) => url)).toEqual(['/media/asset1.png'])
+  expect(fetchMedia.mock.calls.map(([url]) => url)).toEqual(['/media/asset1.png?w=2400'])
 })
 
 it('reports an incomplete backup rather than downloading missing media', async () => {

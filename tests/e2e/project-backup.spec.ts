@@ -4,7 +4,7 @@ import JSZip from 'jszip'
 import sharp from 'sharp'
 
 test('downloads the current saved project and local assets without configuration', async ({ page }) => {
-  const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#123456' } }).png().toBuffer()
+  const png = await sharp({ create: { width: 1600, height: 32, channels: 3, background: '#123456' } }).png().toBuffer()
   const response = await page.request.post('/api/assets', {
     multipart: { files: { name: 'backup-test-figure.png', mimeType: 'image/png', buffer: png } },
   })
@@ -29,7 +29,11 @@ test('downloads the current saved project and local assets without configuration
   expect(docs.some(doc => doc.title === '本地备份的最新文稿')).toBe(true)
   const index = JSON.parse(await zip.file('assets/_index.json')!.async('string'))
   expect(index[id].file).toBe(file)
-  expect((await zip.file(`assets/${file}`)!.async('uint8array')).byteLength).toBeGreaterThan(0)
+  const backedUpBytes = await zip.file(`assets/${file}`)!.async('nodebuffer')
+  expect(await sharp(backedUpBytes).metadata()).toMatchObject({ width: 1600, height: 32 })
+  const originalResponse = await page.request.get(`/media/${file}?w=2400`)
+  expect(originalResponse.ok()).toBe(true)
+  expect(backedUpBytes).toEqual(await originalResponse.body())
   expect(zip.file('settings.json')).toBe(null)
   expect(zip.file('.env')).toBe(null)
 })
