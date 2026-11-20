@@ -1,16 +1,18 @@
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import JSZip from 'jszip'
 import sharp from 'sharp'
 import { expect, test } from './fixture'
+import { exercisePortable } from './portable'
 
 const run = promisify(execFile)
 
-test('user creates, edits, uploads, reopens and restores the same downloaded ZIP', async ({ page, origin }) => {
-  test.setTimeout(60_000)
+test('user creates, edits, uploads, reopens and restores the same downloaded ZIP', async ({ page, origin, browser }) => {
+  const portableRoot = process.env.XIUMI_PORTABLE_ROOT && resolve(process.env.XIUMI_PORTABLE_ROOT)
+  test.setTimeout(portableRoot ? 90_000 : 60_000)
   const title = '真实操作验收文稿'
   const body = '浏览器编辑后的验收正文'
   const caption = '随文保留的本地图片'
@@ -140,10 +142,59 @@ test('user creates, edits, uploads, reopens and restores the same downloaded ZIP
       await mkdir(dirname(destination), { recursive: true })
       await writeFile(destination, await entry.async('nodebuffer'))
     }
-    await run(process.execPath, ['scripts/restore-project-backup.mjs', base, incoming, output], { timeout: 15_000 })
+    const restoreNode = portableRoot ? join(portableRoot, 'runtime', 'node.exe') : process.execPath
+    const restoreScript = portableRoot
+      ? join(portableRoot, 'app', 'scripts', 'restore-project-backup.mjs')
+      : resolve('scripts/restore-project-backup.mjs')
+    const restoreEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+      !/^(?:AI_|WECHAT_|NODE_(?:PATH|OPTIONS)$|DATA_DIR$)/i.test(key)))
+    await run(restoreNode, [restoreScript, base, incoming, output], {
+      ...(portableRoot ? { cwd: portableRoot } : {}),
+      env: restoreEnv,
+      timeout: 15_000,
+      windowsHide: true,
+    })
     const restored = JSON.parse(await readFile(join(output, currentPath), 'utf8'))
     expect(restored).toMatchObject({ id, title, blocks: backedUpDoc.blocks })
     expect(await readFile(join(output, assetPath))).toEqual(backedUpImage)
+
+    if (portableRoot) {
+      // Run the same sealed EXE with the documented DATA_DIR override, not the
+      // original EXE's existing data, storage state, route setup or browser page.
+      await exercisePortable(portableRoot, output, async (restoredOrigin) => {
+        expect(restoredOrigin).not.toBe(origin)
+        const context = await browser.newContext({ serviceWorkers: 'block' })
+        try {
+          await context.route('**/*', route => new URL(route.request().url()).origin === restoredOrigin
+            ? route.continue()
+            : route.abort('blockedbyclient'))
+          const restoredPage = await context.newPage()
+          expect((await restoredPage.goto(restoredOrigin))?.ok()).toBe(true)
+          const restoredCanvas = restoredPage.getByTestId('canvas')
+          await expect(restoredCanvas).toBeVisible()
+          await restoredPage.getByTestId('tab-projects').click()
+          const [loaded] = await Promise.all([
+            restoredPage.waitForResponse(response =>
+              response.url() === `${restoredOrigin}/api/projects/${id}` && response.request().method() === 'GET'),
+            restoredPage.getByRole('button', { name: new RegExp(title) }).click(),
+          ])
+          expect(loaded.ok()).toBe(true)
+          expect(await loaded.json()).toMatchObject({ id, title })
+          await expect(restoredPage.getByRole('textbox', { name: '文章标题' })).toHaveValue(title)
+          await expect(restoredCanvas.locator('[data-block-type="paragraph"]')).toContainText(body)
+          const restoredPhotos = restoredCanvas.locator('[data-block-type="photos"]')
+          await expect(restoredPhotos).toContainText(caption)
+          const restoredImage = restoredPhotos.locator(`img[src*="${asset.file}"]`)
+          await expect(restoredImage).toHaveCount(1)
+          await expect.poll(() => restoredImage.evaluate(img => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+          const served = await restoredPage.request.get(`${restoredOrigin}/media/${asset.file}?w=2400`)
+          expect(served.ok()).toBe(true)
+          expect(await served.body()).toEqual(backedUpImage)
+        } finally {
+          await context.close()
+        }
+      }, scratch)
+    }
   } finally {
     await rm(scratch, { recursive: true, force: true, maxRetries: 3 })
   }
