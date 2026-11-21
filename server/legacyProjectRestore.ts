@@ -81,7 +81,10 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET): P
       }
     }
     if (!sawManifest) throw invalid()
-    return { projects: projects.sort((a, b) => a.id.localeCompare(b.id)), otherLibraryEntries: otherLibraryEntries.sort() }
+    return {
+      projects: projects.sort((a, b) => a.id.localeCompare(b.id, 'en')),
+      otherLibraryEntries: otherLibraryEntries.sort((a, b) => a.localeCompare(b, 'en')),
+    }
   } catch (error) {
     if ((error as { status?: number }).status === 413) throw error
     throw invalid()
