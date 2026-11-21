@@ -1,0 +1,45 @@
+{
+  "writerCommit": "550c0ef2e99e4d493bb0e9d017178aa7fbdc7fbe",
+  "writer": "server/dataTools.ts::writeBackup",
+  "template": "synthetic-paired-template",
+  "blocks": [
+    {
+      "id": "archived-section-heading",
+      "type": "heading"
+    },
+    {
+      "id": "archived-unused-heading",
+      "type": "heading"
+    },
+    {
+      "id": "archived-native-pair",
+      "type": "photos"
+    }
+  ],
+  "roles": {
+    "archived-section-heading": "h1",
+    "archived-unused-heading": "other",
+    "archived-native-pair": "img2lr"
+  },
+  "archiveSha256": "c2f16229a5e672986e0e0a4e68d52aaef2302ef23702409a5cb4dd03e65999c8",
+  "width": 16,
+  "height": 12,
+  "fixtureFiles": {
+    "assets/archive-left-violet.png": {
+      "sha256": "9a17d8de422eb907c38e5357f445f5964c2c46208b1b2a437107bfbcea08e490",
+      "color": "#8046cb80"
+    },
+    "assets/archive-right-teal.png": {
+      "sha256": "408230d14e8850e4bf0423710dbb4b1351deb96465087b96f83d1b537486c29a",
+      "color": "#31837880"
+    },
+    "replacement-left-red.png": {
+      "sha256": "6bfd39448df1549f17856d523e72b39e7b8293b1fe564e0c60b86bd0615be43f",
+      "color": "#e62b3680"
+    },
+    "replacement-right-blue.png": {
+      "sha256": "e24143faa5b162578c9d48b74fd91ef648f39ad562603ef51d5c76396771b516",
+      "color": "#1b5be080"
+    }
+  }
+}

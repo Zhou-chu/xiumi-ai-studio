@@ -375,9 +375,12 @@ function acceptedImageBlock(block: unknown, images: Map<string, RestoreImage>): 
   if (!isObject(block) || !knownKeys(block, blockKeys) || block.type !== 'image' ||
       typeof block.id !== 'string' || !idPattern.test(block.id) || !isObject(block.props)) return false
   const { image, caption, variant } = block.props
-  if (!knownKeys(block.props, imageBlockKeys) || !boundedText(caption, 2000) ||
-      typeof variant !== 'string' || !['full', 'framed', 'rounded'].includes(variant) ||
-      !isObject(image) || !knownKeys(image, imageRefKeys) || typeof image.assetId !== 'string') return false
+  return knownKeys(block.props, imageBlockKeys) && boundedText(caption, 2000) &&
+    typeof variant === 'string' && ['full', 'framed', 'rounded'].includes(variant) && acceptedImageRef(image, images)
+}
+
+function acceptedImageRef(image: unknown, images: Map<string, RestoreImage>): image is ImageRef & { assetId: string } {
+  if (!isObject(image) || !knownKeys(image, imageRefKeys) || typeof image.assetId !== 'string') return false
   const record = images.get(image.assetId)
   return !!record && (image.src === record.name || image.src === record.qualifiedSrc) &&
     (image.alt === undefined || boundedText(image.alt, 2000)) &&
@@ -501,10 +504,15 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   const templateAssets = new Map<string, Set<string>>()
   for (const entry of design) {
     const dependencies = new Set<string>()
-    const template = qualifyLegacyDesign(entry.kind, entry.id, entry.raw, assetStore && options.projectImages !== false ? block => {
+    const includeMedia = assetStore && options.projectImages !== false
+    const template = qualifyLegacyDesign(entry.kind, entry.id, entry.raw, includeMedia ? block => {
       if (!acceptedImageBlock(block, images)) return null
       dependencies.add(block.props.image!.assetId!)
       return { block: canonicalImageBlock(block, images) }
+    } : undefined, includeMedia ? ref => {
+      if (!acceptedImageRef(ref, images)) return null
+      dependencies.add(ref.assetId)
+      return { ...ref, src: images.get(ref.assetId)!.qualifiedSrc }
     } : undefined)
     if (!template) { otherLibraryEntries.push(entry.path); continue }
     designRecords[entry.kind].push(template)

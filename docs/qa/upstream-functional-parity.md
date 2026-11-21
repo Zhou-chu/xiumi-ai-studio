@@ -75,3 +75,12 @@ replay. The resulting HTML has a network-blocking content policy; SVG replay
 animation keeps running and images remain visible without the Xiumi server.
 Local HTTP tests exercise exact encoded PNG/JPEG bytes and owned generation,
 and the browser gate additionally opens the download with networking disabled.
+
+
+The bounded native template-media stage additionally accepts a top-level
+two-slot `photos` pair with two verified indexed PNG/JPEG references, allowed
+native ratios/layouts, and original role/block IDs. Both template and indexed
+image options must be explicitly selected. Boxes containing pairs, wider
+photo layouts, HTML and arbitrary media remain outside this slice. The native
+fixture exercises ordered replacement and local embedded HTML; it does not
+cover ordinary one-slot blocks mislabeled with a two-slot role.
