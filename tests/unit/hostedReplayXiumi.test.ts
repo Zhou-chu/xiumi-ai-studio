@@ -215,3 +215,24 @@ it('stages the immutable request before consent and releases it on decline witho
   expect(transfer).not.toHaveBeenCalled()
   expect(hooks.download).not.toHaveBeenCalled()
 })
+
+it('accepts quoted CSS URLs, unquoted URLs, and fragment references alongside HTML and SVG images', () => {
+  const pending = '/media/fixture.png?w=1200&gen=' + 'a'.repeat(64)
+  const html = [
+    '<svg><image xlink:href="' + fixtureUrl + '"/><rect fill="url(#paint)"/></svg>',
+    '<img src="' + fixtureUrl + '">',
+    '<section style="background-image:URL(\t&#39;' + pending.replace('&', '&amp;') + '&#39;\n)">quoted</section>',
+    '<section style="background-image:url( ' + fixtureUrl + ' \t )">unquoted</section>',
+    '<p>An article may end with the literal url(</p>',
+  ].join('\n')
+  expect(() => assertHostedReplayLinks(html, new Set([pending]))).not.toThrow()
+})
+
+it.each([
+  '<section style="background-image:url(&quot;https://example.invalid/unapproved.png&quot;)">blocked</section>',
+  '<section style="background-image:url(&quot;/media/fixture.png\nnot-a-css-url&quot;)">malformed</section>',
+  '<section style="background-image:url(&quot;/media/fixture.png&quot; extra)">malformed</section>',
+  '<svg><image href="' + fixtureUrl + '" xlink:href="' + fixtureUrl + '"/></svg>',
+])('rejects disallowed, malformed, or ambiguous emitted media: %s', html => {
+  expect(() => assertHostedReplayLinks(html)).toThrow(/图片/)
+})

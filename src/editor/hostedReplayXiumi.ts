@@ -57,6 +57,32 @@ function quotedAttributes(tag: string, attribute: RegExp) {
   return [...tag.matchAll(attribute)].map((match) => decode(match[1] ?? match[2]))
 }
 
+function cssReference(css: string, start: number, close: number) {
+  const source = css.slice(start, close).trim()
+  const quote = source[0]
+  if (quote !== '"' && quote !== "'") return source
+  // Supported URL grammars never contain a literal ')'. Quotes must
+  // surround the entire value; do not backtrack into an unquoted match.
+  if (source.indexOf(quote, 1) !== source.length - 1) throw invalidImage()
+  return source.slice(1, -1)
+}
+
+function assertHostedCssLinks(html: string, accepted: (source: string) => boolean) {
+  const css = html.replaceAll('&quot;', '"').replaceAll('&#39;', "'")
+  const marker = /url\(/gi
+  while (marker.exec(css)) {
+    const start = marker.lastIndex
+    const close = css.indexOf(')', start)
+    // Trailing prose containing a literal "url(" is not a reference.
+    if (close < 0) return
+    const source = decode(cssReference(css, start, close))
+    if (!/^#[\w-]+$/.test(source) && !accepted(source)) throw invalidImage()
+    // Advance past the consumed token; no whitespace/backreference search
+    // can rescan the remainder when a URL fails validation.
+    marker.lastIndex = close + 1
+  }
+}
+
 /** Inspect the generated output independently for SVG href, HTML src and CSS URLs. */
 export function assertHostedReplayLinks(html: string, pending: ReadonlySet<string> = new Set()) {
   const accepted = (source: string) => pending.has(source) || isHostedReplayImage(source)
@@ -68,11 +94,7 @@ export function assertHostedReplayLinks(html: string, pending: ReadonlySet<strin
     const refs = quotedAttributes(tag[0], /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)
     if (refs.length !== 1 || !accepted(refs[0])) throw invalidImage()
   }
-  const css = html.replaceAll('&quot;', '"').replaceAll('&#39;', "'")
-  for (const match of css.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) {
-    const source = decode(match[2])
-    if (!/^#[\w-]+$/.test(source) && !accepted(source)) throw invalidImage()
-  }
+  assertHostedCssLinks(html, accepted)
 }
 
 function assertRenderable(result: CompileResult) {
