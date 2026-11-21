@@ -157,7 +157,7 @@ it('restores style-only selections, refreshes themes/templates and renders per-c
     await act(async () => button('确认添加所选数据')!.click())
     expect(document.body.textContent).toContain('新增主题（1）')
     expect(document.body.textContent).toContain('冲突，未覆盖的模板（1）')
-    expect(document.body.textContent).toContain('缺少匹配主题的模板（1）')
+    expect(document.body.textContent).toContain('缺少匹配主题或图片的模板（1）')
     expect(refresh).toHaveBeenCalledOnce()
   } finally { window.removeEventListener('templates-changed', refresh) }
 }))

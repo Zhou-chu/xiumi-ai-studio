@@ -2,6 +2,8 @@ import { isRoleId } from '../src/core/roles'
 import { THEMES } from '../src/core/themes'
 import type { collection, RestoreStatus } from './store'
 
+type TemplateImage = { block: unknown }
+type QualifyImage = (block: unknown) => TemplateImage | null
 type DesignRecord = { id: string; [field: string]: unknown }
 export type DesignCategory = 'themes' | 'templates'
 export type DesignData = Record<DesignCategory, DesignRecord[]>
@@ -43,20 +45,44 @@ function validTheme(theme: Record<string, unknown>): boolean {
     Object.entries(themeOptions).every(([k, choices]) => typeof theme[k] === 'string' && choices.includes(theme[k]))
 }
 
-function validTemplate(template: Record<string, unknown>): boolean {
-  const { name, blocks, createdAt, themeId, themeOverrides, roles } = template
-  // Only the text blocks proven renderable by this independent stage are
-  // accepted. The remaining families stay in the explicit notRestored list.
-  if (!onlyKeys(template, ['id', 'name', 'blocks', 'createdAt', 'themeId', 'roles']) || !boundedText(name, 160) || typeof createdAt !== 'number' || !Number.isSafeInteger(createdAt) ||
-      createdAt < 0 || (themeId !== undefined && (typeof themeId !== 'string' || !safeDesignId.test(themeId))) ||
-      themeOverrides !== undefined || !Array.isArray(blocks) || blocks.length > 2000) return false
+const overrideRanges = new Map(Object.entries(themeNumericRanges))
+function validOverrides(value: unknown): boolean {
+  if (!isObject(value)) return false
+  return Object.entries(value).every(([key, token]) => {
+    if (key === 'colors') return isObject(token) && onlyKeys(token, themeColorTokens) &&
+      Object.values(token).every(color => typeof color === 'string' && hex.test(color))
+    const range = overrideRanges.get(key)
+    return !!range && typeof token === 'number' && Number.isFinite(token) && token >= range[0] && token <= range[1]
+  })
+}
+
+function validTemplateHeader(template: DesignRecord) {
+  const { name, createdAt, themeId, themeOverrides } = template
+  return onlyKeys(template, ['id', 'name', 'blocks', 'createdAt', 'themeId', 'themeOverrides', 'roles']) &&
+    boundedText(name, 160) && typeof createdAt === 'number' && Number.isSafeInteger(createdAt) && createdAt >= 0 &&
+    (themeId === undefined || (typeof themeId === 'string' && safeDesignId.test(themeId))) &&
+    (themeOverrides === undefined || (themeId !== undefined && validOverrides(themeOverrides)))
+}
+
+function templateBlockShape(block: unknown): block is { id: string; type: unknown; props: Record<string, unknown> } {
+  return isObject(block) && onlyKeys(block, ['id', 'props', 'type']) && typeof block.id === 'string' &&
+    safeDesignId.test(block.id) && isObject(block.props)
+}
+
+function qualifyTemplate(template: DesignRecord, imageBlock?: QualifyImage): DesignRecord | null {
+  const { blocks, roles } = template
+  if (!validTemplateHeader(template) || !Array.isArray(blocks) || blocks.length > 2000) return null
   const ids = new Set<string>()
+  const canonical: unknown[] = []
   for (const block of blocks) {
-    if (!isObject(block) || !onlyKeys(block, ['id', 'props', 'type']) || typeof block.id !== 'string' || !safeDesignId.test(block.id) ||
-        ids.has(block.id) || !isObject(block.props) || !validTemplateBlock(block.type, block.props)) return false
+    if (!templateBlockShape(block) || ids.has(block.id)) return null
+    const qualified = block.type === 'image' ? imageBlock?.(block) : validTemplateBlock(block.type, block.props) && { block }
+    if (!qualified) return null
+    canonical.push(qualified.block)
     ids.add(block.id)
   }
-  return roles === undefined || (isObject(roles) && Object.entries(roles).every(([id, role]) => ids.has(id) && isRoleId(role)))
+  if (roles !== undefined && (!isObject(roles) || !Object.entries(roles).every(([id, role]) => ids.has(id) && isRoleId(role)))) return null
+  return { ...template, blocks: canonical }
 }
 
 function validTemplateBlock(type: unknown, props: Record<string, unknown>): boolean {
@@ -77,10 +103,10 @@ function validTemplateBlock(type: unknown, props: Record<string, unknown>): bool
 }
 
 const builtinDesignThemes = new Set(THEMES.map(({ id }) => id))
-export function qualifyLegacyDesign(kind: DesignCategory, id: string, value: unknown): DesignRecord | null {
+export function qualifyLegacyDesign(kind: DesignCategory, id: string, value: unknown, imageBlock?: QualifyImage): DesignRecord | null {
   if (!isObject(value) || value.id !== id) return null
-  const accepted = kind === 'themes' ? validTheme(value) : validTemplate(value)
-  return accepted ? { ...value, id } : null
+  const record = { ...value, id }
+  return kind === 'themes' ? validTheme(record) ? record : null : qualifyTemplate(record, imageBlock)
 }
 function templateTheme(template: DesignRecord): string | null {
   return typeof template.themeId === 'string' && !builtinDesignThemes.has(template.themeId) ? template.themeId : null
@@ -93,7 +119,7 @@ export function stageLegacyDesign(design: DesignData, store: DesignCollections) 
   const archivedTemplates = [...design.templates].sort(byDesignId)
   let used = false
   return {
-    async preview() {
+    async preview(assets?: (id: string, existing: boolean) => Promise<boolean>) {
       const statuses = new Map<string, RestoreStatus>()
       const themes = { add: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[] }
       const templates = { add: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[], unresolved: [] as string[] }
@@ -110,12 +136,16 @@ export function stageLegacyDesign(design: DesignData, store: DesignCollections) 
           continue
         }
         const status = await store.templates.restoreStatus(template)
+        if (status !== 'conflict' && assets && !(await assets(template.id, status === 'alreadyPresent'))) {
+          templates.unresolved.push(template.id)
+          continue
+        }
         const destination = status === 'available' ? templates.add : status === 'conflict' ? templates.conflicts : templates.alreadyPresent
         destination.push(template.id)
       }
       return { themes, templates }
     },
-    async apply() {
+    async apply(assets?: (id: string, existing: boolean) => Promise<'ready' | 'failed' | 'unresolved'>) {
       if (used) throw new Error('恢复计划已使用')
       used = true
       const themes = { restored: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[], failed: [] as string[] }
@@ -135,7 +165,14 @@ export function stageLegacyDesign(design: DesignData, store: DesignCollections) 
           continue
         }
         try {
-          const saveTemplate = () => store.templates.withRestoreEntry(template, async restore => {
+          const saveTemplate = () => store.templates.withRestoreEntry(template, async (restore, status) => {
+            const current = await status()
+            if (current === 'conflict') { templates.conflicts.push(template.id); return }
+            const dependencyState = await assets?.(template.id, current === 'alreadyPresent')
+            if (dependencyState && dependencyState !== 'ready') {
+              templates[dependencyState].push(template.id)
+              return
+            }
             const result = await restore()
             templates[result === 'conflict' ? 'conflicts' : result].push(template.id)
           })

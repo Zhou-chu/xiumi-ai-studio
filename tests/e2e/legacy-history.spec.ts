@@ -59,7 +59,7 @@ test('restores a historical-only indexed image and undoes back to the current im
   const data = page.getByRole('dialog', { name: '项目和素材备份', exact: true })
   const restore = data.getByRole('region', { name: '从整库 ZIP 恢复部分项目' })
   await restore.getByLabel('选择整库 ZIP').setInputFiles(archive)
-  await restore.getByLabel('同时恢复项目引用的已索引图片').check()
+  await restore.getByLabel('同时恢复项目、历史及已选择模板引用的已索引图片').check()
   await restore.getByRole('button', { name: '预览恢复' }).click()
   await expect(restore.getByText('可添加的历史版本（3）', { exact: true })).toBeVisible()
   expect((await page.request.get('/media/history-only.png')).status()).toBe(404)

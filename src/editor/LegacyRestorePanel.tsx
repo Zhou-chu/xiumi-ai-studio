@@ -26,7 +26,7 @@ function DesignPreview({ design }: { design: NonNullable<LegacyRestorePlan['desi
     <StyleLists label="可添加的" group={{ themes: design.themes.add, templates: design.templates.add }} />
     <StyleLists label="已有相同" group={designGroup(design, 'alreadyPresent')} />
     <StyleLists label="冲突，未覆盖的" group={designGroup(design, 'conflicts')} />
-    <RestoreList label="缺少匹配主题的模板" entries={design.templates.unresolved} />
+    <RestoreList label="缺少匹配主题或图片的模板" entries={design.templates.unresolved} />
   </>
 }
 function DesignResult({ design }: { design: NonNullable<LegacyRestoreResult['design']> }) {
@@ -35,7 +35,7 @@ function DesignResult({ design }: { design: NonNullable<LegacyRestoreResult['des
     <StyleLists label="已有相同" group={designGroup(design, 'alreadyPresent')} />
     <StyleLists label="冲突，未覆盖的" group={designGroup(design, 'conflicts')} />
     <StyleLists label="写入失败的" group={{ themes: design.themes.failed, templates: design.templates.failed }} />
-    <RestoreList label="缺少匹配主题的模板" entries={design.templates.unresolved} />
+    <RestoreList label="缺少匹配主题或图片的模板" entries={design.templates.unresolved} />
   </>
 }
 function ComponentLists({ value }: { value: NonNullable<LegacyRestorePlan['components'] | LegacyRestoreResult['components']> }) {
@@ -101,7 +101,7 @@ export function LegacyRestorePanel() {
 
   return <section aria-label="从整库 ZIP 恢复部分项目">
     <h4>从整库 ZIP 恢复部分项目</h4>
-    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的项目可恢复符合条件的历史；选择恢复图片后，会一并检查当前文稿和历史版本中普通图片模块引用的已索引 PNG/JPEG。还可独立选择恢复简单模板、自定义主题、或简单原文组件及引用图片。备份中的组件来源仅供参考，不继承授权或分发许可。模板内媒体、复杂排版、链接及设置不在此范围内；不支持迁移。</p>
+    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的项目可恢复符合条件的历史；选择恢复图片后，会一并检查当前文稿和历史版本中普通图片模块引用的已索引 PNG/JPEG。还可独立选择恢复简单模板、自定义主题、或简单原文组件及引用图片。备份中的组件来源仅供参考，不继承授权或分发许可。同时选择图片与模板后可恢复简单模板引用的已索引图片；模板支持有限的主题微调。其他模板媒体、复杂排版、链接及设置不在此范围内；不支持迁移。</p>
     <p className="hint">ZIP 必须小于 {MAX_RESTORE_ARCHIVE_MIB} MiB，解压后的项目、图片、历史、模板、组件和主题数据有限额。</p>
     <label className="field">选择整库 ZIP
       <input type="file" accept=".zip,application/zip" disabled={!!busy} onChange={event => {
@@ -126,7 +126,7 @@ export function LegacyRestorePanel() {
         setResult(null)
         setError('')
       }} />
-      同时恢复项目引用的已索引图片
+      同时恢复项目、历史及已选择模板引用的已索引图片
     </label>
     <label className="row gap">
       <input type="checkbox" checked={includeDesign} disabled={!!busy} onChange={event => {
@@ -159,7 +159,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="不支持的项目" entries={preview.plan.projects.unsupported} />
       <RestoreList label="可添加的历史版本" entries={preview.plan.versions?.add ?? []} />
       <RestoreList label="将跳过的历史版本" entries={preview.plan.versions?.skip ?? []} />
-      <RestoreList label={preview.plan.components ? "可添加的引用图片" : "可添加的项目图片"} entries={preview.plan.assets?.add ?? []} />
+      <RestoreList label="可添加的引用图片" entries={preview.plan.assets?.add ?? []} />
       <RestoreList label="已有相同图片" entries={preview.plan.assets?.alreadyPresent ?? []} />
       <RestoreList label="冲突图片，不覆盖" entries={preview.plan.assets?.skip ?? []} />
       {preview.plan.components && <ComponentLists value={preview.plan.components} />}

@@ -61,6 +61,6 @@ it('qualifies only bounded, known theme fields and finite rendering tokens', asy
     expect(qualifyLegacyDesign('themes', theme.id, { ...theme, ...update })).toBeNull()
   }
   expect(qualifyLegacyDesign('themes', 'tsinghua-purple', { ...theme, id: 'tsinghua-purple' })).toBeNull()
-  expect(qualifyLegacyDesign('templates', template.id, { ...template, themeOverrides: {} })).toBeNull()
+  expect(qualifyLegacyDesign('templates', template.id, { ...template, themeOverrides: { madeUp: true } })).toBeNull()
   expect(qualifyLegacyDesign('templates', template.id, { ...template, roles: { missing: 'h1' } })).toBeNull()
 })

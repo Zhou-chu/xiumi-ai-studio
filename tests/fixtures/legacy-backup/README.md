@@ -13,3 +13,11 @@ checkout. Use `XIUMI_DATA_DIR=<tmp> XIUMI_SKIP_ENV_FILES=1 node --import tsx
 <script>`. The script calls `writeBackup(createWriteStream(out), '0.1.0')`
 and awaits the stream's finish. Output timestamps differ, and the profile's
 source key is always redacted by the upstream writer.
+
+`upstream-template-only.zip` is another unchanged output of the same exact writer.
+Seed a disposable data root with only both template JSON records, the indexed 7×5
+teal PNG and its asset index, then call the writer as above. Validate the extracted
+PNG digest `ee4467ea86fba01e26dbf35145b490663e0f85e9799e88ae2fde5d4874dcaf1b`
+and RGBA (19, 124, 115, 255). Only the image template refers to that asset; there
+are no projects, versions, components, settings, or credentials. The independent
+heading-only template uses builtin `tech-blue`, font size 17, primary #27506A.
