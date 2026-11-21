@@ -42,6 +42,7 @@ export async function writeJson(file: string, data: unknown) {
   const json = JSON.stringify(data)
   const write = (pendingWrites.get(target) ?? Promise.resolve()).then(async () => {
     const tmp = `${target}.${process.pid}.${randomUUID()}.tmp`
+    let published = false
     try {
       await writeFile(tmp, json, 'utf8')
       // Windows scanners/read handles may temporarily deny an atomic replacement.
@@ -49,6 +50,7 @@ export async function writeJson(file: string, data: unknown) {
       for (let attempt = 0; ; attempt++) {
         try {
           await rename(tmp, target)
+          published = true
           break
         } catch (error) {
           const code = (error as NodeJS.ErrnoException).code
@@ -57,7 +59,10 @@ export async function writeJson(file: string, data: unknown) {
         }
       }
     } finally {
-      await rm(tmp, { force: true })
+      // A successful rename consumed the temp path. Never report cleanup
+      // failure as failed publication, or coupled callers might undo data
+      // referenced by the already-published index.
+      if (!published) await rm(tmp, { force: true }).catch(() => {})
     }
   })
   // 失败只报告给当前调用者，不阻止已排队的后续保存。

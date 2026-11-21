@@ -2,7 +2,7 @@ import * as fileSystem from 'node:fs/promises'
 vi.mock('node:fs/promises', async importOriginal => { const actual = await importOriginal<typeof import('node:fs/promises')>(); return {...actual, rm: vi.fn(actual.rm), rename: vi.fn(actual.rename)} })
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 const mock=vi.hoisted(()=>({failIndex:false,root:'',dirs:{} as Record<string,string>,sharp:vi.fn(),metadata:vi.fn(),toFile:vi.fn(),toBuffer:vi.fn(),rotate:vi.fn(),resize:vi.fn(),png:vi.fn(),jpeg:vi.fn(),extract:vi.fn(),flatten:vi.fn()}))
 vi.mock('sharp',()=>({default:Object.assign(mock.sharp,{strategy:{attention:'attention'}})}))
 vi.mock('../../server/store',async importOriginal=>{
@@ -114,9 +114,9 @@ it('enforces the output pixel boundary without changing ordinary ratios',async()
 })
 it('uses identical integer width for cache and rendering and removes a failed new cache output',async()=>{
  await writeFile(join(mock.dirs.assets,'round.png'),'source');const output=await variantPath('round.png','2:1',400.4)
- expect(output).toBe(join(mock.dirs.cache,'round_2x1_400.png'));expect(mock.resize).toHaveBeenLastCalledWith({width:400,height:200,fit:'cover',position:'attention'})
+ expect(basename(output)).toMatch(/^[a-f0-9]{64}_2x1_400\.png$/);expect(mock.resize).toHaveBeenLastCalledWith({width:400,height:200,fit:'cover',position:'attention'})
  const error=Error('cache encoder failed');mock.toFile.mockImplementationOnce(async(path:string)=>{await writeFile(path,'partial');throw error})
- await expect(variantPath('round.png','2:1',500)).rejects.toBe(error);expect(await readdir(mock.dirs.cache)).toEqual(['round_2x1_400.png'])
+ await expect(variantPath('round.png','2:1',500)).rejects.toBe(error);expect(await readdir(mock.dirs.cache)).toEqual([basename(output)])
 })
 it('rechecks cache after acquiring the image slot for concurrent identical requests',async()=>{
  await writeFile(join(mock.dirs.assets,'same.png'),'source');const first=variantPath('same.png','1:1',400),second=variantPath('same.png','1:1',400)
@@ -133,7 +133,15 @@ it('never publishes a partial cache file to a concurrent reader',async()=>{
 })
 
 it('removes only its own temporary file if publication fails after another writer has published',async()=>{
- await writeFile(join(mock.dirs.assets,'publish.png'),'source');const final=join(mock.dirs.cache,'publish_1x1_400.png');const failure=Object.assign(Error('publication denied'),{code:'EACCES'});const publish=vi.spyOn(fileSystem,'rename').mockRejectedValueOnce(failure)
- mock.toFile.mockImplementationOnce(async(path:string)=>{expect(path).not.toBe(final);await writeFile(path,'partial-own');await writeFile(final,'other-complete');return {width:400,height:400,size:12}})
- await expect(variantPath('publish.png','1:1',400)).rejects.toBe(failure);expect(await readFile(final,'utf8')).toBe('other-complete');expect(await readdir(mock.dirs.cache)).toEqual(['publish_1x1_400.png']);publish.mockRestore()
+ await writeFile(join(mock.dirs.assets,'publish.png'),'source')
+ const failure=Object.assign(Error('publication denied'),{code:'EACCES'})
+ let final=''
+ const publish=vi.spyOn(fileSystem,'rename').mockImplementationOnce(async(from,to)=>{
+   final=String(to);expect(String(from)).not.toBe(final)
+   await writeFile(final,'other-complete')
+   throw failure
+ })
+ await expect(variantPath('publish.png','1:1',400)).rejects.toBe(failure)
+ expect(await readFile(final,'utf8')).toBe('other-complete')
+ expect(await readdir(mock.dirs.cache)).toEqual([basename(final)]);publish.mockRestore()
 })

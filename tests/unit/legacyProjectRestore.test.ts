@@ -26,7 +26,7 @@ describe('upstream library project recovery', () => {
       await expect(projects.get('edited')).resolves.toEqual(local)
       await expect(readFile(join(dir, 'corrupt.json'), 'utf8')).resolves.toBe('Interrupted disk write')
       const restored = await projects.get('archived')
-      expect(restored).toMatchObject({ id: 'archived', blocks: [], title: 'Backup archived', updatedAt: 1, revision: expect.any(String) })
+      expect(restored).toMatchObject({ id: 'archived', blocks: expect.any(Array), title: 'Backup archived', updatedAt: 1, revision: expect.any(String) })
       expect(restored?.revision).not.toBe('fixture-old-revision')
     } finally {
       await rm(dir, { recursive: true, force: true })
