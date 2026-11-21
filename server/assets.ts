@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { MAX_INPUT_PIXELS, withImageBudget } from './imageBudget'
 // 素材库：上传、按需裁切缩放（微信相册统一比例）、裁剪另存。
-import { existsSync } from 'node:fs'
 import { link, lstat, mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { nanoid } from 'nanoid'
@@ -228,34 +227,75 @@ function sourceGeneration(file: string, snapshot: BigIntStats): string {
   return createHash('sha256').update([file, dev, ino, size, birthtimeNs, mtimeNs, ctimeNs].join(':')).digest('hex')
 }
 
+const MAX_PINNED_DIGESTS = 512
+const pinnedDigests = new Map<string, { digest: string; identity: string }>()
+const missingGeneration = () => Object.assign(new Error('素材版本不可用'), { status: 404 })
+
+async function regularSnapshot(path: string) {
+  try {
+    const entry = await lstat(path, { bigint: true })
+    return entry.isFile() ? entry : null
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
+async function matchesPinnedSnapshot(output: string, file: string, snapshotKey: string, expected: string) {
+  const cached = pinnedDigests.get(snapshotKey)
+  if (!cached) return null
+  const identity = await regularSnapshot(output)
+  if (!identity || sourceGeneration(file, identity) !== cached.identity) return null
+  if (cached.digest !== expected) throw missingGeneration()
+  return { path: output, identity: cached.identity }
+}
+
+async function readPinnedBytes(path: string, file: string, snapshotKey?: string) {
+  const fd = await open(path, 'r')
+  try {
+    const stat = await fd.stat({ bigint: true })
+    const identity = sourceGeneration(file, stat)
+    if (!stat.isFile() || (snapshotKey && snapshotKey !== identity)) throw missingGeneration()
+    const bytes = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)
+    if (sourceGeneration(file, await fd.stat({ bigint: true })) !== identity) throw missingGeneration()
+    return { bytes, identity, digest: createHash('sha256').update(bytes).digest('hex') }
+  } finally {
+    await fd.close()
+  }
+}
+
 async function pinMediaGeneration(path: string, file: string, snapshotKey: string, expected: string) {
   if (!validMediaGeneration(expected)) throw Object.assign(new Error('素材版本无效'), { status: 400 })
-  const output = join(DIRS.cache, `source-${snapshotKey}-${expected}${extname(file)}`)
-  if (existsSync(output)) return output
+  // Only a local stat-derived identity is used for storage. The requested
+  // digest is only compared against verified bytes, even on warm paths.
+  const output = join(DIRS.cache, `source-${snapshotKey}${extname(file)}`)
+  const warm = await matchesPinnedSnapshot(output, file, snapshotKey, expected)
+  if (warm) return warm
   return withImageBudget(async () => {
-    if (existsSync(output)) return output
-    const fd = await open(path, 'r')
-    let bytes: Buffer
-    const renamed = () => Object.assign(new Error('素材版本不可用'), { status: 404 })
-    try {
-      if (sourceGeneration(file, await fd.stat({ bigint: true })) !== snapshotKey) throw renamed()
-      bytes = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)
-      if (sourceGeneration(file, await fd.stat({ bigint: true })) !== snapshotKey ||
-          createHash('sha256').update(bytes).digest('hex') !== expected) throw renamed()
-    } finally {
-      await fd.close()
-    }
-    // The HTTP sender must open the verified snapshot, never the reusable
-    // source filename. Publish only complete copies; concurrent readers share.
+    const queued = await matchesPinnedSnapshot(output, file, snapshotKey, expected)
+    if (queued) return queued
+    const observed = await readPinnedBytes(path, file, snapshotKey)
+    if (observed.digest !== expected) throw missingGeneration()
+    // Only complete immutable copies reach the sender. Authenticate a
+    // pre-existing snapshot on process restarts before allowing reuse.
     const temporary = join(DIRS.cache, `.${nanoid()}.media-snapshot.tmp`)
     try {
-      await writeFile(temporary, bytes, { flag: 'wx' })
+      await writeFile(temporary, observed.bytes, { flag: 'wx' })
       try { await link(temporary, output) }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }
     } finally {
       await rm(temporary, { force: true }).catch(() => {})
     }
-    return output
+    const stat = await regularSnapshot(output)
+    if (!stat) throw missingGeneration()
+    const snapshot = await readPinnedBytes(output, file, sourceGeneration(file, stat))
+    if (snapshot.digest !== observed.digest) throw missingGeneration()
+    if (pinnedDigests.size >= MAX_PINNED_DIGESTS) {
+      const earliest = pinnedDigests.keys().next()
+      if (!earliest.done) pinnedDigests.delete(earliest.value)
+    }
+    pinnedDigests.set(snapshotKey, { digest: snapshot.digest, identity: snapshot.identity })
+    return { path: output, identity: snapshot.identity }
   })
 }
 
@@ -266,7 +306,13 @@ async function pinMediaGeneration(path: string, file: string, snapshotKey: strin
 export async function variantPath(file: string, fit?: string, w?: number, expectedGeneration?: string): Promise<string> {
   if (!/^[\w-]+\.(jpg|png)$/.test(file)) throw Object.assign(new Error('非法文件名'), { status: 400 })
   const src = join(DIRS.assets, file)
-  if (!existsSync(src)) throw Object.assign(new Error('素材不存在'), { status: 404 })
+  // Data-root ancestors can be configured paths; immediate asset/cache
+  // directories must not redirect reads or cache publications elsewhere.
+  if (!(await lstat(DIRS.assets)).isDirectory() || !(await lstat(DIRS.cache)).isDirectory()) {
+    throw Object.assign(new Error('素材目录不可用'), { status: 404 })
+  }
+  const source = await regularSnapshot(src)
+  if (!source) throw Object.assign(new Error('素材不存在'), { status: 404 })
   const width = Math.round(Math.min(2400, Math.max(64, Number(w) || 1080)))
   const m = fit ? fit.match(FIT_RE) : null
   const height = m ? Math.round((width * Number(m[2])) / Number(m[1])) : undefined
@@ -275,23 +321,28 @@ export async function variantPath(file: string, fit?: string, w?: number, expect
     if (width * height > MAX_VARIANT_PIXELS) throw Object.assign(new Error('Image variant exceeds the 64-megapixel output limit. Reduce its width or choose a less extreme aspect ratio.'), { status: 413 })
   }
   if (!m && width >= 2400 && expectedGeneration === undefined) return src
-  const generation = sourceGeneration(file, await stat(src, { bigint: true }))
-  const sourcePath = expectedGeneration === undefined ? src : await pinMediaGeneration(src, file, generation, expectedGeneration)
+  const generation = sourceGeneration(file, source)
+  const pin = expectedGeneration === undefined ? null : await pinMediaGeneration(src, file, generation, expectedGeneration)
+  const sourcePath = pin?.path ?? src
   if (!m && width >= 2400) return sourcePath
   const suffix = `${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
-  const codec = (generation: string) => `${generation}_${expectedGeneration ? expectedGeneration + '_' : ''}${suffix}`
+  const namespace = expectedGeneration === undefined ? '' : 'verified-'
+  const codec = (statKey: string) => `${namespace}${statKey}_${suffix}`
   const warm = join(DIRS.cache, codec(generation))
   // Warm cache reads need no source-byte reads, allocation, or Sharp slot.
-  if (existsSync(warm)) return warm
+  if (await regularSnapshot(warm)) return warm
   return withImageBudget(async () => {
     const fd = await open(sourcePath, 'r')
     let source: Buffer
     let key: string
     try {
-      const current = sourceGeneration(file, await fd.stat({ bigint: true }))
+      const stat = await fd.stat({ bigint: true })
+      const current = sourceGeneration(file, stat)
+      const location = await regularSnapshot(sourcePath)
+      if (!location || sourceGeneration(file, location) !== current || (pin && pin.identity !== current)) throw missingGeneration()
       key = codec(expectedGeneration === undefined ? current : generation)
       const queuedHit = join(DIRS.cache, key)
-      if (existsSync(queuedHit)) return queuedHit
+      if (await regularSnapshot(queuedHit)) return queuedHit
       source = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)
       if (sourceGeneration(file, await fd.stat({ bigint: true })) !== current) {
         throw Object.assign(new Error('图片在生成预览时被修改，请重试'), { status: 409 })

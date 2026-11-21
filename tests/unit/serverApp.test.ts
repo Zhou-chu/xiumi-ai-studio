@@ -41,7 +41,7 @@ vi.mock('../../server/store', async () => {
       exists: (id: string) => getMap().has(id),
     }
   }
-  return { ROOT: state.root, DIRS: { projects: 'projects', templates: 'templates', themes: 'themes', versions: 'versions' }, collection,
+  return { ROOT: state.root, DIRS: { projects: 'projects', templates: 'templates', themes: 'themes', versions: 'versions', assets: join(state.root, 'assets'), cache: join(state.root, 'cache') }, collection,
     safeId: (id: string) => { if (!/^[\w-]{1,64}$/.test(id)) throw Object.assign(new Error('invalid id'), { status: 400 }); return id } }
 })
 vi.mock('../../server/projectStore', async () => {
@@ -88,7 +88,9 @@ beforeEach(() => {
 
 describe('application HTTP routes with isolated dependencies', () => {
   it('handles media reads, assets upload/crop/delete and missing upload file', async () => {
-    const file = join(state.root, 'image.png'); await writeFile(file, 'image')
+    const assets = join(state.root, 'assets')
+    await mkdir(assets, { recursive: true })
+    const file = join(assets, 'image.png'); await writeFile(file, 'image')
     boundary.assets.variantPath.mockResolvedValue(file)
     const response = await request('/media/image.png?fit=1:1&w=240')
     expect(await response.text()).toBe('image'); expect(response.headers.get('cache-control')).toBe('public, no-cache')
@@ -106,6 +108,15 @@ describe('application HTTP routes with isolated dependencies', () => {
     expect((await json('/api/assets/a', 'DELETE')).body).toEqual({ ok: true }); expect(boundary.assets.deleteAsset).toHaveBeenCalledWith('a')
     expect((await json('/api/import', 'POST')).status).toBe(400)
     expect(await (await upload('/api/import', 'source.txt', 'file')).json()).toEqual({ text: 'text' })
+  })
+
+  it('does not send bytes from an unexpected media resolver location', async () => {
+    const file = join(state.root, 'sentinel.png')
+    await writeFile(file, 'synthetic-not-public')
+    boundary.assets.variantPath.mockResolvedValue(file)
+    const reply = await request('/media/image.png')
+    expect(reply.status).toBe(404)
+    expect(await reply.text()).not.toContain('synthetic-not-public')
   })
 
   it('loads samples only when all fixture files exist', async () => {

@@ -3,7 +3,8 @@ import { importArticleImages } from './articleImages'
 import { existsSync, readFileSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { lstat, realpath } from 'node:fs/promises'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
 import { boundedDiskStorage } from './uploadStorage'
@@ -29,6 +30,26 @@ import { addDraft, uploadContentImage, uploadCover, validateDraft, wechatStatus 
 type Doc = { id: string; title: string; updatedAt: number; [k: string]: any }
 type Version = { id: string; projectId: string; label: string; createdAt: number; doc: Doc }
 
+
+async function publicMediaFile(candidate: string, roots: readonly string[]) {
+  const name = basename(candidate)
+  // The returned value can only be a single public JPEG/PNG filename,
+  // independently of validation inside the variant resolver.
+  if (!/^[\w-]{1,200}\.(?:jpg|png)$/.test(name)) return null
+  const path = resolve(candidate)
+  const allowed = roots.find(root => resolve(root) === dirname(path))
+  if (!allowed) return null
+  try {
+    if (!(await lstat(allowed)).isDirectory()) return null
+    const root = await realpath(allowed)
+    const file = join(root, name)
+    if (!(await lstat(file)).isFile() || await realpath(file) !== file) return null
+    return { name, root }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
 
 /** Build the HTTP application without opening a listener or loading credentials. */
 export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}) {
@@ -92,9 +113,11 @@ export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}
     const generation = req.query.gen
     if (generation !== undefined && typeof generation !== 'string') return res.status(400).json({ error: '素材版本无效' })
     const p = await variantPath(String(req.params.file), req.query.fit as string | undefined, Number(req.query.w) || undefined, generation)
+    const selected = await publicMediaFile(p, [DIRS.assets, DIRS.cache])
+    if (!selected) return res.status(404).json({ error: '素材不存在' })
     // Unqualified legacy names can be reused. Never advertise immutability for them.
     res.setHeader('Cache-Control', generation ? 'public, max-age=31536000, immutable' : 'public, no-cache')
-    res.sendFile(p)
+    res.sendFile(selected.name, { root: selected.root, dotfiles: 'deny' })
   }))
   app.get('/api/assets', h(async (_req, res) => res.json(await listAssets())))
   app.post('/api/assets', uploadRoute(upload.array('files'), async (req, res) => {

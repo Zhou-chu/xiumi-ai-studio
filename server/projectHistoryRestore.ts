@@ -1,9 +1,10 @@
-import { link, lstat, mkdir, mkdtemp, opendir, realpath, rm, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, mkdtemp, opendir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import type { Doc } from '../src/core/types'
 import type { projectCollection } from './projectStore'
 import { safeId } from './store'
+import { verifyHistoryDirectory } from './historyDirectory'
 
 export type VersionSnapshot = { id: string; projectId: string; label: string; createdAt: number; doc: Doc }
 type BoundHistory = { sourceParent: Doc; parentRevision: string; version: VersionSnapshot }
@@ -14,7 +15,6 @@ export const VERSION_RETENTION_LIMIT = 50
 const MAX_SCAN = 10_000
 const status = (error: unknown) => (error as NodeJS.ErrnoException).code
 const invalid = () => Object.assign(new Error('历史版本无法安全归入该项目'), { status: 400 })
-const localCompare = (path: string) => process.platform === 'win32' ? path.toLowerCase() : path
 
 async function exists(path: string) {
   try { await lstat(path); return true }
@@ -22,7 +22,7 @@ async function exists(path: string) {
 }
 
 async function requireDirectDirectory(path: string) {
-  if (!((await lstat(path)).isDirectory()) || localCompare(await realpath(path)) !== localCompare(path)) throw invalid()
+  if (!(await verifyHistoryDirectory(path))) throw invalid()
 }
 
 function sameProject(source: Doc, active: ActiveParent) {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -135,4 +135,14 @@ it('queues behind an ordinary version write and leaves its same-id bytes intact'
     unlock()
     await ordinary
   }
+}))
+
+it('refuses a linked ancestor of the destination and leaves actual directory untouched', () => fixture(async ({ root, versionsDir, projects, sourceParent, snapshot }) => {
+  const restored = (await projects.restore(sourceParent))!
+  const alias = join(root, 'alias')
+  await symlink(root, alias, process.platform === 'win32' ? 'junction' : 'dir')
+  const linkedHistory = projectHistoryRestore(join(alias, 'versions'), projects)
+  await expect(linkedHistory.restore({ sourceParent, parentRevision: restored.revision, version: snapshot }))
+    .rejects.toMatchObject({ status: 400 })
+  expect(await readdir(versionsDir)).toEqual([])
 }))
