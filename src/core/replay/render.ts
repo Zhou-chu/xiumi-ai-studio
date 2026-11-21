@@ -1,5 +1,6 @@
 // 场景渲染：每个场景是一个独立的 <svg>（宽 750），自带时间轴；图层顺序为 背景 → 元素 → 光标（最上层）。
 import { css } from '../style'
+import { variantUrl } from '../managedMediaUrl'
 import { planCursors, renderCursors, type CursorPlan } from './cursors'
 import { drawRun, el, type RenderCtx } from './draw'
 import { gradientBands, mix } from './layout'
@@ -134,7 +135,7 @@ function background(doc: ReplayDoc, H: number, ctx: RenderCtx): string {
   } else {
     out = el('rect', { width: 750, height: H, fill: '#000000' })
     if (bg.image?.src) {
-      const src = bg.image.src.startsWith('/media/') ? `${bg.image.src.split('?')[0]}?w=1500` : bg.image.src
+      const src = variantUrl(bg.image.src, undefined, 1500)
       out += el('image', { href: ctx.img(src), width: 750, height: H, preserveAspectRatio: 'xMidYMid slice' })
     }
   }

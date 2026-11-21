@@ -57,3 +57,21 @@ one-shot confirmation, normal component listing and exact indexed image bytes.
 The browser gate separately inserts the archived component twice, verifies
 distinct copied block IDs and actual decoded image pixels, saves/reloads, and
 checks the library's retained advisory provenance.
+
+
+### Local SVG replay with owned raster images
+
+The original pinned Xiumi offline-import path explicitly refuses local images
+inside SVG replay: the target cannot inline or manually replace them. Do not
+treat a local file as a Xiumi upload or claim compatibility. Text-only Xiumi
+replay remains unchanged, and WeChat/hosted Xiumi actions remain guarded.
+
+For replay with actual PNG/JPEG in the local library, **本地 HTML（保留回放）**
+keeps both item and background images bound to their selected asset generation.
+The offline file uses same-origin inventory and raw asset bytes only, capped
+at 64 references, 8 MiB each and 16 MiB total. A mismatched, missing, remote or
+non-raster image aborts the download instead of producing a misleading partial
+replay. The resulting HTML has a network-blocking content policy; SVG replay
+animation keeps running and images remain visible without the Xiumi server.
+Local HTTP tests exercise exact encoded PNG/JPEG bytes and owned generation,
+and the browser gate additionally opens the download with networking disabled.

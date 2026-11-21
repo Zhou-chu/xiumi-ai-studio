@@ -5,6 +5,7 @@ import { fitRatio } from '../core/photos'
 import { asciiHtml, makeZip, replaceLocalImages, checkedXiumiParts } from '../core/xiumiExport'
 import type { Doc } from '../core/types'
 import { api } from './api'
+import { compileOfflineReplayRaster } from './offlineReplayRaster'
 
 export const REPLAY_LOCAL_ONLY = '编辑回放的公众号发布与上传秀米暂不可用。可以下载本地 HTML；不含回放图片时也可下载秀米导入文件。'
 
@@ -107,12 +108,19 @@ function execCopy(full: string): 'exec-command' {
 }
 
 /** 独立 HTML 文件（预览/存档用），模拟公众号文章页 375px 宽度 */
-export function standaloneHtml(doc: Doc, body: string): string {
+export function standaloneHtml(doc: Doc, body: string, offline = false): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(doc.title)}</title>
-<meta name="referrer" content="no-referrer">
+<meta name="referrer" content="no-referrer">${offline ? `
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">` : ''}
 <style>body{margin:0;background:#f3f3f3}.page{max-width:677px;margin:0 auto;background:#fff;padding:20px 16px 40px}h1{font-size:22px;line-height:1.4;margin:0 0 12px;font-weight:700;color:#222}.meta{font-size:15px;color:#576b95;margin-bottom:22px}</style></head>
 <body><div class="page"><h1>${esc(doc.title)}</h1><div class="meta">${esc(doc.author || '')}</div>${body}</div></body></html>`
+}
+
+export async function compileOfflineReplay(doc: Doc, onProgress?: (message: string) => void): Promise<string> {
+  const snapshot = structuredClone(doc)
+  const result = await compileOfflineReplayRaster(snapshot, onProgress)
+  return standaloneHtml(snapshot, result.html, true)
 }
 
 export function download(name: string, content: string | Blob, type = 'text/plain') {

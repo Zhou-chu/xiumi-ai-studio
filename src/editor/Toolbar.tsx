@@ -10,7 +10,7 @@ import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
 import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
-import { assertReplayCanPublish, compileForWechat, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, prepareXiumiUpload, type ImageMode } from './wechatOutput'
+import { assertReplayCanPublish, compileForWechat, compileOfflineReplay, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, prepareXiumiUpload, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
 const ProjectBackupModal = lazy(() => import('./ProjectBackupModal'))
@@ -270,8 +270,12 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             onClick={async () => {
               setBusy('生成 HTML…')
               try {
-                const r = await compileForWechat(doc, 'embed', setBusy)
-                download(`${safeName}.html`, standaloneHtml(doc, r.html), 'text/html')
+                const html = replayOnly
+                  ? await compileOfflineReplay(doc, setBusy)
+                  : standaloneHtml(doc, (await compileForWechat(doc, 'embed', setBusy)).html)
+                download(`${safeName}.html`, html, 'text/html')
+              } catch (error) {
+                notify(error instanceof Error ? error.message : '无法下载本地文件。', 'error')
               } finally {
                 setBusy('')
               }

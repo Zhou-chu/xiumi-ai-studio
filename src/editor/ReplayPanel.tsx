@@ -84,7 +84,7 @@ function AssetPick({ value, onPick }: { value?: ImageRef; onPick: (ref?: ImageRe
           {assets?.map((a) => (
             <img
               key={a.id}
-              src={`/media/${a.file}?fit=1:1&w=120`}
+              src={variantUrl(assetRef(a).src, '1:1', 120)}
               alt={a.name}
               title={a.name}
               onClick={() => {

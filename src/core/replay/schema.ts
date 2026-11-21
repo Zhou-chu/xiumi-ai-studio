@@ -68,11 +68,13 @@ const num = (v: unknown, d: number, min: number, max: number) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d
 }
 const pick = <T extends string>(v: unknown, list: readonly T[], d: T): T => (list.includes(v as T) ? (v as T) : d)
+const LEGACY_MEDIA = /^\/media\/[A-Za-z0-9_.-]+$/
+const PINNED_RASTER = /^\/media\/[\w-]{1,64}\.(?:png|jpg)\?gen=[a-f0-9]{64}$/
 const COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 const color = (v: unknown, d: string) => (typeof v === 'string' && COLOR_RE.test(v.trim()) ? v.trim() : d)
 
 function imageRef(v: unknown): ImageRef | undefined {
-  if (!isObj(v) || typeof v.src !== 'string' || !/^\/media\/[A-Za-z0-9_.-]+$/.test(v.src) || v.src.includes('..')) return undefined
+  if (!isObj(v) || typeof v.src !== 'string' || !(LEGACY_MEDIA.test(v.src) || PINNED_RASTER.test(v.src)) || v.src.includes('..')) return undefined
   const width = Number(v.width), height = Number(v.height)
   return { src: v.src, ...(typeof v.assetId === 'string' && { assetId: v.assetId }), ...(Number.isFinite(width) && width > 0 && { width }), ...(Number.isFinite(height) && height > 0 && { height }) }
 }
