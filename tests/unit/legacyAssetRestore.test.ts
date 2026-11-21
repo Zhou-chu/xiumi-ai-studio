@@ -106,7 +106,7 @@ it('reports an index write failure, cleans only the new binary and blocks projec
     assets: { restored: [], skipped: [], failed: [{ id: 'fixture-image', cleanupFailed: false }] },
     projects: { restored: [], skipped: [], notAttempted: ['archived', 'corrupt', 'edited'] },
   })
-  expect(await readdir(assetsDir)).toEqual(['_index.json', existing.file].sort())
+  expect((await readdir(assetsDir)).sort()).toEqual(['_index.json', existing.file].sort())
   await expect(assets.listAssets()).resolves.toEqual([existing])
   await expect(projects.get('archived')).resolves.toBeNull()
 }))
@@ -226,7 +226,7 @@ it('resumes a partial two-image recovery from a fresh preview', () => isolated(a
     assets: { restored: ['fixture-image'], failed: [{ id: 'second-image', cleanupFailed: false }] },
     projects: { restored: [], notAttempted: ['archived', 'corrupt', 'edited'] },
   })
-  expect(await readdir(assetsDir)).toEqual(['_index.json', 'fixture-image.png'])
+  expect((await readdir(assetsDir)).sort()).toEqual(['_index.json', 'fixture-image.png'].sort())
   const retry = await stageLegacyLibrary(input, projects, assets.assetRestoreStore)
   expect((await retry.preview()).assets).toMatchObject({ add: ['second-image'], alreadyPresent: ['fixture-image'] })
   expect(await retry.apply()).toMatchObject({
