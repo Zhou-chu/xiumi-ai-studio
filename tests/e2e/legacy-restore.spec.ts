@@ -43,6 +43,7 @@ test('previews an upstream ZIP before adding its supported projects and reports 
   const exporter = page.getByRole('dialog', { name: '导出与发布' })
   await exporter.getByTestId('copy-wechat').click()
   await expect(exporter.getByText(/^HTML 长度 [\d,]+ 字符$/)).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: '已复制（' })).toBeVisible()
   const exported = await page.evaluate(async () => {
     const items = await navigator.clipboard.read()
     return (await items[0].getType('text/html')).text()

@@ -9,6 +9,8 @@ import { wechatStatus } from './wechat'
 
 const systemRoot = process.env.SystemRoot
 const ownedPortable = process.platform === 'win32' && process.env.XIUMI_OWNED_PORTABLE_LAUNCH === '1'
+// Capture owner launch configuration before loading any project .env file.
+const legacyMigrationSource = ownedPortable ? process.env.XIUMI_LEGACY_MIGRATION_SOURCE : undefined
 
 try {
   process.loadEnvFile(join(ROOT, '.env'))
@@ -17,7 +19,7 @@ try {
 }
 
 const port = Number(process.env.API_PORT ?? 5174)
-const app = createApp()
+const app = createApp({ legacyMigrationSource })
 if (ownedPortable && systemRoot && isAbsolute(systemRoot) && !systemRoot.startsWith('\\\\')) {
   const explorer = join(systemRoot, 'explorer.exe')
   mountDesktopDataRoutes(app, () => {

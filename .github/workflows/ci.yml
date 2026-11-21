@@ -50,6 +50,9 @@ jobs:
       - name: Browser smoke on built desktop app
         if: matrix.node == '24'
         run: pnpm e2e --config=tests/release-smoke/playwright.config.ts --update-snapshots=none
+      - name: Browser smoke for owner-local directory migration
+        if: matrix.node == '24'
+        run: pnpm e2e --config=tests/owned-browser/playwright.config.ts --update-snapshots=none
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

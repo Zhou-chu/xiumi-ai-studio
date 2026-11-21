@@ -4,6 +4,11 @@ import { isAbsolute, resolve } from 'node:path'
 type Header = string | string[] | undefined
 type BrowserHeaders = { host?: Header; origin?: Header; 'sec-fetch-site'?: Header }
 
+export function isOwnedDesktopRequest(headers: BrowserHeaders, origin: string, requireOrigin: boolean) {
+  return headers.host === new URL(origin).host && headers['sec-fetch-site'] === 'same-origin' &&
+    (headers.origin === origin || (!requireOrigin && headers.origin === undefined))
+}
+
 interface OwnedDesktopConfig {
   origin: string
   dataDir: string
@@ -29,12 +34,7 @@ export function createDesktopActions({ origin, dataDir, logDir, openFolder }: Ow
   }
 
   function authorize(headers: BrowserHeaders, requireOrigin: boolean) {
-    if (headers.host !== bound.host || headers['sec-fetch-site'] !== 'same-origin') {
-      throw httpError(403, '仅允许本机桌面页面使用')
-    }
-    if ((requireOrigin || headers.origin !== undefined) && headers.origin !== origin) {
-      throw httpError(403, '仅允许本机桌面页面使用')
-    }
+    if (!isOwnedDesktopRequest(headers, origin, requireOrigin)) throw httpError(403, '仅允许本机桌面页面使用')
   }
 
   return {

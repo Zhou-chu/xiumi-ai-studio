@@ -457,8 +457,20 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: { components?: ComponentCollection; projectImages?: boolean } = {}) {
-  const { projects, assets, history, design, components, otherLibraryEntries } = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components)
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean }
+
+export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
+  const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components)
+  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, options)
+}
+
+/** Ordinary text candidates from a separately secured owner-local directory. */
+export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore) {
+  return stageDecodedLegacyProjects({ projects, assets: [], history: [], design: { templates: [], themes: [] }, components: [], otherLibraryEntries: [] }, store)
+}
+
+function stageDecodedLegacyProjects({ projects, assets, history, design, components, otherLibraryEntries }: ProjectArchive, store: ProjectStore,
+  historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const designs = designStore ? stageLegacyDesign(design, designStore) : null
   const images = new Map(assets.map(asset => {
     const name = '/media/' + asset.asset.file

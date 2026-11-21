@@ -36,6 +36,7 @@ test('restores a style-only upstream ZIP and uses the restored custom theme in a
   const exported = page.getByRole('dialog', { name: '导出与发布', exact: true })
   await exported.getByTestId('copy-wechat').click()
   await expect(exported.getByText(/^HTML 长度 [\d,]+ 字符$/)).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: '已复制（' })).toBeVisible()
   const html = await page.evaluate(async () => {
     const items = await navigator.clipboard.read()
     return (await items[0].getType('text/html')).text()

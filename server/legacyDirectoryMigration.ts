@@ -1,4 +1,7 @@
-import { lstat, opendir, realpath } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { constants, type BigIntStats } from 'node:fs'
+import { lstat, open, opendir, realpath } from 'node:fs/promises'
+import { verifyHistoryDirectory } from './historyDirectory'
 import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path'
 
 const categories = ['projects', 'versions', 'templates', 'components', 'themes', 'assets'] as const
@@ -18,6 +21,9 @@ class LocalMigrationError extends Error {
 const invalid = () => new LocalMigrationError('旧版数据预览需要已明确配置的本机文件夹，且不能与当前数据目录重叠', 400)
 const inaccessible = () => new LocalMigrationError('无法安全读取配置的旧版数据目录，请检查其位置和权限', 400)
 const tooLarge = () => new LocalMigrationError('目录条目超过迁移预览上限', 413)
+const changed = () => new LocalMigrationError('旧版数据目录或项目已变化，请重新检测', 409)
+const MAX_PROJECT_BYTES = 4 * 1024 * 1024
+const MAX_TOTAL_PROJECT_BYTES = 32 * 1024 * 1024
 const id = /^[\w-]{1,64}$/
 const jsonFile = /^[\w-]{1,64}\.json$/
 const revision = /^[\w-]{1,80}\.json$/
@@ -30,8 +36,17 @@ async function ownerDirectory(name: string) {
     || process.platform === 'win32' && !/^[a-z]:[\\/]/i.test(name)) throw invalid()
   const path = resolve(name)
   if (path === parse(path).root) throw invalid()
-  if (!await directDirectory(path)) throw invalid()
-  return path
+  return canonicalDirectory(path)
+}
+
+async function canonicalDirectory(path: string) {
+  const lexical = await lstat(path, { bigint: true })
+  if (!lexical.isDirectory() || !await verifyHistoryDirectory(path)) throw invalid()
+  const canonical = await realpath(path)
+  const check = await lstat(canonical, { bigint: true })
+  if (!check.isDirectory() || !sameIdentity(lexical, check) ||
+      !await verifyHistoryDirectory(path) || !sameIdentity(lexical, await lstat(path, { bigint: true }))) throw changed()
+  return { path: canonical, identity: [lexical.dev, lexical.ino, lexical.birthtimeNs].join(':'), verify: verifyDirectoryIdentity(canonical, lexical) }
 }
 
 async function inspect(path: string) {
@@ -44,7 +59,7 @@ async function inspect(path: string) {
 
 async function directDirectory(path: string) {
   const info = await inspect(path)
-  return !!info?.isDirectory() && comparable(await realpath(path)) === comparable(path)
+  return !!info?.isDirectory() && await verifyHistoryDirectory(path)
 }
 
 function contains(parent: string, child: string) {
@@ -106,7 +121,68 @@ async function metadata(source: string, data: string): Promise<MigrationPreview[
   }
 }
 
-type Options = { configuredSource: string | undefined; target: string; maxEntries?: number }
+type Options = {
+  configuredSource: string | undefined
+  target: string
+  maxEntries?: number
+  maxProjectBytes?: number
+  maxTotalProjectBytes?: number
+}
+type ProjectCandidate = Record<string, unknown> & { id: string; blocks: unknown[] }
+type SourceSnapshot = {
+  sourceLayout: MigrationPreview['sourceLayout']
+  projects: ProjectCandidate[]
+  /** Server-only version of the exact source bytes and selected data/target identities. */
+  sourceVersion: string
+  verifyDestination: () => Promise<void>
+  summaries: { candidates: number; invalid: number; ignored: number }
+}
+
+function sameIdentity(a: BigIntStats, b: BigIntStats) {
+  return a.dev === b.dev && a.ino === b.ino && a.birthtimeNs === b.birthtimeNs
+}
+
+function verifyDirectoryIdentity(path: string, info: BigIntStats) {
+  return async () => {
+    try {
+      if (await verifyHistoryDirectory(path) && sameIdentity(info, await lstat(path, { bigint: true }))) return
+    } catch { /* Missing or replaced roots invalidate this census. */ }
+    throw changed()
+  }
+}
+
+function unchanged(before: BigIntStats, after: BigIntStats) {
+  return after.isFile() && after.nlink === 1n && sameIdentity(before, after) &&
+    before.size === after.size && before.mtimeNs === after.mtimeNs && before.ctimeNs === after.ctimeNs
+}
+
+async function readProject(path: string, before: BigIntStats, limit: number, signal?: AbortSignal) {
+  if (comparable(await realpath(path)) !== comparable(path)) throw changed()
+  const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0))
+  try {
+    if (!unchanged(before, await handle.stat({ bigint: true }))) throw changed()
+    const chunks: Buffer[] = []
+    let length = 0
+    for await (const chunk of handle.createReadStream({ autoClose: false, highWaterMark: 64 * 1024, signal })) {
+      length += chunk.length
+      if (length > limit) throw tooLarge()
+      if (BigInt(length) > before.size) throw changed()
+      chunks.push(chunk)
+    }
+    if (BigInt(length) !== before.size || !unchanged(before, await handle.stat({ bigint: true })) ||
+        !unchanged(before, await lstat(path, { bigint: true })) ||
+        comparable(await realpath(path)) !== comparable(path)) throw changed()
+    return Buffer.concat(chunks, length)
+  } finally { await handle.close() }
+}
+
+function projectCandidate(bytes: Buffer, id: string): ProjectCandidate | undefined {
+  try {
+    const raw: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && 'id' in raw && raw.id === id &&
+        'blocks' in raw && Array.isArray(raw.blocks)) return raw as ProjectCandidate
+  } catch { /* Invalid source JSON is counted without reflecting any bytes. */ }
+}
 
 /**
  * A setup-time capability, not a path-based HTTP API. The host must bind
@@ -118,20 +194,46 @@ type Options = { configuredSource: string | undefined; target: string; maxEntrie
  * read, including outside the expressly configured checkout. Applying migration
  * must revalidate the source and use dependency-aware, add-only restore stores.
  */
-export function createLegacyDirectoryPreview({ configuredSource, target, maxEntries = 50_000 }: Options) {
-  if (!Number.isSafeInteger(maxEntries) || maxEntries < 1 || maxEntries > 50_000) throw new RangeError('Invalid preview entry budget')
+export function createLegacyDirectoryPreview({
+  configuredSource, target, maxEntries = 50_000,
+  maxProjectBytes = MAX_PROJECT_BYTES, maxTotalProjectBytes = MAX_TOTAL_PROJECT_BYTES,
+}: Options) {
+  const validLimit = (limit: number, max: number) => Number.isSafeInteger(limit) && limit >= 1 && limit <= max
+  if (!validLimit(maxEntries, 50_000) || !validLimit(maxProjectBytes, MAX_PROJECT_BYTES) ||
+      !validLimit(maxTotalProjectBytes, MAX_TOTAL_PROJECT_BYTES)) throw new RangeError('Invalid migration preview budget')
+
+  async function roots(signal?: AbortSignal) {
+    if (!configuredSource) throw new LocalMigrationError('尚未在本机明确指定旧版数据位置', 403)
+    signal?.throwIfAborted()
+    const source = await ownerDirectory(configuredSource)
+    const destination = await ownerDirectory(target)
+    disjoint(source.path, destination.path)
+    const child = join(source.path, 'data')
+    const nested = await directDirectory(child) && await recognizable(child)
+    const data = nested ? await canonicalDirectory(child) : source
+    if (!nested && !await recognizable(data.path)) throw invalid()
+    disjoint(data.path, destination.path)
+    const verify = async () => {
+      signal?.throwIfAborted()
+      await source.verify()
+      if (nested) await data.verify()
+      await destination.verify()
+    }
+    return { source: source.path, destination: destination.path, data: data.path, identity: data.identity + '/' + destination.identity, verify, sourceLayout: nested ? 'checkout' as const : 'data' as const }
+  }
+
+  async function operation<T>(work: () => Promise<T>, signal?: AbortSignal) {
+    try { return await work() }
+    catch (error) {
+      signal?.throwIfAborted()
+      if (error instanceof LocalMigrationError) throw error
+      throw inaccessible()
+    }
+  }
   return {
     async preview(signal?: AbortSignal): Promise<MigrationPreview> {
-      if (!configuredSource) throw new LocalMigrationError('尚未在本机明确指定旧版数据位置', 403)
-      signal?.throwIfAborted()
-      try {
-        const source = await ownerDirectory(configuredSource)
-        const destination = await ownerDirectory(target)
-        disjoint(source, destination)
-        const child = join(source, 'data')
-        const nested = await directDirectory(child) && await recognizable(child)
-        const data = nested ? child : source
-        if (!nested && !await recognizable(data)) throw invalid()
+      return operation(async () => {
+        const { source, destination, data, sourceLayout } = await roots(signal)
         let visited = 0
         const scan = () => {
           signal?.throwIfAborted()
@@ -144,12 +246,69 @@ export function createLegacyDirectoryPreview({ configuredSource, target, maxEntr
           for await (const file of files(data, category, scan)) count[await occupancy(destination, file)]++
         }
         signal?.throwIfAborted()
-        return { sourceLayout: nested ? 'checkout' : 'data', mode: 'metadata-only', categories: counts, metadata: await metadata(source, data) }
-      } catch (error) {
-        signal?.throwIfAborted()
-        if (error instanceof LocalMigrationError) throw error
-        throw inaccessible()
-      }
+        return { sourceLayout, mode: 'metadata-only', categories: counts, metadata: await metadata(source, data) }
+      }, signal)
+    },
+    /** Server-internal bounded structural candidates; never a public response or a copy plan.
+     * The ordinary restore stage must still qualify content and enforce destination ownership.
+     */
+    async snapshotProjects(signal?: AbortSignal): Promise<SourceSnapshot> {
+      return operation(async () => {
+        const { data, destination, identity, sourceLayout, verify: verifyRoots } = await roots(signal)
+        const projects: ProjectCandidate[] = []
+        const summaries = { candidates: 0, invalid: 0, ignored: 0 }
+        const fingerprints: string[] = []
+        const version = (folder: string) => createHash('sha256')
+          .update(JSON.stringify([identity, targetProjects?.identity, folder, fingerprints.sort(), summaries])).digest('hex')
+        await verifyRoots()
+        const targetFolder = join(destination, 'projects')
+        const targetProjects = await inspect(targetFolder) ? await canonicalDirectory(targetFolder) : undefined
+        const verifyDestination = async () => {
+          await verifyRoots()
+          if (targetProjects) await targetProjects.verify()
+          else if (await inspect(targetFolder)) throw changed()
+        }
+        const requested = join(data, 'projects')
+        if (!await inspect(requested)) {
+          await verifyDestination()
+          if (await inspect(requested)) throw changed()
+          return { sourceLayout, projects, summaries, sourceVersion: version('absent'), verifyDestination }
+        }
+        const directory = await canonicalDirectory(requested)
+        const verify = async () => {
+          await verifyDestination()
+          await directory.verify()
+        }
+        const names = new Set<string>()
+        let total = 0
+        let visited = 0
+        await verify()
+        for await (const entry of await opendir(directory.path)) {
+          signal?.throwIfAborted()
+          if (++visited > maxEntries) throw tooLarge()
+          if (!entry.isFile() || !jsonFile.test(entry.name)) { summaries.ignored++; continue }
+          const name = entry.name.toLowerCase()
+          if (names.has(name)) throw invalid()
+          names.add(name)
+          await verify()
+          const path = join(directory.path, entry.name)
+          const info = await lstat(path, { bigint: true })
+          if (!info.isFile() || info.nlink !== 1n) { summaries.ignored++; continue }
+          const remaining = Math.min(maxProjectBytes, maxTotalProjectBytes - total)
+          if (info.size > BigInt(remaining)) throw tooLarge()
+          const bytes = await readProject(path, info, remaining, signal)
+          total += bytes.length
+          fingerprints.push(entry.name + ':' + createHash('sha256').update(bytes).digest('hex'))
+          await verify()
+          const candidate = projectCandidate(bytes, entry.name.slice(0, -5))
+          if (candidate) projects.push(candidate)
+          else summaries.invalid++
+        }
+        await verify()
+        summaries.candidates = projects.length
+        projects.sort((a, b) => a.id.localeCompare(b.id, 'en'))
+        return { sourceLayout, projects, summaries, sourceVersion: version(directory.identity), verifyDestination }
+      }, signal)
     },
   }
 }

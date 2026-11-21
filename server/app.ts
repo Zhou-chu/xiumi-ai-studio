@@ -24,6 +24,7 @@ import { projectHistoryRestore, VERSION_RETENTION_LIMIT } from './projectHistory
 import { projectCollection } from './projectStore'
 import { localArchiveOrigin } from './localArchiveOrigin'
 import { registerLegacyRestoreRoutes } from './legacyRestoreRoutes'
+import { registerLegacyDirectoryMigrationRoutes } from './legacyDirectoryMigrationRoutes'
 import { libraryZip, planLibraryBackup } from './fullLibraryBackup'
 import { addDraft, uploadContentImage, uploadCover, validateDraft, wechatStatus } from './wechat'
 
@@ -52,7 +53,7 @@ async function publicMediaFile(candidate: string, roots: readonly string[]) {
 }
 
 /** Build the HTTP application without opening a listener or loading credentials. */
-export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}) {
+export function createApp({ restoreTempRoot, legacyMigrationSource }: { restoreTempRoot?: string; legacyMigrationSource?: string } = {}) {
   const projects = projectCollection<Doc>(DIRS.projects)
   const templates = collection<{ id: string; name: string; blocks: unknown[]; themeId?: string; themeOverrides?: unknown; roles?: Record<string, string>; createdAt: number }>(DIRS.templates)
   const themes = collection<{ id: string; name: string }>(DIRS.themes)
@@ -106,6 +107,7 @@ export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}
     }
   }))
 
+  if (legacyMigrationSource) registerLegacyDirectoryMigrationRoutes(app, projects, legacyMigrationSource, DATA)
   registerLegacyRestoreRoutes(app, projects, restoreTempRoot, projectHistoryRestore(DIRS.versions, projects), { templates, themes })
 
   // ---------- 素材 ----------

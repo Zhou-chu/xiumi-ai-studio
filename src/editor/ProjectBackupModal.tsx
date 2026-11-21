@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { LegacyRestorePanel } from './LegacyRestorePanel'
+import { LegacyDirectoryMigrationPanel } from './LegacyDirectoryMigrationPanel'
 import { Modal } from './Modal'
 import { createProjectBackup } from './projectBackup'
 import { saveNow, useStore } from './store'
@@ -50,6 +51,7 @@ export default function ProjectBackupModal({ onClose }: { onClose: () => void })
       ? <a href="/api/data/backup" target="_blank" rel="noopener noreferrer">下载整库 ZIP</a>
       : <p className="hint">保存当前文稿后可下载整库。</p>}
     <LegacyRestorePanel />
+    <LegacyDirectoryMigrationPanel />
     {error && <p role="alert" className="warn">{error}</p>}
     <div className="modal-actions">
       <button onClick={close}>关闭</button>
