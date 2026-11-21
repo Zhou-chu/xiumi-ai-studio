@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 async function exposeSecondary(page: Page, control = page.getByTestId('color-mode-select')) {
   await expect(page.locator('.workspace')).toBeVisible()
@@ -79,3 +80,59 @@ for (const zone of ['Asia/Shanghai', 'America/Los_Angeles']) {
     })
   })
 }
+
+test('explicit upstream baseline is distinct from a saved fork light mode and preserves authored content', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('xiumi-color-mode')) localStorage.setItem('xiumi-color-mode', 'light')
+  })
+  await openEditor(page)
+  const control = page.getByRole('combobox', { name: '界面主题', exact: true })
+  await exposeSecondary(page)
+  await expect(control).toHaveValue('light')
+  const accent = page.getByTestId('open-import')
+  await expect(accent).toHaveCSS('background-image', /rgb\(104, 67, 185\)/)
+  async function exportHtml() {
+    await page.getByTestId('open-export').click()
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: '微信 HTML（图片内嵌）', exact: true }).click(),
+    ])
+    expect(download.suggestedFilename()).toMatch(/\.html$/)
+    const bytes = await readFile(await download.path())
+    await page.getByRole('button', { name: '关闭', exact: true }).click()
+    return bytes
+  }
+  const exported = await exportHtml()
+  const article = page.locator('.block-html').first()
+  const before = await article.innerHTML()
+  const color = await article.evaluate(element => getComputedStyle(element).color)
+  await page.getByTestId('open-preview').click()
+  const preview = await page.getByTestId('preview-frame').getAttribute('srcdoc')
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
+
+  await control.selectOption({ label: '上游默认' }, { timeout: 4_000 })
+  await expect(page.locator('.toolbar')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  await expect(page.locator('.toolbar')).toHaveCSS('border-bottom-color', 'rgb(228, 230, 235)')
+  await expect(page.locator('.toolbar')).toHaveCSS('color', 'rgb(31, 35, 41)')
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(242, 243, 245)')
+  await expect(accent).toHaveCSS('background-image', /rgb\(123, 92, 255\).*rgb\(255, 122, 154\)/)
+  await expect(accent).toHaveCSS('color', 'rgb(0, 0, 0)')
+  expect(await exportHtml()).toEqual(exported)
+  await expect(article).toHaveCSS('color', color)
+  expect(await article.innerHTML()).toBe(before)
+  await page.getByTestId('open-preview').click()
+  expect(await page.getByTestId('preview-frame').getAttribute('srcdoc')).toBe(preview)
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
+
+  await page.reload()
+  await exposeSecondary(page)
+  await expect(control).toHaveValue('upstream')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await exposeSecondary(page)
+  await control.selectOption('dark')
+  await expect(page.locator('html')).toHaveAttribute('data-color-mode', 'dark')
+  await exposeSecondary(page)
+  await control.selectOption('upstream')
+  await expect(page.locator('.phone')).toBeVisible()
+  await expect(control).toHaveValue('upstream')
+})

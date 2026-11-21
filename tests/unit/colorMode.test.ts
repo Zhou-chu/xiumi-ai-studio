@@ -245,3 +245,46 @@ it.each(['light', 'dark'])('keeps actual %s success toast text readable', (mode)
     }
   } finally { style.remove() }
 })
+
+it('offers a distinct upstream option without replacing old light settings', () => {
+  localStorage.setItem(COLOR_MODE_KEY, 'light')
+  mount()
+  expect(host.querySelector('select')!.value).toBe('light')
+  expect([...host.querySelectorAll('option')].map(option => option.value)).toContain('upstream')
+  choose('upstream')
+  expect(localStorage.getItem(COLOR_MODE_KEY)).toBe('upstream')
+  vi.setSystemTime(new Date(2026, 10, 10, 23))
+  act(() => window.dispatchEvent(new Event('focus')))
+  expect(document.documentElement.dataset.colorMode).toBe('upstream')
+  act(() => root!.unmount())
+  mount()
+  expect(host.querySelector('select')!.value).toBe('upstream')
+})
+
+it('keeps upstream base surfaces and accessible status/action colors distinct from fork light', () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/styles.css', 'utf8') + '\n' + readFileSync('src/color-mode.css', 'utf8')
+  document.head.append(style)
+  function color(token: string): string {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+    const reference = /^var\((--[\w-]+)\)$/.exec(value)
+    return reference ? color(reference[1]!) : value
+  }
+  try {
+    document.documentElement.dataset.colorMode = 'upstream'
+    const tokens = ['--bg', '--panel', '--line', '--text', '--brand', '--accent']
+    expect(tokens.map(color)).toEqual(['#f2f3f5', '#ffffff', '#e4e6eb', '#1f2329', '#5b4bdb', '#ff7a45'])
+    for (const token of ['--text', '--sub', '--faint', '--brand', '--danger', '--ok']) {
+      expect(contrast(color(token), color('--panel')), token).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(contrast(color('--faint'), color('--bg'))).toBeGreaterThanOrEqual(4.5)
+    for (const token of ['--ui-accent-start', '--ui-accent-end', '--ui-accent-hover-start', '--ui-accent-hover-end']) {
+      expect(contrast(color('--ui-accent-label'), color(token)), token).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(color('--ui-accent-start')).toBe('#7b5cff')
+    document.documentElement.dataset.colorMode = 'light'
+    expect(color('--ui-accent-start')).toBe('#6843b9')
+  } finally {
+    style.remove()
+  }
+})

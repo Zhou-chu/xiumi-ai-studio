@@ -68,15 +68,16 @@ export function ColorModeControl() {
   if (!state) return null
   return (
     <div className="color-mode-control">
-      <Help title="界面主题">按设备本地时间，07:00–19:00 为浅色，其余时间为深色。也可手动选择并记住，仅改变界面，不影响文章和导出。</Help>
-      <span aria-hidden="true">{state.resolved === 'dark' ? '☾' : '☀'}</span>
+      <Help title="界面主题">按设备本地时间，07:00–19:00 为浅色，其余时间为深色。也可选择上游默认或手动浅色、深色，仅改变界面，不影响文章和导出。</Help>
+      <span aria-hidden="true">{state.resolved === 'dark' ? '☾' : state.resolved === 'upstream' ? '◈' : '☀'}</span>
       <select aria-label="界面主题" aria-describedby={descriptionId} data-testid="color-mode-select" value={state.preference}
         onChange={(event) => state.setPreference(parseColorMode(event.target.value))}>
         <option value="auto">自动 · 本地昼夜</option>
+        <option value="upstream">上游默认</option>
         <option value="light">浅色</option>
         <option value="dark">深色</option>
       </select>
-      <span id={descriptionId} className="color-mode-description">按设备本地时间，07:00–19:00 为浅色，其余时间为深色；手动选择会记住。仅改变界面，不影响文章和导出。</span>
+      <span id={descriptionId} className="color-mode-description">按设备本地时间，07:00–19:00 为浅色，其余时间为深色；上游默认和手动选择会记住。仅改变界面，不影响文章和导出。</span>
     </div>
   )
 }
