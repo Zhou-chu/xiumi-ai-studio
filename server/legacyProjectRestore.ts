@@ -9,6 +9,7 @@ import { withImageBudget } from './imageBudget'
 import type { Asset, ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
+import { COMPONENT_ENTRY, qualifyLegacyComponent, stageLegacyComponents, type ComponentCollection, type ComponentCandidate } from './legacyComponentRestore'
 import { DESIGN_ENTRY, qualifyLegacyDesign, stageLegacyDesign, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
 import { VERSION_RETENTION_LIMIT, type projectHistoryRestore, type VersionSnapshot } from './projectHistoryRestore'
 
@@ -38,7 +39,8 @@ type AssetStore = typeof assetRestoreStore
 type AssetLockCallbacks = Parameters<Parameters<AssetStore['withApplyLock']>[0]>
 type HistoryStore = ReturnType<typeof projectHistoryRestore>
 type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
-type ProjectArchive = { projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[]; design: DesignData }
+type ComponentRecord = { path: string; id: string; raw: unknown }
+type ProjectArchive = { components: ComponentRecord[]; projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[]; design: DesignData }
 
 async function readEntry(zip: ZipFile, entry: Entry, limit: number): Promise<Buffer> {
   if (entry.uncompressedSize > limit) throw tooLarge()
@@ -105,10 +107,11 @@ async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<stri
   return result.sort((a, b) => a.asset.id.localeCompare(b.asset.id, 'en'))
 }
 
-async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false, includeDesign = false): Promise<ProjectArchive> {
+async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false, includeDesign = false, includeComponents = false): Promise<ProjectArchive> {
   const projects: Project[] = []
   const design: DesignData = { templates: [], themes: [] }
-  let designBytes = 0
+  let designBytes = 0, componentBytes = 0
+  const components: ComponentRecord[] = []
   const otherLibraryEntries: string[] = []
   const history: HistoryCandidate[] = []
   const seen = new Set<string>()
@@ -145,6 +148,7 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
         sawManifest = true
       } else {
         const id = PROJECT.exec(name)?.[1]
+        const componentId = includeComponents ? COMPONENT_ENTRY.exec(name)?.[1] : undefined
         const designMatch = includeDesign ? DESIGN_ENTRY.exec(name) : null
         if (id) {
           consumed += entry.uncompressedSize
@@ -168,6 +172,17 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
           try { raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
           catch { /* Unusable JSON is accounted for in the unsupported list. */ }
           history.push({ path: name, projectId, id, raw })
+        } else if (componentId) {
+          if (components.length >= 128 || entry.uncompressedSize > Math.min(128 * 1024, 8 * 1024 * 1024 - componentBytes)) {
+            otherLibraryEntries.push(name)
+            continue
+          }
+          componentBytes += entry.uncompressedSize
+          const bytes = await readEntry(zip, entry, budget.entryBytes)
+          let raw: unknown
+          try { raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+          catch { /* Report malformed JSON as unsupported. */ }
+          components.push({ path: name, id: componentId, raw })
         } else if (designMatch) {
           if (entry.uncompressedSize > budget.entryBytes || entry.uncompressedSize > budget.totalDesignBytes - designBytes) {
             otherLibraryEntries.push(name)
@@ -193,6 +208,7 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
       projects: projects.sort((a, b) => a.id.localeCompare(b.id, 'en')),
       assets,
       history,
+      components,
       design,
       otherLibraryEntries: [...otherLibraryEntries, ...binaries.keys()].sort((a, b) => a.localeCompare(b, 'en')),
     }
@@ -441,8 +457,8 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections) {
-  const { projects, assets, history, design, otherLibraryEntries } = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore)
+export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: { components?: ComponentCollection; projectImages?: boolean } = {}) {
+  const { projects, assets, history, design, components, otherLibraryEntries } = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components)
   const designs = designStore ? stageLegacyDesign(design, designStore) : null
   const images = new Map(assets.map(asset => {
     const name = '/media/' + asset.asset.file
@@ -450,12 +466,21 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
     const qualifiedSrc = name + '?gen=' + generation
     return [asset.asset.id, { asset: { ...asset, asset: { ...asset.asset, generation } }, qualifiedSrc, name }]
   }))
+  const projectImages = options.projectImages === false ? new Map<string, RestoreImage>() : images
+  const byFile = new Map([...images].map(([id, image]) => [image.asset.asset.file, { id, src: image.qualifiedSrc }]))
+  const preparedComponents: ComponentCandidate[] = []
+  for (const record of components) {
+    const candidate = qualifyLegacyComponent(record.id, record.raw, byFile)
+    if (candidate) preparedComponents.push(candidate)
+    else otherLibraryEntries.push(record.path)
+  }
+  const componentStage = options.components ? stageLegacyComponents(preparedComponents, options.components) : null
   const supported: ManagedProject[] = [], unsupported: string[] = []
   const selected = new Set<string>(), textParents = new Map<string, Doc>()
   const fallbackTime = Date.now()
   for (const source of projects) {
-    if (!independentlyRestorable(source, images)) { unsupported.push(source.id); continue }
-    const doc = canonicalTextProject(source, fallbackTime, images)
+    if (!independentlyRestorable(source, projectImages)) { unsupported.push(source.id); continue }
+    const doc = canonicalTextProject(source, fallbackTime, projectImages)
     const dependencies = new Set(doc.blocks.flatMap(block =>
       block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
     const known = { ids: dependencies, files: new Set([...dependencies].map(id => images.get(id)!.asset.asset.file)) }
@@ -465,6 +490,7 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
     if (!dependencies.size) textParents.set(doc.id, doc)
     for (const id of dependencies) selected.add(id)
   }
+  for (const candidate of preparedComponents) if (!candidate.missing) for (const id of candidate.dependencies) selected.add(id)
   if (assetStore) {
     if (!selected.size && assets.length) otherLibraryEntries.push(ASSET_INDEX)
     for (const { asset } of assets) if (!selected.has(asset.id)) otherLibraryEntries.push('assets/' + asset.file)
@@ -486,20 +512,21 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
       const plan = initAssetPlan()
       const status = new Map<string, 'available' | 'alreadyPresent' | 'conflict'>()
       const needed = new Set<string>(), conflicts = new Set<string>()
-      for (const { doc, dependencies } of supported) {
-        if (await store.occupied(doc.id)) { skip.push(doc.id); continue }
+      async function planDependencies(dependencies: Set<string>, existing = false) {
         for (const id of dependencies) {
           if (!status.has(id) && assetStore) status.set(id, await assetStore.status(images.get(id)!.asset))
         }
         const conflicted = [...dependencies].filter(id => status.get(id) === 'conflict')
-        if (conflicted.length) {
-          skip.push(doc.id)
-          for (const id of conflicted) conflicts.add(id)
-          continue
-        }
-        add.push(doc.id)
+        for (const id of conflicted) conflicts.add(id)
+        if (conflicted.length || (existing && [...dependencies].some(id => status.get(id) !== 'alreadyPresent'))) return false
         for (const id of dependencies) needed.add(id)
+        return true
       }
+      for (const { doc, dependencies } of supported) {
+        if (await store.occupied(doc.id) || !(await planDependencies(dependencies))) skip.push(doc.id)
+        else add.push(doc.id)
+      }
+      const components = await componentStage?.preview((candidate, existing) => planDependencies(candidate.dependencies, existing))
       plan.skip = [...conflicts]
       for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
       const eligible = new Set(add)
@@ -511,7 +538,7 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
         bucket.push(versionKey(version))
         perProject.set(version.projectId, count + 1)
       }
-      return { ...(designs && { design: await designs.preview() }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
+      return { ...(components && { components }), ...(designs && { design: await designs.preview() }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []
@@ -520,8 +547,13 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
         const applied = new Map<string, 'restored' | 'alreadyPresent' | 'conflict' | 'failed'>()
         const hasStatus = (dependencies: Set<string>, status: 'conflict' | 'failed') =>
           [...dependencies].some(id => applied.get(id) === status)
-        async function publishDependencies(dependencies: Set<string>) {
+        async function publishDependencies(dependencies: Set<string>, existing = false) {
+          if (!dependencies.size) return true
           if (!checkAsset || !restoreAsset) return false
+          if (existing) {
+            for (const id of dependencies) if (await checkAsset(images.get(id)!.asset) !== 'alreadyPresent') return false
+            return true
+          }
           for (const id of dependencies) {
             if (!applied.has(id) && await checkAsset(images.get(id)!.asset) === 'conflict') {
               applied.set(id, 'conflict')
@@ -558,9 +590,12 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
             failed.push(doc.id)
           }
         }
+        return componentStage?.apply(async (candidate, existing) => {
+          if (await publishDependencies(candidate.dependencies, existing)) return 'ready'
+          return hasStatus(candidate.dependencies, 'failed') ? 'failed' : 'unresolved'
+        })
       }
-      if (assetStore) await assetStore.withApplyLock(run)
-      else await run()
+      const components = assetStore ? await assetStore.withApplyLock(run) : await run()
       const historyResult = { restored: [] as string[], skipped: [] as string[], failed: [] as string[] }
       const fullParents = new Set<string>()
       for (const version of versions) {
@@ -576,7 +611,7 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
           historyResult.failed.push(key)
         }
       }
-      return { ...(designs && { design: await designs.apply() }), versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
+      return { ...(components && { components }), ...(designs && { design: await designs.apply() }), versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
     },
   }
 }

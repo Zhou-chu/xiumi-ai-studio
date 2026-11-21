@@ -34,3 +34,26 @@ Mounted HTTP tests check the read-only preview, late image conflicts, saved proj
 identity, and image bytes through a URL emitted by the real compiler. Browser acceptance
 is a separate Playwright journey (prefetch the missing name, restore, open, render pixels)
 and is not satisfied by the mounted HTTP tests alone.
+
+
+### Component library ZIP recovery (bounded subset)
+
+With **同时恢复简单原文组件及引用图片**, preview classifies compatible records as
+add, identical, conflicting or unresolved when a matched indexed PNG/JPEG is
+missing. Confirmation operates against ordinary collection locks: existing
+records and name-conflicting image bytes are kept, and a conflicting component
+does not cause its images to be added. File I/O failure after related bytes
+are published is reported; unrelated local files are not rolled back. ZIP
+inspection is limited to 128 component records and 8 MiB of expanded component
+data; each component fragment is limited to 64 KiB and a narrow, inert HTML
+and styling subset. Unsupported markup, remote media/links, complex SVG,
+source URLs and archived authority/redistribution claims are not restored.
+The source kind, label/account and acquisition method remain advisory local
+metadata. Identity and revisions are retained; derived statistics and
+fingerprints are recalculated rather than trusting the archive.
+
+A genuine upstream synthetic library fixture exercises real read-only preview,
+one-shot confirmation, normal component listing and exact indexed image bytes.
+The browser gate separately inserts the archived component twice, verifies
+distinct copied block IDs and actual decoded image pixels, saves/reloads, and
+checks the library's retained advisory provenance.

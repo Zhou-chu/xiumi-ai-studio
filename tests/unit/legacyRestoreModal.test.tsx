@@ -161,3 +161,30 @@ it('restores style-only selections, refreshes themes/templates and renders per-c
     expect(refresh).toHaveBeenCalledOnce()
   } finally { window.removeEventListener('templates-changed', refresh) }
 }))
+
+it('keeps component-only opt-in and confirmation separate, and refreshes only restored entries', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json({ ...previewBody, plan: {
+    projects: { add: [], skip: [], unsupported: [] }, unsupported: [],
+    components: { add: ['archived'], alreadyPresent: [], conflicts: [], unresolved: ['missing'] },
+  }})).mockResolvedValueOnce(json({
+    projects: { restored: [], skipped: [], failed: [], unsupported: [] }, unsupported: [],
+    components: { restored: ['archived'], alreadyPresent: [], conflicts: ['later'], unresolved: ['missing'], failed: [] },
+  }))
+  const refresh = vi.fn()
+  window.addEventListener('components-changed', refresh)
+  try {
+    pick('components.zip')
+    const option = [...document.querySelectorAll('label')].find(label => label.textContent?.includes('同时恢复简单原文组件及引用图片'))
+    expect(option).toBeDefined()
+    act(() => option?.querySelector('input')?.click())
+    await act(async () => button('预览恢复')!.click())
+    expect(requests.mock.calls[0][0]).toBe('/api/data/restore?components=1')
+    expect(document.body.textContent).toContain('可添加的组件（1）')
+    expect(document.body.textContent).toContain('缺少匹配图片的组件（1）')
+    expect(refresh).not.toHaveBeenCalled()
+    await act(async () => button('确认添加所选数据')!.click())
+    expect(document.body.textContent).toContain('新增组件（1）')
+    expect(document.body.textContent).toContain('冲突，未覆盖的组件（1）')
+    expect(refresh).toHaveBeenCalledOnce()
+  } finally { window.removeEventListener('components-changed', refresh) }
+}))

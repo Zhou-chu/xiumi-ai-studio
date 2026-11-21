@@ -38,8 +38,19 @@ function DesignResult({ design }: { design: NonNullable<LegacyRestoreResult['des
     <RestoreList label="缺少匹配主题的模板" entries={design.templates.unresolved} />
   </>
 }
+function ComponentLists({ value }: { value: NonNullable<LegacyRestorePlan['components'] | LegacyRestoreResult['components']> }) {
+  return <>
+    {'add' in value ? <RestoreList label="可添加的组件" entries={value.add} /> : <>
+      <RestoreList label="新增组件" entries={value.restored} />
+      <RestoreList label="写入失败的组件" entries={value.failed} />
+    </>}
+    <RestoreList label="已有相同组件" entries={value.alreadyPresent} />
+    <RestoreList label="冲突，未覆盖的组件" entries={value.conflicts} />
+    <RestoreList label="缺少匹配图片的组件" entries={value.unresolved} />
+  </>
+}
 function hasAdditions(plan: LegacyRestorePlan | undefined): boolean {
-  return !!(plan?.projects.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length)
+  return !!(plan?.projects.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length)
 }
 const message = (failure: unknown) => failure instanceof Error ? failure.message : '请求未完成，请重试。'
 
@@ -47,6 +58,7 @@ export function LegacyRestorePanel() {
   const [file, setFile] = useState<File | null>(null)
   const [indexedImages, setIndexedImages] = useState(false)
   const [includeDesign, setIncludeDesign] = useState(false)
+  const [includeComponents, setIncludeComponents] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [result, setResult] = useState<LegacyRestoreResult | null>(null)
   const [busy, setBusy] = useState<'preview' | 'apply' | null>(null)
@@ -64,7 +76,7 @@ export function LegacyRestorePanel() {
     setPreview(null)
     try {
       if (stage === 'preview') {
-        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign)
+        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents)
         if (!controller.signal.aborted) setPreview(response)
       } else if (preview) {
         const response = await api.applyLegacyRestore(preview.token, controller.signal)
@@ -72,6 +84,7 @@ export function LegacyRestorePanel() {
         if (!controller.signal.aborted) setResult(response)
         if (response.projects.restored.length) window.dispatchEvent(new Event('projects-changed'))
         if (response.assets?.restored.length) window.dispatchEvent(new Event('assets-changed'))
+        if (response.components?.restored.length) window.dispatchEvent(new Event('components-changed'))
         if (response.design?.templates.restored.length) window.dispatchEvent(new Event('templates-changed'))
       }
     } catch (failure) {
@@ -88,8 +101,8 @@ export function LegacyRestorePanel() {
 
   return <section aria-label="从整库 ZIP 恢复部分项目">
     <h4>从整库 ZIP 恢复部分项目</h4>
-    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的纯文字项目可恢复符合条件的文字历史；可另外选择恢复普通图片模块的已索引 PNG/JPEG。还可独立选择恢复受支持的简单模板和自定义主题。图片项目的历史、模板内媒体、复杂排版、链接、组件及设置不在此范围内；不支持迁移。</p>
-    <p className="hint">ZIP 必须小于 {MAX_RESTORE_ARCHIVE_MIB} MiB，解压后的项目、图片、历史、模板和主题数据有限额。</p>
+    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的纯文字项目可恢复符合条件的文字历史；可另外选择恢复普通图片模块的已索引 PNG/JPEG。还可独立选择恢复简单模板、自定义主题、或简单原文组件及引用图片。备份中的组件来源仅供参考，不继承授权或分发许可。图片项目的历史、模板内媒体、复杂排版、链接及设置不在此范围内；不支持迁移。</p>
+    <p className="hint">ZIP 必须小于 {MAX_RESTORE_ARCHIVE_MIB} MiB，解压后的项目、图片、历史、模板、组件和主题数据有限额。</p>
     <label className="field">选择整库 ZIP
       <input type="file" accept=".zip,application/zip" disabled={!!busy} onChange={event => {
         if (active.current) return
@@ -124,9 +137,18 @@ export function LegacyRestorePanel() {
       }} />
       同时恢复简单模板和自定义主题
     </label>
+    <label className="row gap">
+      <input type="checkbox" checked={includeComponents} disabled={!!busy} onChange={event => {
+        setIncludeComponents(event.currentTarget.checked)
+        setPreview(null)
+        setResult(null)
+        setError('')
+      }} />
+      同时恢复简单原文组件及引用图片
+    </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>
-      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{preview.plan.design ? '确认添加所选数据' : '确认添加项目'}</button>}
+      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components) ? '确认添加所选数据' : '确认添加项目'}</button>}
     </div>
     {busy === 'apply' && <p role="status">正在添加所选数据。关闭窗口不会撤销已经添加的数据。</p>}
     {error && <p role="alert" className="warn">{error}</p>}
@@ -137,9 +159,10 @@ export function LegacyRestorePanel() {
       <RestoreList label="不支持的项目" entries={preview.plan.projects.unsupported} />
       <RestoreList label="可添加的历史版本" entries={preview.plan.versions?.add ?? []} />
       <RestoreList label="将跳过的历史版本" entries={preview.plan.versions?.skip ?? []} />
-      <RestoreList label="可添加的项目图片" entries={preview.plan.assets?.add ?? []} />
+      <RestoreList label={preview.plan.components ? "可添加的引用图片" : "可添加的项目图片"} entries={preview.plan.assets?.add ?? []} />
       <RestoreList label="已有相同图片" entries={preview.plan.assets?.alreadyPresent ?? []} />
       <RestoreList label="冲突图片，不覆盖" entries={preview.plan.assets?.skip ?? []} />
+      {preview.plan.components && <ComponentLists value={preview.plan.components} />}
       {preview.plan.design && <DesignPreview design={preview.plan.design} />}
       <RestoreList label="不恢复的其他档案" entries={preview.plan.unsupported} />
     </div>}
@@ -156,6 +179,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="已有相同图片" entries={result.assets?.alreadyPresent ?? []} />
       <RestoreList label="已跳过的冲突图片" entries={result.assets?.skipped ?? []} />
       <RestoreList label="图片写入失败" entries={result.assets?.failed ?? []} />
+      {result.components && <ComponentLists value={result.components} />}
       {result.design && <DesignResult design={result.design} />}
       <RestoreList label="未恢复的其他档案" entries={result.unsupported} />
     </div>}

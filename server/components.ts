@@ -7,6 +7,7 @@ import { isRoleId, roleDef } from '../src/core/roles'
 import { collection, DIRS } from './store'
 
 const col = collection<LibraryComponent>(DIRS.components)
+export const componentRestoreStore = col
 const httpError = (message: string, status = 400) => Object.assign(new Error(message), { status })
 
 /** 组件用到、但已从素材库删除的本地图片 */

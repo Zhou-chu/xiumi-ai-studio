@@ -107,7 +107,7 @@ const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max
  * 校验外部传入的组件（服务端保存时、读取历史数据时用，不依赖 DOM）。
  * 原文片段必须已确认使用权，并强制不可分发。返回错误信息或规范化后的数据。
  */
-export function validateDraft(raw: any): { draft?: ComponentDraft; error?: string } {
+export function validateDraft(raw: any, { requireHtmlAttestation = true } = {}): { draft?: ComponentDraft; error?: string } {
   if (!raw || typeof raw !== 'object') return { error: '组件数据无效' }
   if (!isBlockType(raw.block?.type)) return { error: '组件内容无效' }
   const [block] = normalizeBlocks([raw.block])
@@ -119,7 +119,7 @@ export function validateDraft(raw: any): { draft?: ComponentDraft; error?: strin
     block.props.html = guardHtml(block.props.html)
   }
   const o = raw.origin && typeof raw.origin === 'object' ? raw.origin : {}
-  if (html && o.attested !== true) return { error: '导入内容需要先确认使用权' }
+  if (html && requireHtmlAttestation && o.attested !== true) return { error: '导入内容需要先确认使用权' }
   const kind: SourceKind = ['original', 'wechat', 'xiumi', 'other'].includes(o.kind) ? o.kind : 'other'
   return {
     draft: {
