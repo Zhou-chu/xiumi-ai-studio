@@ -4,6 +4,8 @@ import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 import {Toolbar} from '../../src/editor/Toolbar'
 import {api} from '../../src/editor/api'
 import {createBlock} from '../../src/core/blocks'
+import {compileDoc} from '../../src/core/compiler'
+import {checkedXiumiParts} from '../../src/core/xiumiExport'
 import {emptyDoc} from '../../src/editor/store'
 import {setup,cleanup,mount,host,click,button,byTest,input,dispatch,state} from './libraryToolbarHarness'
 const close=()=>click([...host.querySelectorAll('[role="dialog"] button.close')].at(-1))
@@ -53,6 +55,49 @@ it('Xiumi packages and uploads real local image references, with safe failure re
 })
 it('oversized Xiumi export asks before downloading split files',async()=>{
  await act(async()=>state().load({...emptyDoc(),blocks:[createBlock('html',{label:'Long',html:Array.from({length:180},()=>'<p>'+'x'.repeat(1000)+'</p>').join('')})]}));await mount(<Toolbar/>);await click(byTest('open-export'));expect(byTest('xiumi-parts')).not.toBeNull();vi.mocked(window.confirm).mockReturnValueOnce(false);await click(byTest('xiumi-package'));expect(URL.createObjectURL).not.toHaveBeenCalled();await click(byTest('xiumi-package'));expect(URL.createObjectURL).toHaveBeenCalled();expect(state().toast?.text).toContain('依次导入')
+})
+it.each([false, true])('reconfirms a changed Xiumi part count after upload; continue=%s', async continueDownload => {
+ const local = '/media/part-boundary.jpg'
+ const hosted = 'https://mmbiz.qpic.cn/' + 'a'.repeat(2100) + '.jpg'
+ vi.mocked(api.wechatStatus).mockResolvedValue({configured:true,appid:'fixture'})
+ const upload = vi.spyOn(api, 'wechatUploadImages').mockImplementation(async urls => Object.fromEntries(urls.map(url => [url, hosted])))
+ const doc = {...emptyDoc(), title:'Split draft', blocks:[
+   createBlock('html', {html:'<p>' + 'x'.repeat(119000) + '</p>'}),
+   createBlock('image', {image:{src:local}}),
+   createBlock('html', {html:'<p>' + 'y'.repeat(119000) + '</p>'}),
+ ]}
+ expect(checkedXiumiParts(compileDoc(doc).html)).toHaveLength(2)
+ expect(checkedXiumiParts(compileDoc(doc, {mapImage:() => hosted}).html)).toHaveLength(3)
+ const prompts = vi.mocked(window.confirm)
+ prompts.mockImplementationOnce(() => {
+   expect(upload).not.toHaveBeenCalled()
+   return true
+ }).mockImplementationOnce(message => {
+   expect(upload).toHaveBeenCalledTimes(1)
+   expect(message).toContain('2 份变为 3 份')
+   expect(message).toContain('无法撤回已上传图片')
+   expect(URL.createObjectURL).not.toHaveBeenCalled()
+   return continueDownload
+ })
+ await act(async () => state().load(doc));await mount(<Toolbar/>);await click(byTest('open-export'));await click(byTest('xiumi-upload'))
+ expect(prompts).toHaveBeenCalledTimes(2)
+ expect(URL.createObjectURL).toHaveBeenCalledTimes(continueDownload ? 1 : 0)
+ expect((byTest('xiumi-upload') as HTMLButtonElement).disabled).toBe(false)
+})
+
+it('keeps one confirmation when upload does not change a multipart Xiumi count', async () => {
+ vi.mocked(api.wechatStatus).mockResolvedValue({configured:true,appid:'fixture'})
+ const upload = vi.spyOn(api, 'wechatUploadImages').mockImplementation(async urls => Object.fromEntries(urls.map(url => [url, 'https://mmbiz.qpic.cn/small.jpg'])))
+ const doc = {...emptyDoc(), blocks:[
+   createBlock('html', {html:'<p>' + 'x'.repeat(70000) + '</p>'}),
+   createBlock('image', {image:{src:'/media/small.jpg'}}),
+   createBlock('html', {html:'<p>' + 'y'.repeat(70000) + '</p>'}),
+ ]}
+ expect(checkedXiumiParts(compileDoc(doc).html)).toHaveLength(2)
+ await act(async () => state().load(doc));await mount(<Toolbar/>);await click(byTest('open-export'));await click(byTest('xiumi-upload'))
+ expect(window.confirm).toHaveBeenCalledTimes(1)
+ expect(upload).toHaveBeenCalledTimes(1)
+ expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
 })
 it('lazy article and AI import entrypoints and template event can be opened and dismissed',async()=>{
  await import('../../src/editor/ArticleImport');await import('../../src/editor/ImportWizard');await mount(<Toolbar/>);await click(byTest('open-article-import'));await act(async()=>{await vi.dynamicImportSettled()});expect(host.querySelector('[role="dialog"]')).not.toBeNull();await close();await click(byTest('open-import'));await act(async()=>{await vi.dynamicImportSettled()});expect(host.querySelector('[role="dialog"]')).not.toBeNull();await close();await act(async()=>window.dispatchEvent(new CustomEvent('open-import',{detail:{templateIds:['tpl']}})));await close()

@@ -33,7 +33,7 @@ test('adds an editorial replay, scrubs it, and recovers it after reload', async 
   await expect(open).toHaveCount(1)
 })
 
-test('offers a local animated HTML download without unverified platform actions', async ({ page }) => {
+test('offers local HTML and text-only Xiumi replay files without uploading', async ({ page }) => {
   let publicationRequests = 0
   await page.route('**/api/wechat/status', route => route.fulfill({ json: { configured: true, appid: 'fixture' } }))
   await page.route(/\/api\/wechat\/(?:upload-images|draft)$/, route => {
@@ -54,10 +54,19 @@ test('offers a local animated HTML download without unverified platform actions'
   await page.getByTestId('tab-blocks').click()
   await page.getByTestId('lib-replay').click()
   await openExport.click()
-  await expect(dialog.getByRole('status')).toContainText('公众号与秀米导出尚未验证')
+  await expect(dialog.getByRole('status')).toContainText('公众号发布与上传秀米暂不可用')
   await expect(draft).toBeDisabled()
   await expect(dialog.getByTestId('copy-wechat')).toBeDisabled()
-  await expect(dialog.getByTestId('xiumi-package')).toBeDisabled()
+  await expect(dialog.getByTestId('xiumi-upload')).toHaveCount(0)
+  const [xiumi] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByTestId('xiumi-package').click(),
+  ])
+  expect(xiumi.suggestedFilename()).toMatch(/\.txt$/)
+  const xiumiHtml = await readFile((await xiumi.path())!, 'utf8')
+  expect(xiumiHtml).toContain('<text')
+  expect(xiumiHtml).toContain('<animate')
+  expect(xiumiHtml).not.toMatch(/<image\b|data:image|\/media\//)
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     dialog.getByRole('button', { name: '本地 HTML（保留回放）' }).click(),

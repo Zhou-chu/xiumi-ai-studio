@@ -1,6 +1,8 @@
 import { createUploadGate } from './uploadGate'
 import { importArticleImages } from './articleImages'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
@@ -16,8 +18,9 @@ import { suggestionPrompt, readSuggestion, SUGGESTION_SYSTEM } from './aiSuggest
 import { isRoleId } from '../src/core/roles'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
 import { importFile } from './importer'
-import { collection, DIRS, ROOT, safeId } from './store'
+import { collection, DATA, DIRS, ROOT, safeId } from './store'
 import { projectCollection } from './projectStore'
+import { libraryZip, planLibraryBackup } from './fullLibraryBackup'
 import { addDraft, uploadContentImage, uploadCover, validateDraft, wechatStatus } from './wechat'
 
 type Doc = { id: string; title: string; updatedAt: number; [k: string]: any }
@@ -41,6 +44,48 @@ export function createApp() {
   const MAX_IMPORT_IMAGE = 30 * 1024 * 1024
   const fixName = (n: string) => Buffer.from(n, 'latin1').toString('utf8') // multer 按 latin1 解码中文文件名
   
+  // Full-library export is a local-only download; it does not replace the
+  // browser's independently owned single-project/portable snapshot flow.
+  let backupActive = false
+  app.get('/api/data/backup', h(async (req, res) => {
+    const host = req.get('host') ?? ''
+    const origin = req.get('origin')
+    if (!/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(host) ||
+        (origin && origin !== `http://${host}` && origin !== `https://${host}`) ||
+        ['cross-site', 'same-site'].includes(req.get('sec-fetch-site') ?? '')) {
+      return res.status(403).json({ error: '只允许从同源本机下载整库备份' })
+    }
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')
+    if (req.method === 'HEAD') {
+      res.setHeader('Content-Type', 'application/zip')
+      res.setHeader('Cache-Control', 'no-store')
+      return res.end()
+    }
+    if (backupActive) return res.status(429).json({ error: '整库备份正在运行，请稍后重试' })
+    backupActive = true
+    const controller = new AbortController()
+    const closed = () => { if (!res.writableFinished) controller.abort() }
+    res.once('close', closed)
+    try {
+      let version = 'dev'
+      try {
+        const value = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
+        if (typeof value === 'string') version = value
+      } catch { /* Keep development version for source builds without metadata. */ }
+      const plan = await planLibraryBackup(DATA, version, controller.signal)
+      res.setHeader('Content-Type', 'application/zip')
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin')
+      res.setHeader('Content-Disposition', `attachment; filename="xiumi-backup-${stamp}.zip"; filename*=UTF-8''${encodeURIComponent(`XIUMI备份-${stamp}.zip`)}`)
+      await pipeline(Readable.from(libraryZip(plan, controller.signal), { objectMode: false }), res, { signal: controller.signal })
+    } catch (error) {
+      if (!controller.signal.aborted && !res.destroyed) throw error
+    } finally {
+      res.off('close', closed)
+      backupActive = false
+    }
+  }))
+
   // ---------- 素材 ----------
   app.get('/media/:file', h(async (req, res) => {
     const p = await variantPath(String(req.params.file), req.query.fit as string | undefined, Number(req.query.w) || undefined)

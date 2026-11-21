@@ -4,12 +4,12 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
 import { displayHtml } from '../core/images'
-import { checkedXiumiParts, splitForXiumi, xiumiReport, xiumiSvgBoxes } from '../core/xiumiExport'
+import { splitForXiumi, xiumiReport, xiumiSvgBoxes } from '../core/xiumiExport'
 import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
 import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
-import { assertReplayCanPublish, compileForWechat, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
+import { assertReplayCanPublish, compileForWechat, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, prepareXiumiUpload, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
 const ProjectBackupModal = lazy(() => import('./ProjectBackupModal'))
@@ -223,9 +223,13 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               data-testid="xiumi-upload"
               onClick={() =>
                 runXiumi(async () => {
-                  if (!confirmParts(checkedXiumiParts(base.html).length)) return
+                  const plan = prepareXiumiUpload(doc)
+                  if (!confirmParts(plan.parts)) return
                   setBusy('上传图片…')
-                  const r = await xiumiUploaded(doc, setBusy)
+                  const r = await plan.upload(setBusy)
+                  if (r.parts !== plan.parts && !confirm(
+                    `图片地址替换后，导入文件从 ${plan.parts} 份变为 ${r.parts} 份。\n\n图片已上传到微信，取消只会停止下载，无法撤回已上传图片。是否按实际 ${r.parts} 份继续下载？`,
+                  )) return
                   download(`${safeName}-${r.name}`, r.blob)
                   notify(r.parts > 1 ? `已下载，解压后按「说明.txt」依次导入 ${r.parts} 个文件` : '已下载，在秀米“导入 HTML 代码”里使用')
                 })
@@ -235,7 +239,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             </button>
           )}
           <button
-            disabled={!!busy || replayOnly}
+            disabled={!!busy}
             data-testid="xiumi-package"
             onClick={() =>
               runXiumi(async () => {

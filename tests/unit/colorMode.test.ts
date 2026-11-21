@@ -62,6 +62,46 @@ describe('local day/night boundaries', () => {
   })
 })
 
+describe('upstream theme preference compatibility', () => {
+  it.each([
+    ['upstream', 'upstream'],
+    ['mono-light', 'light'],
+    ['mono-dark', 'dark'],
+    ['mono-auto', 'auto'],
+  ] as const)('reads upstream %s as %s without rewriting storage', (upstream, expected) => {
+    localStorage.setItem('xiumi-ui-theme', upstream)
+    expect(readColorMode()).toBe(expected)
+    expect(localStorage.getItem(COLOR_MODE_KEY)).toBeNull()
+    expect(localStorage.getItem('xiumi-ui-theme')).toBe(upstream)
+  })
+
+  it.each(['upstream', 'light', 'dark', 'auto'] as const)('keeps valid fork %s ahead of the upstream preference', preference => {
+    localStorage.setItem('xiumi-ui-theme', 'mono-light')
+    localStorage.setItem(COLOR_MODE_KEY, preference)
+    expect(readColorMode()).toBe(preference)
+  })
+
+  it('falls back from corrupt fork data only to a recognized upstream preference', () => {
+    localStorage.setItem(COLOR_MODE_KEY, 'unknown')
+    localStorage.setItem('xiumi-ui-theme', 'mono-dark')
+    expect(readColorMode()).toBe('dark')
+    localStorage.setItem('xiumi-ui-theme', 'also-unknown')
+    expect(readColorMode()).toBe('auto')
+    expect(localStorage.getItem(COLOR_MODE_KEY)).toBe('unknown')
+  })
+
+  it('stores the mode, not the resolved color, during normal fork preference changes', () => {
+    localStorage.setItem('xiumi-ui-theme', 'mono-auto')
+    mount()
+    expect(host.querySelector('select')!.value).toBe('auto')
+    expect(document.documentElement.dataset.colorMode).toBe('light')
+    choose('dark')
+    expect(localStorage.getItem(COLOR_MODE_KEY)).toBe('dark')
+    expect(localStorage.getItem('xiumi-ui-theme')).toBe('mono-auto')
+    expect(readColorMode()).toBe('dark')
+  })
+})
+
 it('starts automatic, allows both manual choices, and restores a saved choice on remount', () => {
   mount()
   expect(host.querySelector('select')!.value).toBe('auto')

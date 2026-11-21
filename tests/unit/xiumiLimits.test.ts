@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest'
 import { checkedXiumiParts } from '../../src/core/xiumiExport'
-import { xiumiUploaded } from '../../src/editor/wechatOutput'
+import { prepareXiumiUpload, xiumiUploaded } from '../../src/editor/wechatOutput'
 import { createBlock } from '../../src/core/blocks'
 import { emptyDoc } from '../../src/editor/store'
 import { api } from '../../src/editor/api'
@@ -28,4 +28,21 @@ it('keeps safely split content complete and bounded', () => {
   expect(parts.length).toBeGreaterThan(1)
   expect(parts.every(p => p.length <= 120000)).toBe(true)
   expect(parts.map(p => p.slice(9, -10)).join('')).toBe(html.slice(9, -10))
+})
+
+it('uploads only media from the same document snapshot that passed Xiumi preflight', async () => {
+  const original = '/media/confirmed.jpg'
+  const replacement = '/media/after-confirmation.jpg'
+  const block = createBlock('image', { image: { src: original } })
+  const doc = { ...emptyDoc(), blocks: [block] }
+  const upload = vi.mocked(api.wechatUploadImages)
+  upload.mockClear()
+  upload.mockImplementation(async urls => Object.fromEntries(urls.map(url => [url, 'https://example.com/confirmed.jpg'])))
+  const plan = prepareXiumiUpload(doc)
+  expect(plan.parts).toBe(1)
+  expect(upload).not.toHaveBeenCalled()
+
+  block.props.image = { src: replacement }
+  await expect(plan.upload()).resolves.toMatchObject({ parts: 1, name: '导入秀米.txt' })
+  expect(upload).toHaveBeenCalledExactlyOnceWith([original + "?w=1080"])
 })

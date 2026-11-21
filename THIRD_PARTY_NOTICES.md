@@ -24,6 +24,8 @@ MIT License (wechat-draft-publisher) — Copyright (c) andrewlaredo. Permission 
 
 运行时依赖均为 MIT / BSD / Apache-2.0 许可：react、zustand、@dnd-kit、@tiptap（MIT）、marked（MIT）、mammoth（BSD-2-Clause）、sharp（Apache-2.0，内含 libvips LGPL-3.0 动态库）、express、multer、nanoid、react-easy-crop（MIT）。
 
+整库备份服务使用 fflate 0.8.3（MIT）；发行包保留其 npm 许可证文件。
+
 ## 浏览器备份模块
 
 - JSZip 3.10.2 选择 MIT 许可。

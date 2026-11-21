@@ -1,12 +1,12 @@
 // 输出到微信：图片处理（内嵌 / 上传微信 / 原链接）+ 富文本剪贴板。
 // 剪贴板写入方式参考 doocs/md（WTFPL）：ClipboardItem 优先，execCommand 兜底；首尾加零高度段落。
-import { compileDoc, css, type CompileResult } from '../core/compiler'
+import { compileDoc, compileReplay, css, REPLAY_ERROR, type CompileResult } from '../core/compiler'
 import { fitRatio } from '../core/photos'
 import { asciiHtml, makeZip, replaceLocalImages, checkedXiumiParts } from '../core/xiumiExport'
 import type { Doc } from '../core/types'
 import { api } from './api'
 
-export const REPLAY_LOCAL_ONLY = '编辑回放暂只支持本地 HTML，请下载保留回放的 HTML 文件；公众号与秀米导出尚未验证。'
+export const REPLAY_LOCAL_ONLY = '编辑回放的公众号发布与上传秀米暂不可用。可以下载本地 HTML；不含回放图片时也可下载秀米导入文件。'
 
 export function hasReplay(doc: Doc): boolean {
   return doc.blocks.some(block => block.type === 'replay')
@@ -188,9 +188,17 @@ function xiumiZip(files: { name: string; data: Uint8Array }[], images: number): 
 
 /** 导出给秀米（不需要公众号接口）：本地图片换成占位图，另附按出现顺序编号的图片包 */
 export async function xiumiPackage(doc: Doc, onProgress?: (msg: string) => void): Promise<XiumiDownload> {
-  assertReplayCanPublish(doc)
-  checkedXiumiParts(compileDoc(doc).html)
-  const replaced = replaceLocalImages(compileDoc(doc).html, (url, i) => placeholder(i + 1, fitRatio(url)))
+  for (const block of doc.blocks) {
+    // Replay SVG image references cannot use the ordinary image-placeholder mechanism.
+    if (block.type === 'replay' && /<image\b/i.test(compileReplay(block).html)) {
+      throw new Error('秀米离线导出不支持回放内嵌图片，请使用本地 HTML（保留回放）。')
+    }
+  }
+  const compiled = compileDoc(doc)
+  const replayIssue = compiled.warnings.find(warning => warning.startsWith(REPLAY_ERROR))
+  if (replayIssue) throw new Error(`编辑回放未通过检查，已停止秀米导出：${replayIssue.slice(REPLAY_ERROR.length).trim()}`)
+  checkedXiumiParts(compiled.html)
+  const replaced = replaceLocalImages(compiled.html, (url, i) => placeholder(i + 1, fitRatio(url)))
   const { urls } = replaced
   const files = xiumiFiles(replaced.html)
   for (const [i, url] of urls.entries()) {
@@ -203,11 +211,22 @@ export async function xiumiPackage(doc: Doc, onProgress?: (msg: string) => void)
   return xiumiZip(files, urls.length)
 }
 
+/** 先检查不可变文章快照；确认后，上传与最终分包只能使用这份文章。 */
+export function prepareXiumiUpload(doc: Doc): { parts: number; upload: (onProgress?: (msg: string) => void) => Promise<XiumiDownload> } {
+  const snapshot = structuredClone(doc)
+  assertReplayCanPublish(snapshot)
+  const parts = checkedXiumiParts(compileDoc(snapshot).html).length
+  return {
+    parts,
+    async upload(onProgress) {
+      const { html } = await compileForWechat(snapshot, 'wechat', onProgress)
+      if (/(?:src="|url\((?:&quot;|["']?))\/media\//.test(html)) throw new Error('有图片没有上传成功，请重试')
+      return xiumiZip(xiumiFiles(html), 0)
+    },
+  }
+}
+
 /** 导出给秀米（已配置公众号接口）：本地图片先传到微信图床，全部变成秀米能接受的地址 */
 export async function xiumiUploaded(doc: Doc, onProgress?: (msg: string) => void): Promise<XiumiDownload> {
-  assertReplayCanPublish(doc)
-  checkedXiumiParts(compileDoc(doc).html)
-  const { html } = await compileForWechat(doc, 'wechat', onProgress)
-  if (/(?:src="|url\((?:&quot;|["']?))\/media\//.test(html)) throw new Error('有图片没有上传成功，请重试')
-  return xiumiZip(xiumiFiles(html), 0)
+  return prepareXiumiUpload(doc).upload(onProgress)
 }
