@@ -14,7 +14,11 @@ test('previews an upstream ZIP before adding its supported projects and reports 
   await restore.getByLabel('选择整库 ZIP').setInputFiles(backup)
   const confirm = restore.getByRole('button', { name: '确认添加项目' })
   await expect(confirm).toHaveCount(0)
+  const previewResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/data/restore' && response.request().method() === 'POST')
   await restore.getByRole('button', { name: '预览恢复' }).click()
+  const preview = await previewResponse
+  expect(preview.status(), 'The file preview must work through the same origin as the editor').toBe(200)
   await expect(restore.getByRole('status')).toContainText('预计新增 2 个项目')
   expect((await page.request.get('/api/projects/corrupt')).status()).toBe(404)
   await restore.getByText('不支持的项目（1）', { exact: true }).click()
@@ -38,7 +42,7 @@ test('previews an upstream ZIP before adding its supported projects and reports 
   await page.getByTestId('open-export').click()
   const exporter = page.getByRole('dialog', { name: '导出与发布' })
   await exporter.getByTestId('copy-wechat').click()
-  await expect(exporter.getByText(/HTML 长度/)).toBeVisible()
+  await expect(exporter.getByText(/^HTML 长度 [\d,]+ 字符$/)).toBeVisible()
   const exported = await page.evaluate(async () => {
     const items = await navigator.clipboard.read()
     return (await items[0].getType('text/html')).text()
