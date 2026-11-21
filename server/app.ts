@@ -1,3 +1,5 @@
+import { HOSTED_REPLAY_PATH } from '../src/core/hostedReplayMedia'
+import { createHostedReplayConsentRouter, isOwnedReplayBrowser } from './hostedReplayConsent'
 import { createUploadGate } from './uploadGate'
 import { importArticleImages } from './articleImages'
 import { existsSync, readFileSync } from 'node:fs'
@@ -53,7 +55,11 @@ async function publicMediaFile(candidate: string, roots: readonly string[]) {
 }
 
 /** Build the HTTP application without opening a listener or loading credentials. */
-export function createApp({ restoreTempRoot, legacyMigrationSource }: { restoreTempRoot?: string; legacyMigrationSource?: string } = {}) {
+export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayTransport }: {
+  restoreTempRoot?: string
+  legacyMigrationSource?: string
+  ownedReplayTransport?: Parameters<typeof createHostedReplayConsentRouter>[0]
+} = {}) {
   const projects = projectCollection<Doc>(DIRS.projects)
   const templates = collection<{ id: string; name: string; blocks: unknown[]; themeId?: string; themeOverrides?: unknown; roles?: Record<string, string>; createdAt: number }>(DIRS.templates)
   const themes = collection<{ id: string; name: string }>(DIRS.themes)
@@ -61,6 +67,7 @@ export function createApp({ restoreTempRoot, legacyMigrationSource }: { restoreT
   
   const app = express()
   app.disable('x-powered-by')
+  if (ownedReplayTransport) app.use(HOSTED_REPLAY_PATH, createHostedReplayConsentRouter(ownedReplayTransport))
   app.use(express.json({ limit: '20mb' }))
   const uploadRoute = createUploadGate()
   const upload = multer({ storage: boundedDiskStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 50, fields: 8, fieldSize: 64 * 1024, parts: 58 } })
@@ -421,8 +428,12 @@ ${JSON.stringify(b.layouts ?? {})}`
   }))
   
   // ---------- 微信公众号 ----------
-  app.get('/api/wechat/status', (_req, res) => {
-    res.json(wechatStatus())
+  app.get('/api/wechat/status', (req, res) => {
+    if (ownedReplayTransport) {
+      res.setHeader('Cache-Control', 'no-store')
+      if (isOwnedReplayBrowser(req, false)) return res.json({ ...wechatStatus(), ownedReplay: true })
+    }
+    return res.json(wechatStatus())
   })
   /** 把正文中的本地图片上传到微信，返回 本地地址 → mmbiz 地址 映射 */
   app.post('/api/wechat/upload-images', h(async (req, res) => {

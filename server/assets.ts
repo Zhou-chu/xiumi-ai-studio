@@ -250,18 +250,44 @@ async function matchesPinnedSnapshot(output: string, file: string, snapshotKey: 
   return { path: output, identity: cached.identity }
 }
 
-async function readPinnedBytes(path: string, file: string, snapshotKey?: string) {
+async function readPinnedBytes(path: string, file: string, snapshotKey?: string, limit = MAX_VARIANT_SOURCE_BYTES) {
   const fd = await open(path, 'r')
   try {
     const stat = await fd.stat({ bigint: true })
     const identity = sourceGeneration(file, stat)
     if (!stat.isFile() || (snapshotKey && snapshotKey !== identity)) throw missingGeneration()
-    const bytes = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)
+    const bytes = await readImageStream(fd.createReadStream({ autoClose: false }), limit)
     if (sourceGeneration(file, await fd.stat({ bigint: true })) !== identity) throw missingGeneration()
     return { bytes, identity, digest: createHash('sha256').update(bytes).digest('hex') }
   } finally {
     await fd.close()
   }
+}
+
+function checkHostedRasterSize(snapshot: BigIntStats | null, size: number, limit: number): asserts snapshot is BigIntStats {
+  if (!snapshot || !Number.isSafeInteger(size) || snapshot.size !== BigInt(size) || snapshot.size < 1n || snapshot.size > BigInt(limit)) {
+    throw missingGeneration()
+  }
+}
+
+/** Capture an indexed source into process-owned bytes without publishing to disk or cache. */
+export function snapshotHostedRaster(file: string, limit: number) {
+  return serializeIndex(async () => {
+    const id = file.slice(0, -4)
+    const entries = await strictIndex()
+    const asset = Object.hasOwn(entries, id) ? entries[id] : undefined
+    if (!/^[\w-]{1,64}\.(?:png|jpg)$/.test(file) || !asset || asset.id !== id || asset.file !== file ||
+        !(await lstat(DIRS.assets)).isDirectory()) throw missingGeneration()
+    const path = join(DIRS.assets, file)
+    const initial = await regularSnapshot(path)
+    checkHostedRasterSize(initial, asset.size, limit)
+    const identity = sourceGeneration(file, initial)
+    const captured = await readPinnedBytes(path, file, identity, limit)
+    if (asset.generation !== undefined && captured.digest !== asset.generation) throw missingGeneration()
+    const final = await regularSnapshot(path)
+    if (!final || sourceGeneration(file, final) !== identity) throw missingGeneration()
+    return { bytes: captured.bytes, digest: captured.digest }
+  })
 }
 
 async function pinMediaGeneration(path: string, file: string, snapshotKey: string, expected: string) {

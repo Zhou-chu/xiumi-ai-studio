@@ -137,3 +137,37 @@ it('opens and exports a restored sparse legacy document through the normal toolb
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+it.each([false, true])('shows only the owner replay action and fails closed on rewrite; valid=%s', async valid => {
+  const { defaultReplay, makeItem, makeScene } = await import('../../src/core/replay/schema')
+  const image = { src: '/media/asset.png', assetId: 'asset' }
+  const replay = defaultReplay()
+  replay.scenes = [makeScene([makeItem('image', { image })])]
+  state().load({ ...emptyDoc(), title: 'Owned replay', blocks: [{ id: 'owned', type: 'replay', props: replay }] })
+  const calls: string[] = []
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+    if (url === '/api/app/info') return new Response('{}')
+    calls.push(url)
+    const payload = JSON.parse(init.body as string)
+    if (url.endsWith('/prepare')) return new Response(JSON.stringify({ token: 'f'.repeat(64), images: payload.sources.length }))
+    if (url.endsWith('/transfer')) return new Response(JSON.stringify({
+      mapping: valid ? { '/media/asset.png?w=1500': 'https://mmbiz.qpic.cn/mock/owned' } : {},
+    }))
+    throw new Error('Unexpected request')
+  }))
+  await mount(<Toolbar />)
+  await click(byTest('open-export'))
+  expect(byTest('xiumi-upload')).toBeNull()
+  expect(calls).toEqual([])
+  await close()
+  vi.mocked(api.wechatStatus).mockResolvedValue({ configured: false, appid: '', ownedReplay: true })
+  await click(byTest('open-export'))
+  expect(byTest('xiumi-upload')?.textContent).toContain('上传图片到微信并下载')
+  expect((byTest('copy-wechat') as HTMLButtonElement).disabled).toBe(true)
+  expect(button('推送到草稿箱…').disabled).toBe(true)
+  await click(byTest('xiumi-upload'))
+  expect(calls).toEqual(['/api/replay/hosted-xiumi/prepare', '/api/replay/hosted-xiumi/transfer'])
+  expect(URL.createObjectURL).toHaveBeenCalledTimes(valid ? 1 : 0)
+  if (valid) expect(state().toast?.text).toContain('已下载')
+  else expect(state().toast?.text).toContain('图片可能已上传，无法撤回')
+})

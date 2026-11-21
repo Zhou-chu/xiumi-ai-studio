@@ -9,6 +9,7 @@ import { splitForXiumi, xiumiReport, xiumiSvgBoxes } from '../core/xiumiExport'
 import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
+import { useHostedReplayAction } from './useHostedReplayAction'
 import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
 import { assertReplayCanPublish, compileForWechat, compileOfflineReplay, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, prepareXiumiUpload, type ImageMode } from './wechatOutput'
 
@@ -138,7 +139,7 @@ export function VersionsModal({ onClose }: { onClose: () => void }) {
 function ExportModal({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const notify = useStore((s) => s.notify)
-  const [wx, setWx] = useState<{ configured: boolean } | null>(null)
+  const [wx, setWx] = useState<{ configured: boolean; ownedReplay?: true } | null>(null)
   const [mode, setMode] = useState<ImageMode>('embed')
   const [busy, setBusy] = useState('')
   const [report, setReport] = useState<{ charCount: number; warnings: string[] } | null>(null)
@@ -149,6 +150,8 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const base = compileDoc(doc)
   const safeName = (doc.title || 'article').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)
   const replayOnly = hasReplay(doc)
+  const hostedReplay = replayOnly && wx?.ownedReplay === true
+  const [hostedBusy, runHostedReplay] = useHostedReplayAction({ doc, safeName, notify, enabled: hostedReplay })
   const xiumi = replayOnly ? null : xiumiReport(base.html)
   const xiumiParts = replayOnly ? 0 : splitForXiumi(xiumiSvgBoxes(base.html)).length
   /** 超出秀米一次导入的上限时先提示会导出多份文件；用户取消就不下载 */
@@ -180,7 +183,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="导出与发布" onClose={onClose} width={620}>
-      {replayOnly && <p className="warn" role="status">{REPLAY_LOCAL_ONLY}</p>}
+      {replayOnly && <p className="warn" role="status">{hostedReplay ? '编辑回放只能导出，不能复制到公众号后台或推送草稿箱。' : REPLAY_LOCAL_ONLY}</p>}
       <section className="export-section">
         <h4>复制到公众号后台</h4>
         {!replayOnly && <><div className="seg">
@@ -216,6 +219,11 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         {xiumi && xiumi.dataImages > 0 && <p className="warn">⚠ 有 {xiumi.dataImages} 处导入时自带的内嵌图片，秀米会换成占位图。</p>}
         {xiumi && xiumi.localBackgrounds > 0 && !wx?.configured && <p className="warn">⚠ 有 {xiumi.localBackgrounds} 处背景图用了本地素材。不配置微信接口的话，它们在秀米里无法替换。</p>}
         <div className="row gap">
+          {hostedReplay && (
+            <button className="primary" disabled={!!(busy || hostedBusy)} data-testid="xiumi-upload" onClick={() => { void runHostedReplay() }}>
+              {hostedBusy || '上传图片到微信并下载'}
+            </button>
+          )}
           {xiumi && xiumi.localImages > 0 && (
             <button
               className="primary"
@@ -240,7 +248,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             </button>
           )}
           <button
-            disabled={!!busy}
+            disabled={!!(busy || hostedBusy)}
             data-testid="xiumi-package"
             onClick={() =>
               runXiumi(async () => {

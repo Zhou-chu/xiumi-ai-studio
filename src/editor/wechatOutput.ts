@@ -6,6 +6,7 @@ import { asciiHtml, makeZip, replaceLocalImages, checkedXiumiParts } from '../co
 import type { Doc } from '../core/types'
 import { api } from './api'
 import { compileOfflineReplayRaster } from './offlineReplayRaster'
+import { prepareHostedReplaySource } from './hostedReplayXiumi'
 
 export const REPLAY_LOCAL_ONLY = '编辑回放的公众号发布与上传秀米暂不可用。可以下载本地 HTML；不含回放图片时也可下载秀米导入文件。'
 
@@ -217,6 +218,58 @@ export async function xiumiPackage(doc: Doc, onProgress?: (msg: string) => void)
     files.push({ name: `图片/${String(i + 1).padStart(2, '0')}.${ext}`, data: new Uint8Array(await r.arrayBuffer()) })
   }
   return xiumiZip(files, urls.length)
+}
+
+interface HostedReplayStage {
+  images: number
+  cancel: () => Promise<void>
+  transfer: () => Promise<unknown>
+}
+
+type HostedReplayCallbacks = {
+  confirmUpload: (notice: { parts: number; images: number }) => boolean | Promise<boolean>
+  confirmDownload: (notice: { plannedParts: number; actualParts: number; uploadedImages: number }) => boolean | Promise<boolean>
+  download: (file: XiumiDownload) => void | Promise<void>
+} & (
+  { stage: (sources: readonly string[]) => Promise<HostedReplayStage>; upload?: never } |
+  { stage?: never; upload: (sources: readonly string[]) => Promise<unknown> }
+)
+
+async function consentToReplayUpload(plan: { parts: number; images: number }, callbacks: HostedReplayCallbacks, staged?: HostedReplayStage) {
+  let approved = false
+  try {
+    if (staged && staged.images !== plan.images) throw new Error('预备回放的图片数量不符；没有开始上传。')
+    approved = await callbacks.confirmUpload(plan) === true
+    return approved
+  } finally {
+    if (staged && !approved) await staged.cancel().catch(() => { /* The unused local plan still expires. */ })
+  }
+}
+
+/** Dormant acceptance runner. No unsafe default transport and no effect without both confirmations. */
+export function prepareHostedReplayXiumi(doc: Doc, catalog: Parameters<typeof prepareHostedReplaySource>[1]) {
+  const plan = prepareHostedReplaySource(doc, catalog)
+  let used = false
+  return Object.freeze({
+    parts: plan.parts,
+    images: plan.sources.length,
+    async run(callbacks: HostedReplayCallbacks) {
+      if (used) throw new Error('回放导出确认计划已使用，请重新准备。')
+      used = true
+      const staged = await callbacks.stage?.(plan.sources)
+      if (!await consentToReplayUpload({ parts: plan.parts, images: plan.sources.length }, callbacks, staged)) return 'cancelled-before-upload'
+      const mapping = staged ? await staged.transfer() : await callbacks.upload?.(plan.sources)
+      let result: XiumiDownload
+      try {
+        result = xiumiZip(xiumiFiles(plan.render(mapping)), 0)
+      } catch (cause) {
+        throw new Error('图床地址校验或回放打包失败。图片可能已上传，无法撤回；未生成下载。', { cause })
+      }
+      if (!await callbacks.confirmDownload({ plannedParts: plan.parts, actualParts: result.parts, uploadedImages: plan.sources.length })) return 'cancelled-after-upload'
+      await callbacks.download(result)
+      return 'downloaded'
+    },
+  })
 }
 
 /** 先检查不可变文章快照；确认后，上传与最终分包只能使用这份文章。 */

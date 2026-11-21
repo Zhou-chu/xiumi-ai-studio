@@ -17,6 +17,8 @@ export { css, esc }
 export interface CompileOptions {
   /** 把（已附加裁切参数的）图片地址映射为最终地址：绝对 URL / base64 / mmbiz URL */
   mapImage?: (url: string) => string
+  /** Hosted replay preflight: only before upload; final compilation must omit this flag. */
+  replayPendingImageUpload?: boolean
   /** 非公众号文章链接的处理方式；微信会过滤外链，默认转成文字 */
   externalLinks?: 'text' | 'keep'
   /** 仅画布：显示空图片位、空图注的占位提示（不进入导出结果） */
@@ -540,7 +542,7 @@ export function blockGap(block: Block, next: Block | undefined, theme: Theme): n
 export const REPLAY_ERROR = '编辑回放 ✕'
 
 export function compileReplay(block: Extract<Block, { type: 'replay' }>, opts: CompileOptions = {}, showCursors?: boolean): ReplayOutput {
-  return renderReplay({ ...normalizeReplay(block.props), textMode: 'svg-text' }, { mapImage: opts.mapImage, showCursors, idPrefix: 'rp'+block.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })
+  return renderReplay({ ...normalizeReplay(block.props), textMode: 'svg-text' }, { mapImage: opts.mapImage, pendingLocalImages: opts.replayPendingImageUpload, showCursors, idPrefix: 'rp'+block.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })
 }
 
 export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {

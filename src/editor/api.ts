@@ -263,7 +263,7 @@ export const api = {
   importArticleImages: (urls: string[]) => req<ArticleImageResult[]>('POST', '/api/assets/import-article', { urls }),
   fetchAssets: (urls: string[]) => req<Record<string, Asset>>('POST', '/api/assets/fetch', { urls }),
 
-  wechatStatus: () => req<{ configured: boolean; appid: string }>('GET', '/api/wechat/status'),
+  wechatStatus: () => req<{ configured: boolean; appid: string; ownedReplay?: true }>('GET', '/api/wechat/status'),
   wechatUploadImages: (urls: string[]) => req<Record<string, string>>('POST', '/api/wechat/upload-images', { urls }),
   wechatDraft: (body: { title: string; author: string; digest: string; html: string; cover: string; confirm: true }) =>
     req<{ media_id: string }>('POST', '/api/wechat/draft', body),
