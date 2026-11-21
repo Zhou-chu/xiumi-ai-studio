@@ -46,7 +46,10 @@ jobs:
           if ($receipt.commit -cne $env:EXPECTED_SHA -or $receipt.archiveSha256 -cne $hash) { throw 'Candidate archive identity mismatch.' }
           $unpack = Join-Path $env:RUNNER_TEMP 'xiumi portable smoke'
           Expand-Archive -LiteralPath $archive -DestinationPath $unpack
+          $reunpack = Join-Path $env:RUNNER_TEMP 'xiumi portable second extraction'
+          Expand-Archive -LiteralPath $archive -DestinationPath $reunpack
           $env:XIUMI_PORTABLE_ROOT = Join-Path $unpack 'XIUMI-AI-Studio-win-x64'
+          $env:XIUMI_PORTABLE_SECOND_ROOT = Join-Path $reunpack 'XIUMI-AI-Studio-win-x64'
           $env:XIUMI_PORTABLE_EXPECTED_SHA = $env:EXPECTED_SHA
           pnpm e2e --config=tests/release-smoke/playwright.config.ts --update-snapshots=none
           if ($LASTEXITCODE -ne 0) { throw 'Windows portable Playwright smoke failed.' }

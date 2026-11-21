@@ -7,12 +7,22 @@ http://127.0.0.1:5174/ in your browser. The application listens only on local
 loopback. Close the console to stop it.
 
 Node is included; launching does not require Node or pnpm on PATH. By
-default new data is written under app/data. Preserve that directory
-separately when updating. To use another local directory or port, set
-DATA_DIR or API_PORT in the launch environment.
+default it uses %LOCALAPPDATA%\XIUMI AI Studio for this Windows user, so
+unpacking a different release does not change the default library. To use
+another data directory or port, set DATA_DIR or API_PORT in the launch
+environment. An explicit DATA_DIR takes precedence. Only run one XIUMI
+process against a data directory at a time.
+
+Older builds used app\data beside the executable. No existing data or
+credentials are moved or copied automatically. If your library is still
+in an earlier extraction, stop its server and back up that directory.
+To keep using that library, set DATA_DIR to the full path of the old
+app\data in your launch session. Do not delete the old extraction while
+it holds your only copy.
 
 Offline recovery of the project-and-indexed-images subset:
-1. Stop the app, copy the current app/data (or your configured DATA_DIR)
+1. Stop the app, copy the current AppData library (or your configured
+   DATA_DIR, or old app\data if explicitly reopening that library)
    to a private snapshot, and unpack your own backup into a different
    private directory. The new “项目和素材备份” ZIP and the app-owned
    Xiumi v0.2.0 backup are supported. Do not apply archive contents to

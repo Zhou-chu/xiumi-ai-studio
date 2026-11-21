@@ -26,6 +26,7 @@ export async function exercisePortable(
   data: string | undefined,
   provide: (origin: string, distPath: string) => Promise<void>,
   launchCwd = data ?? tmpdir(),
+  localAppData?: string,
 ) {
   if (process.platform !== 'win32') throw new Error('Windows portable smoke cannot substitute a non-Windows runner')
   const checkout = (await realpath(process.cwd())).toLowerCase()
@@ -48,6 +49,10 @@ export async function exercisePortable(
   const env: NodeJS.ProcessEnv = { ...process.env, API_PORT: String(port) }
   for (const key of Object.keys(env)) {
     if (/^(?:AI_|WECHAT_|NODE_(?:PATH|OPTIONS)$|DATA_DIR$)/i.test(key)) delete env[key]
+  }
+  if (localAppData !== undefined) {
+    for (const key of Object.keys(env)) if (key.toUpperCase() === 'LOCALAPPDATA') delete env[key]
+    env.LOCALAPPDATA = localAppData
   }
   if (data !== undefined) env.DATA_DIR = resolve(data)
   const child = spawn(executable, [], { cwd: launchCwd, env, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })

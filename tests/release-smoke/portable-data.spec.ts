@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -17,41 +17,87 @@ async function saveProject(request: APIRequestContext, origin: string, id: strin
   return revision as string
 }
 
-test('unpacked EXE isolates its default project directory from a configured directory and reopens the saved project', async ({ request }) => {
+test('sealed EXE reopens its default AppData library across fresh extractions without touching old data', async ({ request }) => {
   const root = process.env.XIUMI_PORTABLE_ROOT
   test.skip(!root, 'Only the extracted Windows package is tested here')
   if (!root) return
-  test.setTimeout(75_000)
-  const defaults = join(root, 'app', 'data')
-  await expect(lstat(defaults)).rejects.toMatchObject({ code: 'ENOENT' })
+  const second = process.env.XIUMI_PORTABLE_SECOND_ROOT
+  if (!second) throw new Error('A second independent extraction of the same sealed package is required')
+  expect((await realpath(root)).toLowerCase()).not.toBe((await realpath(second)).toLowerCase())
+  test.setTimeout(90_000)
   const scratch = await mkdtemp(join(tmpdir(), 'xiumi-portable-continuity-'))
-  const configured = join(scratch, 'configured')
+  const primary = join(scratch, 'synthetic profile first', 'Local')
+  const other = join(scratch, 'synthetic profile second', 'Local')
+  const defaults = join(primary, 'XIUMI AI Studio')
+  const configured = join(scratch, 'explicit data')
+  const oldData = join(root, 'app', 'data')
+  const oldSentinel = join(oldData, 'leave-unchanged.txt')
   const defaultId = 'portable-default'
   const customId = 'portable-custom'
   const defaultTitle = '默认数据目录验收'
   const customTitle = '自定义数据目录验收'
   try {
+    await expect(lstat(oldData)).rejects.toMatchObject({ code: 'ENOENT' })
+    await mkdir(oldData)
+    await writeFile(oldSentinel, 'Old extracted application data remains in place.')
+    let defaultRevision: string | undefined
     await exercisePortable(root, undefined, async origin => {
-      const revision = await saveProject(request, origin, defaultId, defaultTitle)
-      const disk = JSON.parse(await readFile(join(defaults, 'projects', `${defaultId}.json`), 'utf8'))
-      expect(disk).toMatchObject({ id: defaultId, title: defaultTitle, revision })
-    }, scratch)
+      defaultRevision = await saveProject(request, origin, defaultId, defaultTitle)
+      const disk = JSON.parse(await readFile(join(defaults, 'projects', defaultId + '.json'), 'utf8'))
+      expect(disk).toMatchObject({ id: defaultId, title: defaultTitle, revision: defaultRevision })
+    }, scratch, primary)
+
+    await exercisePortable(second, undefined, async origin => {
+      const saved = await request.get(`${origin}/api/projects/${defaultId}`)
+      expect(saved.ok()).toBe(true)
+      expect(await saved.json()).toMatchObject({ id: defaultId, title: defaultTitle, revision: defaultRevision })
+    }, scratch, primary)
+
+    await exercisePortable(second, undefined, async origin => {
+      expect((await request.get(`${origin}/api/projects/${defaultId}`)).status()).toBe(404)
+      expect((await lstat(join(other, 'XIUMI AI Studio', 'projects'))).isDirectory()).toBe(true)
+    }, scratch, other)
 
     let revision: string | undefined
     await exercisePortable(root, configured, async origin => {
       expect((await request.get(`${origin}/api/projects/${defaultId}`)).status()).toBe(404)
       revision = await saveProject(request, origin, customId, customTitle)
-      const disk = JSON.parse(await readFile(join(configured, 'projects', `${customId}.json`), 'utf8'))
+      const disk = JSON.parse(await readFile(join(configured, 'projects', customId + '.json'), 'utf8'))
       expect(disk).toMatchObject({ id: customId, title: customTitle, revision })
-    }, scratch)
-
-    await exercisePortable(root, configured, async origin => {
+    }, scratch, 'relative-unused-profile')
+    await exercisePortable(second, configured, async origin => {
       const saved = await request.get(`${origin}/api/projects/${customId}`)
       expect(saved.ok()).toBe(true)
       expect(await saved.json()).toMatchObject({ id: customId, title: customTitle, revision })
-      expect((await request.get(`${origin}/api/projects/${defaultId}`)).status()).toBe(404)
-    }, scratch)
-    await expect(lstat(join(defaults, 'projects', `${customId}.json`))).rejects.toMatchObject({ code: 'ENOENT' })
+    }, scratch, primary)
+    await expect(lstat(join(defaults, 'projects', customId + '.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(lstat(join(oldData, 'projects'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(lstat(join(second, 'app', 'data'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(oldSentinel, 'utf8')).toBe('Old extracted application data remains in place.')
+  } finally {
+    await rm(scratch, { recursive: true, force: true, maxRetries: 3 })
+  }
+})
+
+test('sealed EXE refuses a relative default profile and a redirected application directory', async () => {
+  const root = process.env.XIUMI_PORTABLE_ROOT
+  test.skip(!root, 'Only the extracted Windows package is tested here')
+  if (!root) return
+  const scratch = await mkdtemp(join(tmpdir(), 'xiumi-portable-profile-validation-'))
+  const launch = async (local: string) => {
+    const mustNotStart = async () => { throw new Error('Launcher unexpectedly used an invalid default path') }
+    await expect(exercisePortable(root, undefined, mustNotStart, scratch, local))
+      .rejects.toThrow('Packaged EXE exited before ready')
+  }
+  try {
+    await launch('relative-profile')
+    await launch(scratch[0] + ':drive-relative-profile')
+    const profile = join(scratch, 'local profile'), target = join(scratch, 'junction target')
+    await mkdir(profile)
+    await mkdir(target)
+    await symlink(target, join(profile, 'XIUMI AI Studio'), 'junction')
+    await launch(profile)
+    await expect(lstat(join(target, 'projects'))).rejects.toMatchObject({ code: 'ENOENT' })
   } finally {
     await rm(scratch, { recursive: true, force: true, maxRetries: 3 })
   }
