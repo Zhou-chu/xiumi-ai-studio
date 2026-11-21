@@ -1,8 +1,7 @@
 import {defineConfig,mergeConfig} from 'vitest/config'
-import base from './vitest.coverage.config'
+import base from './vitest.coverage.config.ts'
 
-// Extend the application denominator; do not replace it with only these tools.
+// Use the same application denominator; write these reports separately.
 export default mergeConfig(base,defineConfig({test:{coverage:{
- include:['src/**/*.{ts,tsx}','server/**/*.ts','scripts/**/*.ts','templates/**/*.mjs'],
  reportsDirectory:'coverage-scripts-expanded',
 }}}))

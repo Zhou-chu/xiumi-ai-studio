@@ -1,5 +1,5 @@
 /* App chrome only. Document surfaces keep their original light palette below. */
-:root:not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) {
+:root:not([data-color-mode='upstream']):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) {
   color-scheme: light;
   --faint: #616b7a;
   --danger: #be2838;
@@ -43,6 +43,22 @@
   --ui-warning-bg: #382e20;
   --ui-success-bg: #1a352a;
   --ui-error-bg: #44252e;
+}
+
+/* Upstream chrome inherits the base stylesheet's workspace, panels, borders,
+   copy, brand and system typography. Keep status text and action labels readable. */
+:root[data-color-mode='upstream'] {
+  color-scheme: light;
+  --faint: var(--sub);
+  --danger: #b42731;
+  --ok: #187044;
+  --ui-primary: var(--brand);
+  --ui-primary-hover: #4a3bc7;
+  --ui-accent-start: #7b5cff;
+  --ui-accent-end: #ff7a9a;
+  --ui-accent-hover-start: #8266ff;
+  --ui-accent-hover-end: #ff8aa7;
+  --ui-accent-label: #000;
 }
 
 .color-mode-control { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--sub); }
@@ -113,7 +129,7 @@
 /* Preserve button semantics after replacing the original hardcoded white defaults. */
 :root button.primary:not(:where(.block-html *, .html-editor *, .mini-preview *, .comp-preview *)):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: var(--ui-primary); border-color: var(--ui-primary); color: #fff; }
 :root button.primary:hover:not(:disabled):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: var(--ui-primary-hover); }
-:root button.accent:not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: linear-gradient(90deg, var(--ui-accent-start), var(--ui-accent-end)); border: 0; color: #fff; }
+:root button.accent:not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: linear-gradient(90deg, var(--ui-accent-start), var(--ui-accent-end)); border: 0; color: var(--ui-accent-label, #fff); }
 :root button.accent:hover:not(:disabled):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: linear-gradient(90deg, var(--ui-accent-hover-start), var(--ui-accent-hover-end)); }
 :root[data-color-mode='dark'] button.on:not(:where(.block-html *, .html-editor *, .mini-preview *, .comp-preview *)):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { background: var(--ui-brand-soft); border-color: var(--ui-brand); color: var(--ui-brand); }
 :root[data-color-mode='dark'] button.danger:not(:where(.block-html *, .html-editor *, .mini-preview *, .comp-preview *)):not(:where(.block-html, .block-html *, .html-editor, .html-editor *, .rich-content, .rich-content *, .mini-preview *, .comp-preview *, .paste-box *)) { color: var(--ui-danger); }

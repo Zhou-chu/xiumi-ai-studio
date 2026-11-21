@@ -32,8 +32,8 @@ jobs:
       - name: Enforce module dependency architecture
         if: matrix.node == '24'
         run: pnpm quality:architecture
-      - name: Audit Cloud source and test classification
-        run: node --test tests/quality/sonar-scope.test.mjs
+      - name: Audit Cloud classification and Vitest mixed coverage scope
+        run: node --test tests/quality/sonar-scope.test.mjs tests/quality/vitest-coverage-scope.test.mjs
       - run: pnpm check
       - run: pnpm test:coverage
       - run: powershell -NoProfile -File tests/deployment/run-coverage.ps1

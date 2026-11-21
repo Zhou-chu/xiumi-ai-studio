@@ -1,10 +1,10 @@
-export type ColorModePreference = 'auto' | 'light' | 'dark'
-export type ResolvedColorMode = 'light' | 'dark'
+export type ColorModePreference = 'auto' | 'light' | 'dark' | 'upstream'
+export type ResolvedColorMode = Exclude<ColorModePreference, 'auto'>
 
 export const COLOR_MODE_KEY = 'xiumi-color-mode'
 
 export function parseColorMode(value: unknown): ColorModePreference {
-  return value === 'light' || value === 'dark' ? value : 'auto'
+  return value === 'light' || value === 'dark' || value === 'upstream' ? value : 'auto'
 }
 
 /** Use the device's current local wall clock, including its current timezone/DST. */

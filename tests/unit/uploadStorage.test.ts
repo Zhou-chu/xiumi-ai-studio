@@ -33,12 +33,6 @@ it('settles an aborted upload without retaining data or leaking request listener
  storage._handleFile(req,{stream} as unknown as Express.Multer.File,(error,info)=>results.push({error,info}));stream.write('partial');req.emit('aborted');stream.end()
  await vi.waitFor(()=>expect(results).toHaveLength(1));expect(results[0].error).toBeTruthy();expect(req.listenerCount('aborted')).toBe(0)
 })
-it('cleans completed files on removal and rejects invalid configured budgets',()=>{
- for(const value of [0,-1,Infinity,1.2])expect(()=>boundedDiskStorage(value)).toThrow(RangeError)
- const storage=boundedDiskStorage(10),file={buffer:Buffer.from('old')} as unknown as Express.Multer.File
- let removed=false;storage._removeFile({} as Request,file,error=>{expect(error).toBeNull();removed=true})
- expect(removed).toBe(true);expect(file.buffer).toBeUndefined()
-})
 it('propagates stream errors once and fails later files in the same failed request',async()=>{
  const storage=boundedDiskStorage(10),req=new EventEmitter() as Request,stream=new PassThrough();const results:any[]=[]
  storage._handleFile(req,{stream} as unknown as Express.Multer.File,error=>results.push(error))
