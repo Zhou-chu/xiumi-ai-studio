@@ -10,7 +10,7 @@ export type VersionSnapshot = { id: string; projectId: string; label: string; cr
 type BoundHistory = { sourceParent: Doc; parentRevision: string; version: VersionSnapshot }
 type ActiveParent = { id: string; revision?: string }
 type ParentStore<T extends ActiveParent> = Pick<ReturnType<typeof projectCollection<T>>, 'withRevision'>
-type Result = 'restored' | 'occupied' | 'parent-unavailable' | 'retention-limit'
+type Result = 'restored' | 'occupied' | 'parent-unavailable' | 'retention-limit' | 'dependency-unavailable'
 export const VERSION_RETENTION_LIMIT = 50
 const MAX_SCAN = 10_000
 const status = (error: unknown) => (error as NodeJS.ErrnoException).code
@@ -54,7 +54,7 @@ async function full(directory: string) {
 export function projectHistoryRestore<T extends ActiveParent>(directory: string, projects: ParentStore<T>) {
   const root = resolve(directory)
   return {
-    async restore(request: BoundHistory): Promise<Result> {
+    async restore(request: BoundHistory, publishDependencies?: () => Promise<boolean>): Promise<Result> {
       const { sourceParent, parentRevision, version } = structuredClone(request)
       const pid = safeId(sourceParent.id), vid = safeId(version.id)
       if (pid !== version.projectId || pid !== version.doc.id || typeof parentRevision !== 'string' ||
@@ -75,6 +75,9 @@ export function projectHistoryRestore<T extends ActiveParent>(directory: string,
           const completed = join(stage, 'version.json')
           const record = { id: vid, projectId: pid, label: version.label, createdAt: version.createdAt, doc: version.doc }
           await writeFile(completed, JSON.stringify(record), { encoding: 'utf8', flag: 'wx' })
+          // The library caller owns the asset queue. Never publish a version
+          // dependency before revision, collision, retention and staging checks.
+          if (publishDependencies && !(await publishDependencies())) return 'dependency-unavailable'
           await requireDirectDirectory(parent)
           try { await link(completed, target) }
           catch (error) { if (status(error) === 'EEXIST') return 'occupied'; throw error }

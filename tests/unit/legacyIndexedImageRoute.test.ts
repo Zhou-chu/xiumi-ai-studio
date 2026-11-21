@@ -88,11 +88,10 @@ it.each(['none', 'first', 'second', 'mixed-history', 'preview-conflict', 'reuse'
       assets: { add: knownConflict || invalidRef || conflict === 'reuse' ? [] : assetIds,
         alreadyPresent: conflict === 'reuse' ? assetIds : [], skip: knownConflict ? assetIds : [] },
       unsupported: [...(invalidRef ? ['assets/_index.json', 'assets/fixture-image.png'] : []),
-        'settings.json', 'templates/fixture-template.json',
-        ...(conflict === 'mixed-history' ? ['versions/archived/version-mixed.json'] : [])],
+        'settings.json', 'templates/fixture-template.json'],
     })
     if (conflict === 'mixed-history') {
-      expect(plan.versions).toEqual({ add: ['corrupt/version-mixed'], skip: [] })
+      expect(plan.versions).toEqual({ add: ['archived/version-mixed', 'corrupt/version-mixed'], skip: [] })
     }
     await expect(readdir(join(root, 'projects'))).resolves.toEqual([])
     if (!knownConflict && conflict !== 'reuse') await expect(readdir(join(root, 'assets'))).resolves.toEqual([])
@@ -129,9 +128,9 @@ it.each(['none', 'first', 'second', 'mixed-history', 'preview-conflict', 'reuse'
     expect(result.assets.alreadyPresent).toEqual(conflict === 'reuse' ? ['fixture-image'] : [])
     expect(project.status).toBe(200)
     if (conflict === 'mixed-history') {
-      expect(result.unsupported).toContain('versions/archived/version-mixed.json')
-      expect(result.versions).toEqual({ restored: ['corrupt/version-mixed'], skipped: [], failed: [] })
-      expect((await fetch(base + '/api/projects/archived/versions/version-mixed')).status).toBe(404)
+      expect(result.unsupported).not.toContain('versions/archived/version-mixed.json')
+      expect(result.versions).toEqual({ restored: ['archived/version-mixed', 'corrupt/version-mixed'], skipped: [], failed: [] })
+      expect((await fetch(base + '/api/projects/archived/versions/version-mixed')).status).toBe(200)
       expect((await fetch(base + '/api/projects/corrupt/versions/version-mixed')).status).toBe(200)
     }
     const doc = await project.json()

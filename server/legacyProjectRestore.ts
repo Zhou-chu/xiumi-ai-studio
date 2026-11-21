@@ -434,18 +434,28 @@ function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<st
   }
 }
 
-const noHistoryMedia = new Map<string, RestoreImage>()
 const historyKeys = new Set(['id', 'projectId', 'label', 'createdAt', 'doc'])
-function acceptedSnapshot(candidate: HistoryCandidate, parents: Map<string, Doc>, fallbackTime: number): VersionSnapshot | null {
+type ManagedVersion = { version: VersionSnapshot; dependencies: Set<string> }
+
+function managedProject(source: Project, fallbackTime: number, images: Map<string, RestoreImage>): ManagedProject | null {
+  if (!independentlyRestorable(source, images)) return null
+  const doc = canonicalTextProject(source, fallbackTime, images)
+  const dependencies = new Set(doc.blocks.flatMap(block =>
+    block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
+  const known = { ids: dependencies, files: new Set([...dependencies].map(id => images.get(id)!.asset.asset.file)) }
+  return missingManagedMedia(source, known) ? null : { doc, dependencies }
+}
+
+function acceptedSnapshot(candidate: HistoryCandidate, parents: Map<string, Doc>, fallbackTime: number,
+  images: Map<string, RestoreImage>): ManagedVersion | null {
   const { id, projectId, raw } = candidate
   if (!isObject(raw) || !knownKeys(raw, historyKeys) || raw.id !== id || raw.projectId !== projectId ||
       !parents.has(projectId) || !boundedText(raw.label, 2000) ||
       typeof raw.createdAt !== 'number' || !Number.isSafeInteger(raw.createdAt) || raw.createdAt < 0 ||
       !isObject(raw.doc) || raw.doc.id !== projectId) return null
-  const doc = { ...raw.doc, id: projectId }
-  if (!independentlyRestorable(doc, noHistoryMedia) ||
-      missingManagedMedia(doc, { files: new Set(), ids: new Set() })) return null
-  return { id, projectId, label: raw.label, createdAt: raw.createdAt, doc: canonicalTextProject(doc, fallbackTime, noHistoryMedia) }
+  const restored = managedProject({ ...raw.doc, id: projectId }, fallbackTime, images)
+  if (!restored) return null
+  return { version: { id, projectId, label: raw.label, createdAt: raw.createdAt, doc: restored.doc }, dependencies: restored.dependencies }
 }
 
 const archiveSort = (a: string, b: string) => a.localeCompare(b, 'en')
@@ -488,34 +498,30 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   }
   const componentStage = options.components ? stageLegacyComponents(preparedComponents, options.components) : null
   const supported: ManagedProject[] = [], unsupported: string[] = []
-  const selected = new Set<string>(), textParents = new Map<string, Doc>()
+  const selected = new Set<string>(), parents = new Map<string, Doc>()
   const fallbackTime = Date.now()
   for (const source of projects) {
-    if (!independentlyRestorable(source, projectImages)) { unsupported.push(source.id); continue }
-    const doc = canonicalTextProject(source, fallbackTime, projectImages)
-    const dependencies = new Set(doc.blocks.flatMap(block =>
-      block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
-    const known = { ids: dependencies, files: new Set([...dependencies].map(id => images.get(id)!.asset.asset.file)) }
-    if (missingManagedMedia(source, known)) { unsupported.push(source.id); continue }
-    supported.push({ doc, dependencies })
-    // Image-parent versions are outside the validated text-only history scope.
-    if (!dependencies.size) textParents.set(doc.id, doc)
-    for (const id of dependencies) selected.add(id)
+    const candidate = managedProject(source, fallbackTime, projectImages)
+    if (!candidate) { unsupported.push(source.id); continue }
+    supported.push(candidate)
+    parents.set(candidate.doc.id, candidate.doc)
+    for (const id of candidate.dependencies) selected.add(id)
   }
   for (const candidate of preparedComponents) if (!candidate.missing) for (const id of candidate.dependencies) selected.add(id)
+  const versions: ManagedVersion[] = []
+  for (const entry of history) {
+    const snapshot = acceptedSnapshot(entry, parents, fallbackTime, projectImages)
+    if (!snapshot) { otherLibraryEntries.push(entry.path); continue }
+    versions.push(snapshot)
+    for (const id of snapshot.dependencies) selected.add(id)
+  }
   if (assetStore) {
     if (!selected.size && assets.length) otherLibraryEntries.push(ASSET_INDEX)
     for (const { asset } of assets) if (!selected.has(asset.id)) otherLibraryEntries.push('assets/' + asset.file)
   }
-  const versions: VersionSnapshot[] = []
-  for (const entry of history) {
-    const snapshot = acceptedSnapshot(entry, textParents, fallbackTime)
-    if (snapshot) versions.push(snapshot)
-    else otherLibraryEntries.push(entry.path)
-  }
-  // Use retention-compatible newest-first ordering. Report excess valid
-  // versions as skipped instead of purging other content or hiding results.
-  versions.sort((a, b) => archiveSort(a.projectId, b.projectId) || b.createdAt - a.createdAt || archiveSort(a.id, b.id))
+  // Use retention-compatible newest-first ordering. Unavailable versions do
+  // not take a slot from eligible, older snapshots of the same project.
+  versions.sort(({ version: a }, { version: b }) => archiveSort(a.projectId, b.projectId) || b.createdAt - a.createdAt || archiveSort(a.id, b.id))
   otherLibraryEntries.sort(archiveSort)
 
   return {
@@ -539,22 +545,24 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         else add.push(doc.id)
       }
       const components = await componentStage?.preview((candidate, existing) => planDependencies(candidate.dependencies, existing))
-      plan.skip = [...conflicts]
-      for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
       const eligible = new Set(add)
       const planned = { add: [] as string[], skip: [] as string[] }
       const perProject = new Map<string, number>()
-      for (const version of versions) {
+      for (const { version, dependencies } of versions) {
         const count = perProject.get(version.projectId) ?? 0
-        const bucket = eligible.has(version.projectId) && count < VERSION_RETENTION_LIMIT ? planned.add : planned.skip
-        bucket.push(versionKey(version))
-        perProject.set(version.projectId, count + 1)
+        if (eligible.has(version.projectId) && count < VERSION_RETENTION_LIMIT && await planDependencies(dependencies)) {
+          planned.add.push(versionKey(version))
+          perProject.set(version.projectId, count + 1)
+        } else planned.skip.push(versionKey(version))
       }
+      plan.skip = [...conflicts]
+      for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
       return { ...(components && { components }), ...(designs && { design: await designs.preview() }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []
       const result = initAssetResult(), fresh = new Map<string, string>()
+      const historyResult = { restored: [] as string[], skipped: [] as string[], failed: [] as string[] }
       const run = async (restoreAsset?: AssetLockCallbacks[0], checkAsset?: AssetLockCallbacks[1]) => {
         const applied = new Map<string, 'restored' | 'alreadyPresent' | 'conflict' | 'failed'>()
         const hasStatus = (dependencies: Set<string>, status: 'conflict' | 'failed') =>
@@ -595,34 +603,37 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
             const added = await store.restore(doc, dependencies.size ? () => publishDependencies(dependencies) : undefined)
             if (added) {
               restored.push(doc.id)
-              if (textParents.has(doc.id)) fresh.set(doc.id, added.revision)
+              fresh.set(doc.id, added.revision)
             } else if (hasStatus(dependencies, 'failed')) failed.push(doc.id)
             else skipped.push(doc.id)
           } catch {
             failed.push(doc.id)
           }
         }
-        return componentStage?.apply(async (candidate, existing) => {
+        const components = await componentStage?.apply(async (candidate, existing) => {
           if (await publishDependencies(candidate.dependencies, existing)) return 'ready'
           return hasStatus(candidate.dependencies, 'failed') ? 'failed' : 'unresolved'
         })
+        const fullParents = new Set<string>()
+        for (const { version, dependencies } of versions) {
+          const key = versionKey(version)
+          const parentRevision = fresh.get(version.projectId)
+          const sourceParent = parents.get(version.projectId)
+          if (!historyStore || !parentRevision || !sourceParent || fullParents.has(version.projectId)) { historyResult.skipped.push(key); continue }
+          try {
+            const status = await historyStore.restore({ sourceParent, parentRevision, version },
+              dependencies.size ? () => publishDependencies(dependencies) : undefined)
+            if (status === 'restored') historyResult.restored.push(key)
+            else if (status === 'dependency-unavailable' && hasStatus(dependencies, 'failed')) historyResult.failed.push(key)
+            else historyResult.skipped.push(key)
+            if (status === 'retention-limit' || status === 'parent-unavailable') fullParents.add(version.projectId)
+          } catch {
+            historyResult.failed.push(key)
+          }
+        }
+        return components
       }
       const components = assetStore ? await assetStore.withApplyLock(run) : await run()
-      const historyResult = { restored: [] as string[], skipped: [] as string[], failed: [] as string[] }
-      const fullParents = new Set<string>()
-      for (const version of versions) {
-        const key = versionKey(version)
-        const parentRevision = fresh.get(version.projectId)
-        const sourceParent = textParents.get(version.projectId)
-        if (!historyStore || !parentRevision || !sourceParent || fullParents.has(version.projectId)) { historyResult.skipped.push(key); continue }
-        try {
-          const status = await historyStore.restore({ sourceParent, parentRevision, version })
-          historyResult[status === 'restored' ? 'restored' : 'skipped'].push(key)
-          if (status === 'retention-limit' || status === 'parent-unavailable') fullParents.add(version.projectId)
-        } catch {
-          historyResult.failed.push(key)
-        }
-      }
       return { ...(components && { components }), ...(designs && { design: await designs.apply() }), versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
     },
   }
