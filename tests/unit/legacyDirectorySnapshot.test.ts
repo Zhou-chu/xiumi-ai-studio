@@ -6,6 +6,23 @@ import JSZip from 'jszip'
 import { expect, it, vi } from 'vitest'
 import { createLegacyDirectoryPreview } from '../../server/legacyDirectoryMigration'
 
+const directoryWitness = vi.hoisted(() => ({ watch: '', active: 0 }))
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, async opendir(...args: Parameters<typeof actual.opendir>) {
+    const directory = await actual.opendir(...args)
+    if (args[0] === directoryWitness.watch) {
+      const iterate = directory[Symbol.asyncIterator].bind(directory)
+      directory[Symbol.asyncIterator] = async function *() {
+        directoryWitness.active++
+        try { return yield* iterate() }
+        finally { directoryWitness.active-- }
+      }
+    }
+    return directory
+  } }
+})
+
 const fixtureZip = new URL('../fixtures/legacy-backup/upstream-library.zip', import.meta.url)
 
 async function inFixture(run: (root: string, source: string, data: string, target: string) => Promise<void>) {
@@ -98,9 +115,12 @@ it.each([2, 6])('aborts on direct root replacement during the snapshot (checkpoi
     const signal = new AbortController().signal
     const throwIfAborted = signal.throwIfAborted.bind(signal)
     let checkpoints = 0
+    let openAtReplacement: number | undefined
+    directoryWitness.watch = join(await realpath(data), 'projects')
     const original = join(root, 'moved')
     vi.spyOn(signal, 'throwIfAborted').mockImplementation(() => {
       if (++checkpoints === checkpoint) {
+        openAtReplacement = directoryWitness.active
         renameSync(data, original)
         mkdirSync(join(data, 'projects'), { recursive: true })
       }
@@ -108,6 +128,9 @@ it.each([2, 6])('aborts on direct root replacement during the snapshot (checkpoi
     })
     await expect(createLegacyDirectoryPreview({ configuredSource: data, target }).snapshotProjects(signal))
       .rejects.toMatchObject({ status: 409 })
+    // A real directory handle, not just a mock timing assumption. Windows
+    // can reject ancestor rename while the child enumeration is still open.
+    expect(openAtReplacement).toBe(0)
     expect(await readFile(join(original, 'projects', 'one.json'), 'utf8')).toBe('{"id":"one","blocks":[]}')
     expect(await readdir(target)).toEqual([])
   }))

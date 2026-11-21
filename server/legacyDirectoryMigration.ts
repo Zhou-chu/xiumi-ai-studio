@@ -259,7 +259,7 @@ export function createLegacyDirectoryPreview({
         const summaries = { candidates: 0, invalid: 0, ignored: 0 }
         const fingerprints: string[] = []
         const version = (folder: string) => createHash('sha256')
-          .update(JSON.stringify([identity, targetProjects?.identity, folder, fingerprints.sort(), summaries])).digest('hex')
+          .update(JSON.stringify([identity, targetProjects?.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), summaries])).digest('hex')
         await verifyRoots()
         const targetFolder = join(destination, 'projects')
         const targetProjects = await inspect(targetFolder) ? await canonicalDirectory(targetFolder) : undefined
@@ -280,7 +280,7 @@ export function createLegacyDirectoryPreview({
           await directory.verify()
         }
         const names = new Set<string>()
-        let total = 0
+        const files: string[] = []
         let visited = 0
         await verify()
         for await (const entry of await opendir(directory.path)) {
@@ -290,17 +290,24 @@ export function createLegacyDirectoryPreview({
           const name = entry.name.toLowerCase()
           if (names.has(name)) throw invalid()
           names.add(name)
+          files.push(entry.name)
+        }
+        // Do not pin the directory enumeration open while reading files.
+        // Windows may refuse a legitimate concurrent rename while a child
+        // directory handle remains open; detect actual changes with identity checks.
+        let total = 0
+        for (const name of files) {
           await verify()
-          const path = join(directory.path, entry.name)
+          const path = join(directory.path, name)
           const info = await lstat(path, { bigint: true })
           if (!info.isFile() || info.nlink !== 1n) { summaries.ignored++; continue }
           const remaining = Math.min(maxProjectBytes, maxTotalProjectBytes - total)
           if (info.size > BigInt(remaining)) throw tooLarge()
           const bytes = await readProject(path, info, remaining, signal)
           total += bytes.length
-          fingerprints.push(entry.name + ':' + createHash('sha256').update(bytes).digest('hex'))
+          fingerprints.push(name + ':' + createHash('sha256').update(bytes).digest('hex'))
           await verify()
-          const candidate = projectCandidate(bytes, entry.name.slice(0, -5))
+          const candidate = projectCandidate(bytes, name.slice(0, -5))
           if (candidate) projects.push(candidate)
           else summaries.invalid++
         }
