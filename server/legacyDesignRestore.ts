@@ -64,24 +64,57 @@ function validTemplateHeader(template: DesignRecord) {
     (themeOverrides === undefined || (themeId !== undefined && validOverrides(themeOverrides)))
 }
 
-function templateBlockShape(block: unknown): block is { id: string; type: unknown; props: Record<string, unknown> } {
+function templateBlockShape(block: unknown): block is TemplateBlock {
   return isObject(block) && onlyKeys(block, ['id', 'props', 'type']) && typeof block.id === 'string' &&
     safeDesignId.test(block.id) && isObject(block.props)
 }
 
+const MAX_TEMPLATE_BLOCKS = 2000
+const MAX_BOX_CHILDREN = 64
+type TemplateBlock = { id: string; type: unknown; props: Record<string, unknown> }
+
+function qualifyLeaf(block: TemplateBlock, imageBlock?: QualifyImage): TemplateImage | null {
+  if (block.type === 'image') return imageBlock?.(block) ?? null
+  return validTemplateBlock(block.type, block.props) ? { block } : null
+}
+
+function takeBlockId(block: unknown, ids: Set<string>): block is TemplateBlock {
+  if (!templateBlockShape(block) || ids.size >= MAX_TEMPLATE_BLOCKS || ids.has(block.id)) return false
+  ids.add(block.id)
+  return true
+}
+
+function qualifyBox(block: TemplateBlock, ids: Set<string>, imageBlock?: QualifyImage): TemplateImage | null {
+  const { title, label, variant, children } = block.props
+  if (!onlyKeys(block.props, ['title', 'label', 'variant', 'children']) ||
+      !boundedText(title, 2000) || !boundedText(label, 160) ||
+      (variant !== 'plate' && variant !== 'rule' && variant !== 'paper') ||
+      !Array.isArray(children) || children.length > MAX_BOX_CHILDREN) return null
+  const ordered: unknown[] = []
+  for (const child of children) {
+    if (!takeBlockId(child, ids)) return null
+    // The native editor does not put boxes inside boxes. Never recurse here.
+    const qualified = qualifyLeaf(child, imageBlock)
+    if (!qualified) return null
+    ordered.push(qualified.block)
+  }
+  return { block: { ...block, props: { ...block.props, children: ordered } } }
+}
+
 function qualifyTemplate(template: DesignRecord, imageBlock?: QualifyImage): DesignRecord | null {
   const { blocks, roles } = template
-  if (!validTemplateHeader(template) || !Array.isArray(blocks) || blocks.length > 2000) return null
+  if (!validTemplateHeader(template) || !Array.isArray(blocks) || blocks.length > MAX_TEMPLATE_BLOCKS) return null
   const ids = new Set<string>()
+  const topLevel = new Set<string>()
   const canonical: unknown[] = []
   for (const block of blocks) {
-    if (!templateBlockShape(block) || ids.has(block.id)) return null
-    const qualified = block.type === 'image' ? imageBlock?.(block) : validTemplateBlock(block.type, block.props) && { block }
+    if (!takeBlockId(block, ids)) return null
+    const qualified = block.type === 'box' ? qualifyBox(block, ids, imageBlock) : qualifyLeaf(block, imageBlock)
     if (!qualified) return null
     canonical.push(qualified.block)
-    ids.add(block.id)
+    topLevel.add(block.id)
   }
-  if (roles !== undefined && (!isObject(roles) || !Object.entries(roles).every(([id, role]) => ids.has(id) && isRoleId(role)))) return null
+  if (roles !== undefined && (!isObject(roles) || !Object.entries(roles).every(([id, role]) => topLevel.has(id) && isRoleId(role)))) return null
   return { ...template, blocks: canonical }
 }
 

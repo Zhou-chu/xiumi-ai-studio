@@ -64,3 +64,24 @@ it('qualifies only bounded, known theme fields and finite rendering tokens', asy
   expect(qualifyLegacyDesign('templates', template.id, { ...template, themeOverrides: { madeUp: true } })).toBeNull()
   expect(qualifyLegacyDesign('templates', template.id, { ...template, roles: { missing: 'h1' } })).toBeNull()
 })
+
+it('keeps native box qualification shallow, ordered, bounded, and unique in a template', async () => {
+  const { template } = await readFixture()
+  const [heading, quote] = template.blocks
+  const box = { id: 'box', type: 'box', props: { title: 'Box title', label: 'Box label', variant: 'paper', children: [heading, quote] } }
+  const qualify = (blocks: unknown[]) => qualifyLegacyDesign('templates', template.id, { ...template, roles: { box: 'h1' }, blocks })
+  expect(qualify([box])).toMatchObject({ blocks: [box] })
+  expect(qualify([box, heading])).toBeNull()
+  for (const props of [
+    { children: [heading, heading] },
+    { children: [{ ...box, id: 'distinct-nested-box' }] },
+    { children: [{ id: 'html', type: 'html', props: { html: 'unqualified HTML' } }] },
+    { children: Array.from({ length: 65 }, (_, id) => ({ ...heading, id: 'wide-' + id })) },
+    { children: 'not the native child array' },
+    { title: { text: 'not native box title' } },
+    { variant: 'other' },
+    { extra: 'not a recognized box field' },
+  ]) expect(qualify([{ ...box, props: { ...box.props, ...props } }])).toBeNull()
+  const many = Array.from({ length: 1999 }, (_, id) => ({ ...heading, id: 'many-' + id }))
+  expect(qualify([box, ...many])).toBeNull()
+})

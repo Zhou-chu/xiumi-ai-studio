@@ -21,3 +21,11 @@ PNG digest `ee4467ea86fba01e26dbf35145b490663e0f85e9799e88ae2fde5d4874dcaf1b`
 and RGBA (19, 124, 115, 255). Only the image template refers to that asset; there
 are no projects, versions, components, settings, or credentials. The independent
 heading-only template uses builtin `tech-blue`, font size 17, primary #27506A.
+
+`upstream-template-box.zip` is unchanged output of the same upstream writer.
+It has one native top-level text box with ordered heading, image and quote
+children, and the directly indexed 11×9 PNG referenced only by the image child.
+The SHA-256 of the extracted PNG is
+`cfe2fa9eb3c9be7dab3ed1ae3b8a4e1b074d8216c7f6cf3e113d70ca2f16dd12`;
+all pixels are RGBA (33, 122, 118, 255). There is no project/version/component,
+configuration or other media in the archive.

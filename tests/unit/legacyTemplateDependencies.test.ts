@@ -105,3 +105,102 @@ it.each(['clean', 'design-only', 'occupied', 'binary-conflict', 'malformed'] as 
     await rm(tmp, { recursive: true, force: true })
   }
 })
+
+const boxArchive = new URL('../fixtures/legacy-backup/upstream-template-box.zip', import.meta.url)
+const boxTemplate = 'fixture-template-box'
+const boxAsset = 'fixture-template-box-teal'
+const boxPngHash = 'cfe2fa9eb3c9be7dab3ed1ae3b8a4e1b074d8216c7f6cf3e113d70ca2f16dd12'
+
+it.each(['clean', 'occupied', 'asset-conflict', 'unsupported-child'] as const)('restores native box dependencies via public library and project routes (%s)', async mode => {
+  const tmp = await mkdtemp(join(tmpdir(), 'xiumi-box-template-'))
+  const data = join(tmp, 'library')
+  vi.stubEnv('DATA_DIR', data)
+  vi.resetModules()
+  const { createApp } = await import('../../server/app')
+  const server = createServer(createApp({ restoreTempRoot: tmp })).listen(0, '127.0.0.1')
+  try {
+    await once(server, 'listening')
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing HTTP address')
+    const base = 'http://127.0.0.1:' + address.port
+    const route = base + '/api/data/restore'
+    let bytes = new Uint8Array(await readFile(boxArchive))
+    if (mode === 'unsupported-child') {
+      const zip = await JSZip.loadAsync(bytes)
+      const path = 'templates/' + boxTemplate + '.json'
+      const template = JSON.parse(await zip.file(path)!.async('string'))
+      template.blocks[0].props.children[2].props.unexpected = 'unsupported'
+      zip.file(path, JSON.stringify(template))
+      bytes = new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))
+    }
+    const preview = async (options: string, cookie?: string) => {
+      const body = new FormData()
+      body.append('file', new Blob([bytes]), 'upstream-template-box.zip')
+      const response = await fetch(route + options, { method: 'POST', body, headers: cookie ? { Cookie: cookie } : {} })
+      expect(response.status).toBe(200)
+      return { ...await response.json(), cookie: response.headers.get('set-cookie')!.split(';')[0] }
+    }
+    const design = await preview('?design=1')
+    expect(design.plan.design.templates.add).toEqual([])
+    expect(design.plan.unsupported).toContain('templates/' + boxTemplate + '.json')
+    const both = await preview('?design=1&indexedImages=1', design.cookie)
+    const rejected = mode === 'unsupported-child'
+    expect(both.plan.design.templates.add).toEqual(rejected ? [] : [boxTemplate])
+    expect(both.plan.assets.add).toEqual(rejected ? [] : [boxAsset])
+    if (rejected) expect(both.plan.unsupported).toContain('templates/' + boxTemplate + '.json')
+    expect(both.plan.projects.add).toEqual([])
+    expect(await readdir(join(data, 'templates'))).toEqual([])
+    expect(await readdir(join(data, 'assets'))).toEqual([])
+    const templateFile = join(data, 'templates', boxTemplate + '.json')
+    const pngFile = join(data, 'assets', boxAsset + '.png')
+    if (mode === 'occupied') await writeFile(templateFile, 'local template')
+    if (mode === 'asset-conflict') await writeFile(pngFile, 'local asset')
+    const applied = await fetch(route + '/' + both.token + '/apply', { method: 'POST', headers: { Cookie: both.cookie, 'Content-Type': 'application/json' }, body: '{"confirm":true}' })
+    expect(applied.status).toBe(200)
+    const outcome = await applied.json()
+    if (mode === 'unsupported-child') {
+      expect(outcome.design.templates.restored).toEqual([])
+      expect(await readdir(join(data, 'templates'))).toEqual([])
+      expect(await readdir(join(data, 'assets'))).toEqual([])
+    } else if (mode === 'occupied') {
+      expect(outcome.design.templates.conflicts).toEqual([boxTemplate])
+      expect(await readFile(templateFile, 'utf8')).toBe('local template')
+      expect(await readdir(join(data, 'assets'))).toEqual([])
+    } else if (mode === 'asset-conflict') {
+      expect(outcome.design.templates.unresolved).toEqual([boxTemplate])
+      expect(await readFile(pngFile, 'utf8')).toBe('local asset')
+      expect(await readdir(join(data, 'templates'))).toEqual([])
+    } else {
+      expect(outcome.design.templates.restored).toEqual([boxTemplate])
+      const [template] = await (await fetch(base + '/api/templates')).json() as { name: string; blocks: [Block<'box'>]; themeId: string }[]
+      const source = template.blocks[0]
+      const ids = (box: Block<'box'>) => [box.id, ...box.props.children.map(child => child.id)]
+      const seen = new Set(ids(source))
+      for (const id of ['from-box-first', 'from-box-second']) {
+        const doc = { id, title: template.name, themeId: template.themeId, author: '', digest: '', createdAt: 1, updatedAt: 1, blocks: [cloneBlock(source)] }
+        const url = base + '/api/projects/' + id
+        const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) })
+        expect(put.status).toBe(200)
+        await put.text()
+        const opened = await (await fetch(url)).json() as Doc
+        const [box] = opened.blocks as [Block<'box'>]
+        expect(box.type).toBe('box')
+        expect(box.props.children.map(child => child.type)).toEqual(['heading', 'image', 'quote'])
+        for (const block of ids(box)) { expect(seen.has(block)).toBe(false); seen.add(block) }
+        const html = compileDoc(opened).html
+        const markers = ['Before the boxed image', 'Only the box contains this teal image', 'After the boxed image'].map(text => html.indexOf(text))
+        expect(markers[0]).toBeGreaterThanOrEqual(0)
+        expect(markers[1]).toBeGreaterThan(markers[0])
+        expect(markers[2]).toBeGreaterThan(markers[1])
+      }
+      const picture = await fetch(base + '/media/' + boxAsset + '.png?gen=' + boxPngHash)
+      expect(picture.status).toBe(200)
+      const png = Buffer.from(await picture.arrayBuffer())
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([11, 9])
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    vi.unstubAllEnvs()
+    await rm(tmp, { recursive: true, force: true })
+  }
+})
