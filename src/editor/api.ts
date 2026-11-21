@@ -111,6 +111,35 @@ function resourceId(value: string): string {
   return encodeURIComponent(value)
 }
 
+export interface LegacyRestorePlan {
+  projects: { add: string[]; skip: string[]; unsupported: string[] }
+  unsupported: string[]
+}
+export interface LegacyRestoreResult {
+  projects: { restored: string[]; skipped: string[]; failed: string[]; unsupported: string[] }
+  unsupported: string[]
+}
+const restoreEndpoint = '/api/data/restore'
+const restoreToken = /^[a-f0-9]{64}$/
+const jsonObject = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null
+const stringList = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string')
+function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
+  const body = jsonObject(v), plan = jsonObject(body?.plan), projects = jsonObject(plan?.projects)
+  if (typeof body?.token !== 'string' || !restoreToken.test(body.token) ||
+      !projects || !stringList(projects.add) || !stringList(projects.skip) ||
+      !stringList(projects.unsupported) || !stringList(plan?.unsupported)) throw new Error('无法读取恢复预览')
+  return { token: body.token, plan: { projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
+}
+function decodeResult(v: unknown): LegacyRestoreResult {
+  const body = jsonObject(v), projects = jsonObject(body?.projects)
+  if (!projects || !stringList(projects.restored) || !stringList(projects.skipped) ||
+      !stringList(projects.failed) || !stringList(projects.unsupported) || !stringList(body?.unsupported)) {
+    throw new Error('无法读取恢复结果')
+  }
+  return { projects: { restored: projects.restored, skipped: projects.skipped, failed: projects.failed, unsupported: projects.unsupported }, unsupported: body.unsupported }
+}
+
 export const api = {
   assets: () => req<Asset[]>('GET', '/api/assets'),
   uploadAssets(files: File[] | FileList) {
@@ -127,6 +156,15 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
+  async previewLegacyRestore(file: File, signal?: AbortSignal) {
+    const payload = new FormData()
+    payload.append('file', file)
+    return decodePlan(await req<unknown>('POST', restoreEndpoint, payload, signal))
+  },
+  async applyLegacyRestore(token: string, signal?: AbortSignal) {
+    if (!restoreToken.test(token)) throw new Error('恢复会话无效')
+    return decodeResult(await req<unknown>('POST', `${restoreEndpoint}/${token}/apply`, { confirm: true }, signal))
+  },
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
   project: async (id: string) => req<Doc>('GET', `/api/projects/${resourceId(id)}`),
   saveProject: async (doc: Doc) => req<{ updatedAt: number; revision?: string }>('PUT', `/api/projects/${resourceId(doc.id)}`, doc),

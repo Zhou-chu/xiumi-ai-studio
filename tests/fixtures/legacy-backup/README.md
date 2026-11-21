@@ -2,7 +2,7 @@
 
 `upstream-library.zip` is the unmodified output of `server/dataTools.ts:writeBackup`
 from upstream commit `550c0ef2e99e4d493bb0e9d017178aa7fbdc7fbe`. It contains
-three synthetic projects (one references the 1×1 PNG), one synthetic empty
+three synthetic projects (one references the 1×1 PNG, one has sparse legacy metadata and a heading, structured paragraph and card, and one has explicit author, summary and dates), one synthetic empty
 template, that PNG and its index, and a redacted test provider profile. It contains no user data,
 real credentials, or .env. This is not the fork's single-project export.
 

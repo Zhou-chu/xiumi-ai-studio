@@ -111,7 +111,10 @@ export function LeftPanel() {
     }
   }, [refreshAssets, refreshTemplates])
   useEffect(() => {
-    if (tab === 'projects') refreshProjects()
+    if (tab !== 'projects') return
+    void refreshProjects()
+    window.addEventListener('projects-changed', refreshProjects)
+    return () => window.removeEventListener('projects-changed', refreshProjects)
   }, [tab, refreshProjects, docId])
 
   const upload = async (files: FileList | null) => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { LegacyRestorePanel } from './LegacyRestorePanel'
 import { Modal } from './Modal'
 import { createProjectBackup } from './projectBackup'
 import { saveNow, useStore } from './store'
@@ -7,6 +8,7 @@ export default function ProjectBackupModal({ onClose }: { onClose: () => void })
   const running = useRef(false)
   const dismissed = useRef(false)
   const [busy, setBusy] = useState(false)
+  const saveStatus = useStore(state => state.saveStatus)
   const [error, setError] = useState('')
   useEffect(() => {
     dismissed.current = false
@@ -40,8 +42,14 @@ export default function ProjectBackupModal({ onClose }: { onClose: () => void })
   }
   return <Modal title="项目和素材备份" onClose={close}>
     <p>将已保存的项目和本机素材下载为 ZIP。不包含历史版本、模板、组件、自定义主题或账户配置。</p>
-    <p className="hint">仅下载到本机，不上传。此版本不支持从这里恢复或迁移备份。</p>
+    <p className="hint">这个下载是供离线恢复的项目与素材快照，不支持用此文件在弹窗内恢复。</p>
     <p className="hint">备份前请确认项目引用的本机原图仍在素材库中。缺少已引用的素材时，离线恢复会停止，不修改原数据目录。</p>
+    <h4>整库备份</h4>
+    <p>另外包含历史版本、模板、组件、自定义主题和不含密钥的模型设置。当前上限为 3 GiB。</p>
+    {saveStatus === 'saved'
+      ? <a href="/api/data/backup" target="_blank" rel="noopener noreferrer">下载整库 ZIP</a>
+      : <p className="hint">保存当前文稿后可下载整库。</p>}
+    <LegacyRestorePanel />
     {error && <p role="alert" className="warn">{error}</p>}
     <div className="modal-actions">
       <button onClick={close}>关闭</button>

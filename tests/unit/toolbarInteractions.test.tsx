@@ -102,3 +102,38 @@ it('keeps one confirmation when upload does not change a multipart Xiumi count',
 it('lazy article and AI import entrypoints and template event can be opened and dismissed',async()=>{
  await import('../../src/editor/ArticleImport');await import('../../src/editor/ImportWizard');await mount(<Toolbar/>);await click(byTest('open-article-import'));await act(async()=>{await vi.dynamicImportSettled()});expect(host.querySelector('[role="dialog"]')).not.toBeNull();await close();await click(byTest('open-import'));await act(async()=>{await vi.dynamicImportSettled()});expect(host.querySelector('[role="dialog"]')).not.toBeNull();await close();await act(async()=>window.dispatchEvent(new CustomEvent('open-import',{detail:{templateIds:['tpl']}})));await close()
 })
+
+it('opens and exports a restored sparse legacy document through the normal toolbar', async () => {
+  // The harness fakes timers for editor actions; ZIP enumeration needs
+  // genuine scheduling while the fixture is read from disk.
+  vi.useRealTimers()
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { projectCollection } = await import('../../server/projectStore')
+  const { stageLegacyTextProjects } = await import('../../server/legacyProjectRestore')
+  const dir = await mkdtemp(join(tmpdir(), 'xiumi-restored-toolbar-'))
+  try {
+    const projects = projectCollection<ReturnType<typeof emptyDoc>>(dir)
+    const file = join(process.cwd(), 'tests', 'fixtures', 'legacy-backup', 'upstream-library.zip')
+    const stage = await stageLegacyTextProjects(file, projects)
+    expect((await stage.apply()).projects.restored).toContain('corrupt')
+    const doc = await projects.get('corrupt')
+    if (!vi.isFakeTimers()) vi.useFakeTimers()
+    expect(doc).toMatchObject({ digest: '', author: '', themeId: 'tsinghua-purple', createdAt: 1, updatedAt: 1 })
+    await act(async () => state().load(doc!))
+    vi.mocked(api.wechatStatus).mockResolvedValue({ configured: true, appid: 'fixture' })
+    await mount(<Toolbar />)
+    await click(byTest('open-export'))
+    await click(byTest('copy-wechat'))
+    expect(document.execCommand).toHaveBeenCalledWith('copy')
+    expect(host.textContent).toContain('HTML 长度')
+    await click(button('推送到草稿箱…'))
+    expect(host.textContent).toContain('（空，微信将自动截取正文）')
+    expect(host.textContent).toContain('缺少封面')
+    expect(button('确认推送').disabled).toBe(true)
+  } finally {
+    if (!vi.isFakeTimers()) vi.useFakeTimers()
+    await rm(dir, { recursive: true, force: true })
+  }
+})

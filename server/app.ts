@@ -20,6 +20,8 @@ import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './setting
 import { importFile } from './importer'
 import { collection, DATA, DIRS, ROOT, safeId } from './store'
 import { projectCollection } from './projectStore'
+import { localArchiveOrigin } from './localArchiveOrigin'
+import { registerLegacyRestoreRoutes } from './legacyRestoreRoutes'
 import { libraryZip, planLibraryBackup } from './fullLibraryBackup'
 import { addDraft, uploadContentImage, uploadCover, validateDraft, wechatStatus } from './wechat'
 
@@ -28,7 +30,7 @@ type Version = { id: string; projectId: string; label: string; createdAt: number
 
 
 /** Build the HTTP application without opening a listener or loading credentials. */
-export function createApp() {
+export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}) {
   const projects = projectCollection<Doc>(DIRS.projects)
   const templates = collection<{ id: string; name: string; blocks: unknown[]; themeId?: string; themeOverrides?: unknown; roles?: Record<string, string>; createdAt: number }>(DIRS.templates)
   const themes = collection<{ id: string; name: string }>(DIRS.themes)
@@ -48,11 +50,7 @@ export function createApp() {
   // browser's independently owned single-project/portable snapshot flow.
   let backupActive = false
   app.get('/api/data/backup', h(async (req, res) => {
-    const host = req.get('host') ?? ''
-    const origin = req.get('origin')
-    if (!/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(host) ||
-        (origin && origin !== `http://${host}` && origin !== `https://${host}`) ||
-        ['cross-site', 'same-site'].includes(req.get('sec-fetch-site') ?? '')) {
+    if (!localArchiveOrigin(req)) {
       return res.status(403).json({ error: '只允许从同源本机下载整库备份' })
     }
     const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')
@@ -85,6 +83,8 @@ export function createApp() {
       backupActive = false
     }
   }))
+
+  registerLegacyRestoreRoutes(app, projects, restoreTempRoot)
 
   // ---------- 素材 ----------
   app.get('/media/:file', h(async (req, res) => {

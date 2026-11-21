@@ -1,0 +1,112 @@
+// @vitest-environment jsdom
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
+import { expect, it, vi } from 'vitest'
+import ProjectBackupModal from '../../src/editor/ProjectBackupModal'
+
+vi.mock('../../src/editor/store', () => ({
+  saveNow: vi.fn(),
+  useStore: Object.assign((select: (value: { saveStatus: string }) => unknown) => select({ saveStatus: 'saved' }),
+    { getState: () => ({ saveStatus: 'saved' }) }),
+}))
+
+const previewBody = {
+  token: 'b'.repeat(64),
+  plan: {
+    projects: { add: ['example'], skip: ['existing'], unsupported: ['media-doc'] },
+    unsupported: ['templates/example.json', 'settings.json'],
+  },
+}
+const json = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } })
+const button = (text: string) => Array.from(document.querySelectorAll('button')).find(btn => btn.textContent === text)
+function pick(selected: string | File) {
+  const input = document.querySelector<HTMLInputElement>('input[type=file]')!
+  expect(input).not.toBeNull()
+  Object.defineProperty(input, 'files', { configurable: true, value: [typeof selected === 'string' ? new File(['fixture'], selected, { type: 'application/zip' }) : selected] })
+  act(() => input.dispatchEvent(new Event('change', { bubbles: true })))
+}
+async function modal(test: (requests: ReturnType<typeof vi.fn>) => Promise<void>) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT')
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  const requests = vi.fn()
+  vi.stubGlobal('fetch', requests)
+  try {
+    act(() => root.render(<ProjectBackupModal onClose={vi.fn()} />))
+    await test(requests)
+  } finally {
+    act(() => root.unmount())
+    host.remove()
+    vi.unstubAllGlobals()
+    if (previous) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previous)
+    else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT')
+  }
+}
+
+it('does not apply before explicit confirmation and reports exact partial results', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json(previewBody)).mockResolvedValueOnce(json({
+    projects: { restored: [], skipped: ['example'], failed: ['later'], unsupported: ['media-doc'] },
+    unsupported: ['templates/example.json', 'settings.json'],
+  }))
+  const changed = vi.fn()
+  window.addEventListener('projects-changed', changed)
+  try {
+    pick('backup-export.zip')
+    expect(requests).not.toHaveBeenCalled()
+    expect(button('确认添加项目')).toBeUndefined()
+    await act(async () => button('预览恢复')!.click())
+    expect(requests).toHaveBeenCalledTimes(1)
+    expect(requests.mock.calls[0][0]).toBe('/api/data/restore')
+    expect(requests.mock.calls[0][1].body).toBeInstanceOf(FormData)
+    expect(document.body.textContent).toContain('预览未写入项目数据')
+    expect(document.body.textContent).toContain('media-doc')
+    expect(document.body.textContent).toContain('templates/example.json')
+    expect(document.body.textContent).toContain('settings.json')
+    await act(async () => button('确认添加项目')!.click())
+    expect(requests).toHaveBeenCalledTimes(2)
+    expect(requests.mock.calls[1][0]).toBe(`/api/data/restore/${previewBody.token}/apply`)
+    expect(JSON.parse(requests.mock.calls[1][1].body)).toEqual({ confirm: true })
+    expect(document.body.textContent).toContain('没有新增项目')
+    expect(document.body.textContent).toContain('later')
+    expect(document.body.textContent).not.toContain('恢复成功')
+    expect(button('确认添加项目')).toBeUndefined()
+    expect(changed).not.toHaveBeenCalled()
+  } finally {
+    window.removeEventListener('projects-changed', changed)
+  }
+}))
+
+it('invalidates stale previews on file selection and reports expiry without implying success', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json(previewBody)).mockResolvedValueOnce(json(previewBody))
+    .mockResolvedValueOnce(json({ error: '恢复会话已过期' }, 404))
+  pick('first.zip')
+  await act(async () => button('预览恢复')!.click())
+  expect(button('确认添加项目')?.disabled).toBe(false)
+  pick('second.zip')
+  expect(button('确认添加项目')).toBeUndefined()
+  expect(requests).toHaveBeenCalledTimes(1)
+  await act(async () => button('预览恢复')!.click())
+  await act(async () => button('确认添加项目')!.click())
+  expect(document.body.textContent).toContain('未确认恢复结果')
+  expect(document.body.textContent).toContain('恢复会话已过期')
+  expect(button('确认添加项目')).toBeUndefined()
+}))
+
+it('accepts browser files above the old 32 MiB threshold but rejects files beyond the disk spool cap', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json(previewBody))
+  const file = new File([new Uint8Array(33 * 1024 * 1024)], 'streamed.zip', { type: 'application/zip' })
+  pick(file)
+  expect(button('预览恢复')?.disabled).toBe(false)
+  await act(async () => button('预览恢复')!.click())
+  expect(requests.mock.calls[0][1].body.get('file')).toBe(file)
+  expect(document.body.textContent).toContain('预览未写入项目数据')
+
+  const oversized = new File(['size metadata only'], 'oversized.zip', { type: 'application/zip' })
+  Object.defineProperty(oversized, 'size', { value: 513 * 1024 * 1024 })
+  pick(oversized)
+  expect(button('预览恢复')?.disabled).toBe(true)
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('512 MiB')
+  expect(requests).toHaveBeenCalledTimes(1)
+}))

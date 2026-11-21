@@ -1,5 +1,6 @@
 import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
+import { DesktopDataFolder } from './DesktopDataFolder'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
@@ -398,6 +399,7 @@ export function Toolbar() {
           <ColorModeControl />
           <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
           <button onClick={() => setModal('project-backup')}>项目和素材备份</button>
+          <DesktopDataFolder reportFailure={(message) => useStore.getState().notify(message, 'error')} />
           <button onClick={() => setModal('ai')} data-testid="open-ai-settings"><span className="toolbar-legacy-icon" aria-hidden="true">⚙ </span>AI 模型</button>
         </div>
       </div>

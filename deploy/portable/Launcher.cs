@@ -22,6 +22,7 @@ public static class Launcher
         start.RedirectStandardOutput = true;
         start.RedirectStandardError = true;
         start.EnvironmentVariables["NODE_ENV"] = "production";
+        start.EnvironmentVariables["XIUMI_OWNED_PORTABLE_LAUNCH"] = "1";
         start.EnvironmentVariables.Remove("NODE_OPTIONS");
         start.EnvironmentVariables.Remove("NODE_PATH");
 

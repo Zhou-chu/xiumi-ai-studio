@@ -1,8 +1,12 @@
 import { crc32 } from 'node:zlib'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
 import sharp from 'sharp'
+import { normalizeBlocks } from '../src/core/blocks'
+import { THEMES } from '../src/core/themes'
+import type { Doc } from '../src/core/types'
 import { withImageBudget } from './imageBudget'
 import type { Asset, ArchivedAsset, assetRestoreStore } from './assets'
+import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
 
 const PROJECT = /^projects\/([\w-]{1,64})\.json$/
@@ -92,7 +96,7 @@ async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<stri
   return result.sort((a, b) => a.asset.id.localeCompare(b.asset.id, 'en'))
 }
 
-async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false): Promise<ProjectArchive> {
+async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false): Promise<ProjectArchive> {
   const projects: Project[] = []
   const otherLibraryEntries: string[] = []
   const seen = new Set<string>()
@@ -124,6 +128,7 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
       if (name === MANIFEST) {
         const manifest = await readJsonEntry(zip, entry, 64 * 1024)
         if (!isObject(manifest) || manifest.app !== 'xiumi-ai-studio') throw invalid()
+        if (requireLibraryManifest && (typeof manifest.version !== 'string' || manifest.scope !== undefined)) throw invalid()
         sawManifest = true
       } else {
         const id = PROJECT.exec(name)?.[1]
@@ -264,6 +269,114 @@ export async function stageLegacyLibrary(path: string, projects: ProjectStore, a
         }
         return { assets: assetResult, projects: projectResult }
       })
+    },
+  }
+}
+
+
+const coreThemeIds = new Set(THEMES.map(({ id }) => id))
+const emptyMedia = { files: new Set<string>(), ids: new Set<string>() }
+const routeBudget = { ...DEFAULT_BUDGET, maxEntries: 5000, maxNameBytes: 1024 * 1024, entryBytes: 4 * 1024 * 1024, totalProjectBytes: 32 * 1024 * 1024 }
+const idPattern = /^[\w-]{1,64}$/
+const boundedText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max
+
+const projectKeys = new Set(['id', 'title', 'author', 'digest', 'themeId', 'blocks', 'createdAt', 'updatedAt', 'revision'])
+const blockKeys = new Set(['id', 'type', 'props'])
+const headingKeys = new Set(['variant', 'index', 'title', 'subtitle'])
+const quoteKeys = new Set(['variant', 'text', 'source'])
+const dividerKeys = new Set(['variant'])
+const paragraphKeys = new Set(['content', 'align'])
+const cardKeys = new Set(['content', 'title', 'variant'])
+const knownKeys = (value: Record<string, unknown>, allowed: Set<string>) => Object.keys(value).every(key => allowed.has(key))
+
+function textBlock(value: unknown, budget: RichTextBudget) {
+  if (!isObject(value) || !knownKeys(value, blockKeys) || typeof value.id !== 'string' ||
+      !idPattern.test(value.id) || !isObject(value.props)) return false
+  const { props } = value
+  if (value.type === 'paragraph') {
+    return knownKeys(props, paragraphKeys) && typeof props.align === 'string' &&
+      legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget)
+  }
+  if (typeof props.variant !== 'string') return false
+  if (value.type === 'card') {
+    return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&
+      boundedText(props.title, 2000) && acceptsLegacyRichText(props.content, budget)
+  }
+  if (value.type === 'heading') {
+    return knownKeys(props, headingKeys) && ['auto', 'number', 'bar', 'pill', 'underline'].includes(props.variant) &&
+      boundedText(props.index, 160) && boundedText(props.title, 2000) && boundedText(props.subtitle, 2000)
+  }
+  if (value.type === 'quote') {
+    return knownKeys(props, quoteKeys) && ['auto', 'line', 'mark', 'center'].includes(props.variant) &&
+      boundedText(props.text, 20_000) && boundedText(props.source, 2000)
+  }
+  return value.type === 'divider' && knownKeys(props, dividerKeys) && ['auto', 'line', 'dots', 'ornament'].includes(props.variant)
+}
+
+function independentlyRestorable(doc: Project) {
+  // Accept only a finite, shallow schema. Extra or nested application data
+  // is explicitly deferred instead of being silently pruned or restored.
+  if (!knownKeys(doc, projectKeys) || !boundedText(doc.title, 2000) ||
+      !Array.isArray(doc.blocks) || doc.blocks.length > 2000 ||
+      (doc.author !== undefined && !boundedText(doc.author, 2000)) ||
+      (doc.digest !== undefined && !boundedText(doc.digest, 2000)) ||
+      (doc.revision !== undefined && !boundedText(doc.revision, 200)) ||
+      (doc.themeId !== undefined && (typeof doc.themeId !== 'string' || !coreThemeIds.has(doc.themeId)))) return false
+  for (const value of [doc.createdAt, doc.updatedAt]) {
+    if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) return false
+  }
+  const budget = { nodes: 0, characters: 0 }
+  return doc.blocks.every(block => textBlock(block, budget)) &&
+    new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length &&
+    !missingManagedMedia(doc, emptyMedia)
+}
+
+function canonicalTextProject(doc: Project, fallbackTime: number): Doc {
+  // The read-only qualification above establishes that each present field is
+  // an allowed primitive or a fully checked text block. Keep meaningful
+  // legacy values while making the persisted record safe for every reader.
+  const createdAt = doc.createdAt ?? doc.updatedAt ?? fallbackTime
+  const updatedAt = doc.updatedAt ?? doc.createdAt ?? fallbackTime
+  return {
+    id: doc.id,
+    title: doc.title,
+    author: doc.author ?? '',
+    digest: doc.digest ?? '',
+    themeId: doc.themeId ?? THEMES[0].id,
+    // Validation excluded every unsupported field before normalization.
+    // Persist the editor's canonical property order so opening does not
+    // perform a phantom repair/write of unchanged restored content.
+    blocks: normalizeBlocks(doc.blocks),
+    createdAt,
+    updatedAt,
+  }
+}
+
+/** Exposable subset: reject dependencies until their end-to-end restore is ready. */
+export async function stageLegacyTextProjects(path: string, store: ProjectStore) {
+  const { projects, otherLibraryEntries } = await readLegacyArchive(path, routeBudget, false, true)
+  const supported: Doc[] = [], unsupported: string[] = []
+  const fallbackTime = Date.now()
+  for (const doc of projects) {
+    if (independentlyRestorable(doc)) supported.push(canonicalTextProject(doc, fallbackTime))
+    else unsupported.push(doc.id)
+  }
+  return {
+    async preview() {
+      const add: string[] = [], skip: string[] = []
+      for (const { id } of supported) (await store.occupied(id) ? skip : add).push(id)
+      return { projects: { add, skip, unsupported: [...unsupported] }, unsupported: [...otherLibraryEntries] }
+    },
+    async apply() {
+      const restored: string[] = [], skipped: string[] = [], failed: string[] = []
+      for (const doc of supported) {
+        try {
+          (await store.restore(doc) ? restored : skipped).push(doc.id)
+        } catch {
+          failed.push(doc.id)
+        }
+      }
+      return { projects: { restored, skipped, failed, unsupported: [...unsupported] }, unsupported: [...otherLibraryEntries] }
     },
   }
 }
