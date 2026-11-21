@@ -19,6 +19,7 @@ import { isRoleId } from '../src/core/roles'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
 import { importFile } from './importer'
 import { collection, DATA, DIRS, ROOT, safeId } from './store'
+import { projectHistoryRestore, VERSION_RETENTION_LIMIT } from './projectHistoryRestore'
 import { projectCollection } from './projectStore'
 import { localArchiveOrigin } from './localArchiveOrigin'
 import { registerLegacyRestoreRoutes } from './legacyRestoreRoutes'
@@ -84,12 +85,15 @@ export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}
     }
   }))
 
-  registerLegacyRestoreRoutes(app, projects, restoreTempRoot)
+  registerLegacyRestoreRoutes(app, projects, restoreTempRoot, projectHistoryRestore(DIRS.versions, projects))
 
   // ---------- 素材 ----------
   app.get('/media/:file', h(async (req, res) => {
-    const p = await variantPath(String(req.params.file), req.query.fit as string | undefined, Number(req.query.w) || undefined)
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    const generation = req.query.gen
+    if (generation !== undefined && typeof generation !== 'string') return res.status(400).json({ error: '素材版本无效' })
+    const p = await variantPath(String(req.params.file), req.query.fit as string | undefined, Number(req.query.w) || undefined, generation)
+    // Unqualified legacy names can be reused. Never advertise immutability for them.
+    res.setHeader('Cache-Control', generation ? 'public, max-age=31536000, immutable' : 'public, no-cache')
     res.sendFile(p)
   }))
   app.get('/api/assets', h(async (_req, res) => res.json(await listAssets())))
@@ -149,12 +153,17 @@ export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}
   }))
   app.post('/api/projects/:id/versions', h(async (req, res) => {
     const pid = String(req.params.id)
-    const v: Version = { id: `${Date.now()}-${nanoid(4).replace(/[^\w]/g, 'x')}`, projectId: pid, label: String(req.body.label ?? '手动保存'), createdAt: Date.now(), doc: req.body.doc }
-    const col = versionsOf(pid)
-    await col.put(v)
-    // 每个项目最多保留 50 个版本
-    const all = (await col.list()).sort((a, b) => b.createdAt - a.createdAt)
-    for (const old of all.slice(50)) await col.remove(old.id)
+    const v = await projects.serializeDependent(pid, async () => {
+      const createdAt = Date.now()
+      const version: Version = { id: `${createdAt}-${nanoid(4).replace(/[^\w]/g, 'x')}`, projectId: pid, label: String(req.body.label ?? '手动保存'), createdAt, doc: req.body.doc }
+      const col = versionsOf(pid)
+      if (col.exists(version.id)) throw Object.assign(new Error('版本标识冲突，未覆盖现有版本，请重试。'), { status: 409 })
+      await col.put(version)
+      // 每个项目最多保留 50 个版本
+      const all = (await col.list()).sort((a, b) => b.createdAt - a.createdAt)
+      for (const old of all.slice(VERSION_RETENTION_LIMIT)) await col.remove(old.id)
+      return version
+    })
     res.json({ id: v.id, label: v.label, createdAt: v.createdAt })
   }))
   app.get('/api/projects/:id/versions/:vid', h(async (req, res) => {
@@ -398,7 +407,7 @@ ${JSON.stringify(b.layouts ?? {})}`
       const m = u.match(/^\/media\/([\w-]+\.(?:jpg|png))(?:\?(.*))?$/)
       if (!m) continue
       const q = new URLSearchParams(m[2] ?? '')
-      const p = await variantPath(m[1], q.get('fit') ?? undefined, Number(q.get('w')) || undefined)
+      const p = await variantPath(m[1], q.get('fit') ?? undefined, Number(q.get('w')) || undefined, q.get('gen') ?? undefined)
       map[u] = await uploadContentImage(u, p)
     }
     res.json(map)

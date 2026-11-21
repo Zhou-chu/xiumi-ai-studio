@@ -1,16 +1,19 @@
 import { crc32 } from 'node:zlib'
+import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
 import sharp from 'sharp'
 import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
-import type { Doc } from '../src/core/types'
+import type { Block, Doc, ImageRef } from '../src/core/types'
 import { withImageBudget } from './imageBudget'
 import type { Asset, ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
+import { VERSION_RETENTION_LIMIT, type projectHistoryRestore, type VersionSnapshot } from './projectHistoryRestore'
 
 const PROJECT = /^projects\/([\w-]{1,64})\.json$/
 const OTHER_LIBRARY_ENTRY = /^(?:settings\.json|assets\/_index\.json|assets\/[\w-]{1,64}\.(?:jpg|png)|(?:templates|components|themes)\/[\w-]{1,64}\.json|versions\/[\w-]{1,64}\/[\w-]{1,80}\.json)$/
+const VERSION_PATH = /^versions\/([\w-]{1,64})\/([\w-]{1,64})\.json$/
 const MANIFEST = 'xiumi-backup.json'
 const ASSET_INDEX = 'assets/_index.json'
 const ASSET_FILE = /^assets\/[\w-]{1,64}\.(?:jpg|png)$/
@@ -22,6 +25,7 @@ const DEFAULT_BUDGET = {
   maxNameBytes: 32 * 1024 * 1024,
   entryBytes: 32 * 1024 * 1024,
   totalProjectBytes: 128 * 1024 * 1024,
+  totalHistoryBytes: 32 * 1024 * 1024,
   totalAssetBytes: 128 * 1024 * 1024,
 }
 const invalid = () => Object.assign(new Error('备份格式无效或项目文件已损坏'), { status: 400 })
@@ -29,7 +33,10 @@ const tooLarge = () => Object.assign(new Error('备份超出了项目恢复的�
 type ProjectStore = Pick<ReturnType<typeof projectCollection>, 'occupied' | 'restore'>
 type Project = Parameters<ProjectStore['restore']>[0]
 type AssetStore = typeof assetRestoreStore
-type ProjectArchive = { projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[] }
+type AssetLockCallbacks = Parameters<Parameters<AssetStore['withApplyLock']>[0]>
+type HistoryStore = ReturnType<typeof projectHistoryRestore>
+type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
+type ProjectArchive = { projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[] }
 
 async function readEntry(zip: ZipFile, entry: Entry, limit: number): Promise<Buffer> {
   if (entry.uncompressedSize > limit) throw tooLarge()
@@ -96,14 +103,16 @@ async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<stri
   return result.sort((a, b) => a.asset.id.localeCompare(b.asset.id, 'en'))
 }
 
-async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false): Promise<ProjectArchive> {
+async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false): Promise<ProjectArchive> {
   const projects: Project[] = []
   const otherLibraryEntries: string[] = []
+  const history: HistoryCandidate[] = []
   const seen = new Set<string>()
   const binaries = new Map<string, Entry>()
   let index: Entry | undefined
   let sawManifest = false
   let consumed = 0
+  let historyBytes = 0
   let count = 0
   let nameBytes = 0
   let zip: ZipFile | undefined
@@ -142,6 +151,18 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
           index = entry
         } else if (includeAssets && ASSET_FILE.test(name)) {
           binaries.set(name, entry)
+        } else if (includeHistory && VERSION_PATH.test(name)) {
+          const [, projectId, id] = VERSION_PATH.exec(name)!
+          if (entry.uncompressedSize > budget.entryBytes || entry.uncompressedSize > budget.totalHistoryBytes - historyBytes) {
+            otherLibraryEntries.push(name)
+            continue
+          }
+          historyBytes += entry.uncompressedSize
+          const bytes = await readEntry(zip, entry, budget.entryBytes)
+          let raw: unknown
+          try { raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+          catch { /* Unusable JSON is accounted for in the unsupported list. */ }
+          history.push({ path: name, projectId, id, raw })
         } else if (OTHER_LIBRARY_ENTRY.test(name)) {
           otherLibraryEntries.push(name)
         }
@@ -152,6 +173,7 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
     return {
       projects: projects.sort((a, b) => a.id.localeCompare(b.id, 'en')),
       assets,
+      history,
       otherLibraryEntries: [...otherLibraryEntries, ...binaries.keys()].sort((a, b) => a.localeCompare(b, 'en')),
     }
   } catch (error) {
@@ -275,8 +297,7 @@ export async function stageLegacyLibrary(path: string, projects: ProjectStore, a
 
 
 const coreThemeIds = new Set(THEMES.map(({ id }) => id))
-const emptyMedia = { files: new Set<string>(), ids: new Set<string>() }
-const routeBudget = { ...DEFAULT_BUDGET, maxEntries: 5000, maxNameBytes: 1024 * 1024, entryBytes: 4 * 1024 * 1024, totalProjectBytes: 32 * 1024 * 1024 }
+const routeBudget = { ...DEFAULT_BUDGET, maxEntries: 5000, maxNameBytes: 1024 * 1024, entryBytes: 4 * 1024 * 1024, totalProjectBytes: 32 * 1024 * 1024, totalAssetBytes: 32 * 1024 * 1024 }
 const idPattern = /^[\w-]{1,64}$/
 const boundedText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max
 
@@ -313,7 +334,26 @@ function textBlock(value: unknown, budget: RichTextBudget) {
   return value.type === 'divider' && knownKeys(props, dividerKeys) && ['auto', 'line', 'dots', 'ornament'].includes(props.variant)
 }
 
-function independentlyRestorable(doc: Project) {
+const imageBlockKeys = new Set(['image', 'caption', 'variant'])
+const imageRefKeys = new Set(['src', 'assetId', 'alt', 'width', 'height', 'displayWidth'])
+type RestoreImage = { asset: ArchivedAsset; qualifiedSrc: string; name: string }
+function acceptedImageBlock(block: unknown, images: Map<string, RestoreImage>): block is Block<'image'> {
+  if (!isObject(block) || !knownKeys(block, blockKeys) || block.type !== 'image' ||
+      typeof block.id !== 'string' || !idPattern.test(block.id) || !isObject(block.props)) return false
+  const { image, caption, variant } = block.props
+  if (!knownKeys(block.props, imageBlockKeys) || !boundedText(caption, 2000) ||
+      typeof variant !== 'string' || !['full', 'framed', 'rounded'].includes(variant) ||
+      !isObject(image) || !knownKeys(image, imageRefKeys) || typeof image.assetId !== 'string') return false
+  const record = images.get(image.assetId)
+  return !!record && (image.src === record.name || image.src === record.qualifiedSrc) &&
+    (image.alt === undefined || boundedText(image.alt, 2000)) &&
+    (image.width === undefined || image.width === record.asset.asset.width) &&
+    (image.height === undefined || image.height === record.asset.asset.height) &&
+    (image.displayWidth === undefined ||
+      (typeof image.displayWidth === 'number' && image.displayWidth >= 10 && image.displayWidth <= 100))
+}
+
+function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>) {
   // Accept only a finite, shallow schema. Extra or nested application data
   // is explicitly deferred instead of being silently pruned or restored.
   if (!knownKeys(doc, projectKeys) || !boundedText(doc.title, 2000) ||
@@ -326,12 +366,11 @@ function independentlyRestorable(doc: Project) {
     if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) return false
   }
   const budget = { nodes: 0, characters: 0 }
-  return doc.blocks.every(block => textBlock(block, budget)) &&
-    new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length &&
-    !missingManagedMedia(doc, emptyMedia)
+  return doc.blocks.every(block => textBlock(block, budget) || acceptedImageBlock(block, images)) &&
+    new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length
 }
 
-function canonicalTextProject(doc: Project, fallbackTime: number): Doc {
+function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<string, RestoreImage>): Doc {
   // The read-only qualification above establishes that each present field is
   // an allowed primitive or a fully checked text block. Keep meaningful
   // legacy values while making the persisted record safe for every reader.
@@ -346,37 +385,177 @@ function canonicalTextProject(doc: Project, fallbackTime: number): Doc {
     // Validation excluded every unsupported field before normalization.
     // Persist the editor's canonical property order so opening does not
     // perform a phantom repair/write of unchanged restored content.
-    blocks: normalizeBlocks(doc.blocks),
+    blocks: normalizeBlocks(doc.blocks.map((block: Block) => {
+      if (block.type !== 'image' || !block.props.image) return block
+      const ref = block.props.image
+      const record = images.get(ref.assetId ?? '')
+      if (!record) return block
+      const image: ImageRef = { ...ref, src: record.qualifiedSrc }
+      return { ...block, props: { ...block.props, image } }
+    })),
     createdAt,
     updatedAt,
   }
 }
 
-/** Exposable subset: reject dependencies until their end-to-end restore is ready. */
-export async function stageLegacyTextProjects(path: string, store: ProjectStore) {
-  const { projects, otherLibraryEntries } = await readLegacyArchive(path, routeBudget, false, true)
-  const supported: Doc[] = [], unsupported: string[] = []
+const noHistoryMedia = new Map<string, RestoreImage>()
+const historyKeys = new Set(['id', 'projectId', 'label', 'createdAt', 'doc'])
+function acceptedSnapshot(candidate: HistoryCandidate, parents: Map<string, Doc>, fallbackTime: number): VersionSnapshot | null {
+  const { id, projectId, raw } = candidate
+  if (!isObject(raw) || !knownKeys(raw, historyKeys) || raw.id !== id || raw.projectId !== projectId ||
+      !parents.has(projectId) || !boundedText(raw.label, 2000) ||
+      typeof raw.createdAt !== 'number' || !Number.isSafeInteger(raw.createdAt) || raw.createdAt < 0 ||
+      !isObject(raw.doc) || raw.doc.id !== projectId) return null
+  const doc = { ...raw.doc, id: projectId }
+  if (!independentlyRestorable(doc, noHistoryMedia) ||
+      missingManagedMedia(doc, { files: new Set(), ids: new Set() })) return null
+  return { id, projectId, label: raw.label, createdAt: raw.createdAt, doc: canonicalTextProject(doc, fallbackTime, noHistoryMedia) }
+}
+
+const archiveSort = (a: string, b: string) => a.localeCompare(b, 'en')
+const versionKey = (version: VersionSnapshot) => version.projectId + '/' + version.id
+
+type ManagedProject = { doc: Doc; dependencies: Set<string> }
+const initAssetPlan = () => ({ add: [] as string[], skip: [] as string[], alreadyPresent: [] as string[] })
+const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string[], failed: [] as string[], alreadyPresent: [] as string[] })
+
+/** Exposable subset. Opt-in images require both exact index metadata and
+ * matching bytes; text-only preview/apply remains available independently. */
+export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore) {
+  const { projects, assets, history, otherLibraryEntries } = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore)
+  const images = new Map(assets.map(asset => {
+    const name = '/media/' + asset.asset.file
+    const generation = createHash('sha256').update(asset.bytes).digest('hex')
+    const qualifiedSrc = name + '?gen=' + generation
+    return [asset.asset.id, { asset: { ...asset, asset: { ...asset.asset, generation } }, qualifiedSrc, name }]
+  }))
+  const supported: ManagedProject[] = [], unsupported: string[] = []
+  const selected = new Set<string>(), textParents = new Map<string, Doc>()
   const fallbackTime = Date.now()
-  for (const doc of projects) {
-    if (independentlyRestorable(doc)) supported.push(canonicalTextProject(doc, fallbackTime))
-    else unsupported.push(doc.id)
+  for (const source of projects) {
+    if (!independentlyRestorable(source, images)) { unsupported.push(source.id); continue }
+    const doc = canonicalTextProject(source, fallbackTime, images)
+    const dependencies = new Set(doc.blocks.flatMap(block =>
+      block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
+    const known = { ids: dependencies, files: new Set([...dependencies].map(id => images.get(id)!.asset.asset.file)) }
+    if (missingManagedMedia(source, known)) { unsupported.push(source.id); continue }
+    supported.push({ doc, dependencies })
+    // Image-parent versions are outside the validated text-only history scope.
+    if (!dependencies.size) textParents.set(doc.id, doc)
+    for (const id of dependencies) selected.add(id)
   }
+  if (assetStore) {
+    if (!selected.size && assets.length) otherLibraryEntries.push(ASSET_INDEX)
+    for (const { asset } of assets) if (!selected.has(asset.id)) otherLibraryEntries.push('assets/' + asset.file)
+  }
+  const versions: VersionSnapshot[] = []
+  for (const entry of history) {
+    const snapshot = acceptedSnapshot(entry, textParents, fallbackTime)
+    if (snapshot) versions.push(snapshot)
+    else otherLibraryEntries.push(entry.path)
+  }
+  // Use retention-compatible newest-first ordering. Report excess valid
+  // versions as skipped instead of purging other content or hiding results.
+  versions.sort((a, b) => archiveSort(a.projectId, b.projectId) || b.createdAt - a.createdAt || archiveSort(a.id, b.id))
+  otherLibraryEntries.sort(archiveSort)
+
   return {
     async preview() {
       const add: string[] = [], skip: string[] = []
-      for (const { id } of supported) (await store.occupied(id) ? skip : add).push(id)
-      return { projects: { add, skip, unsupported: [...unsupported] }, unsupported: [...otherLibraryEntries] }
+      const plan = initAssetPlan()
+      const status = new Map<string, 'available' | 'alreadyPresent' | 'conflict'>()
+      const needed = new Set<string>(), conflicts = new Set<string>()
+      for (const { doc, dependencies } of supported) {
+        if (await store.occupied(doc.id)) { skip.push(doc.id); continue }
+        for (const id of dependencies) {
+          if (!status.has(id) && assetStore) status.set(id, await assetStore.status(images.get(id)!.asset))
+        }
+        const conflicted = [...dependencies].filter(id => status.get(id) === 'conflict')
+        if (conflicted.length) {
+          skip.push(doc.id)
+          for (const id of conflicted) conflicts.add(id)
+          continue
+        }
+        add.push(doc.id)
+        for (const id of dependencies) needed.add(id)
+      }
+      plan.skip = [...conflicts]
+      for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
+      const eligible = new Set(add)
+      const planned = { add: [] as string[], skip: [] as string[] }
+      const perProject = new Map<string, number>()
+      for (const version of versions) {
+        const count = perProject.get(version.projectId) ?? 0
+        const bucket = eligible.has(version.projectId) && count < VERSION_RETENTION_LIMIT ? planned.add : planned.skip
+        bucket.push(versionKey(version))
+        perProject.set(version.projectId, count + 1)
+      }
+      return { versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []
-      for (const doc of supported) {
-        try {
-          (await store.restore(doc) ? restored : skipped).push(doc.id)
-        } catch {
-          failed.push(doc.id)
+      const result = initAssetResult(), fresh = new Map<string, string>()
+      const run = async (restoreAsset?: AssetLockCallbacks[0], checkAsset?: AssetLockCallbacks[1]) => {
+        const applied = new Map<string, 'restored' | 'alreadyPresent' | 'conflict' | 'failed'>()
+        const hasStatus = (dependencies: Set<string>, status: 'conflict' | 'failed') =>
+          [...dependencies].some(id => applied.get(id) === status)
+        async function publishDependencies(dependencies: Set<string>) {
+          if (!checkAsset || !restoreAsset) return false
+          for (const id of dependencies) {
+            if (!applied.has(id) && await checkAsset(images.get(id)!.asset) === 'conflict') {
+              applied.set(id, 'conflict')
+              result.skipped.push(id)
+            }
+          }
+          if (hasStatus(dependencies, 'conflict') || hasStatus(dependencies, 'failed')) return false
+          for (const id of dependencies) {
+            if (applied.has(id)) continue
+            try {
+              const outcome = await restoreAsset(images.get(id)!.asset)
+              applied.set(id, outcome)
+              result[outcome === 'conflict' ? 'skipped' : outcome].push(id)
+              if (outcome === 'conflict') return false
+            } catch {
+              applied.set(id, 'failed')
+              result.failed.push(id)
+              return false
+            }
+          }
+          return true
+        }
+        for (const { doc, dependencies } of supported) {
+          try {
+            // Asset queue → project queue. The callback never re-enters
+            // either queue; ordinary project writers cannot win mid-restore.
+            const added = await store.restore(doc, dependencies.size ? () => publishDependencies(dependencies) : undefined)
+            if (added) {
+              restored.push(doc.id)
+              if (textParents.has(doc.id)) fresh.set(doc.id, added.revision)
+            } else if (hasStatus(dependencies, 'failed')) failed.push(doc.id)
+            else skipped.push(doc.id)
+          } catch {
+            failed.push(doc.id)
+          }
         }
       }
-      return { projects: { restored, skipped, failed, unsupported: [...unsupported] }, unsupported: [...otherLibraryEntries] }
+      if (assetStore) await assetStore.withApplyLock(run)
+      else await run()
+      const historyResult = { restored: [] as string[], skipped: [] as string[], failed: [] as string[] }
+      const fullParents = new Set<string>()
+      for (const version of versions) {
+        const key = versionKey(version)
+        const parentRevision = fresh.get(version.projectId)
+        const sourceParent = textParents.get(version.projectId)
+        if (!historyStore || !parentRevision || !sourceParent || fullParents.has(version.projectId)) { historyResult.skipped.push(key); continue }
+        try {
+          const status = await historyStore.restore({ sourceParent, parentRevision, version })
+          historyResult[status === 'restored' ? 'restored' : 'skipped'].push(key)
+          if (status === 'retention-limit' || status === 'parent-unavailable') fullParents.add(version.projectId)
+        } catch {
+          historyResult.failed.push(key)
+        }
+      }
+      return { versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
     },
   }
 }

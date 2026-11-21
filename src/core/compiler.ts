@@ -1,6 +1,7 @@
 import { normalizeReplay } from './replay/schema'
 import { renderReplay, type ReplayOutput } from './replay/render'
 import { applyImageWidths } from './imageResize'
+import { variantUrl } from './managedMediaUrl'
 // 微信 HTML 编译器：文档 JSON → 全内联样式 HTML。
 // 画布、手机预览、复制、草稿箱都使用同一份输出，保证所见即所得。
 import { boxParts, boxTheme, KIT_RENDERERS, KIT_TYPES, kitEmptySlots, type KitCtx } from './kit'
@@ -24,14 +25,7 @@ export interface CompileOptions {
   inBox?: boolean
 }
 
-/** 给本地素材附加裁切参数（服务器用 sharp 生成对应尺寸） */
-export function variantUrl(src: string, fit?: string, w = 1080): string {
-  if (!src.startsWith('/media/')) return src
-  const q = new URLSearchParams()
-  if (fit) q.set('fit', fit)
-  q.set('w', String(w))
-  return `${src.split('?')[0]}?${q}`
-}
+export { variantUrl } from './managedMediaUrl'
 
 class Ctx implements KitCtx {
   t: Theme

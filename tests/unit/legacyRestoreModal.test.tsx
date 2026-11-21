@@ -110,3 +110,22 @@ it('accepts browser files above the old 32 MiB threshold but rejects files beyon
   expect(document.querySelector('[role="alert"]')?.textContent).toContain('512 MiB')
   expect(requests).toHaveBeenCalledTimes(1)
 }))
+
+it('shows planned and confirmed history separately from unsupported files', () => modal(async requests => {
+  const key = 'example/100-fixture'
+  requests.mockResolvedValueOnce(json({ ...previewBody, plan: {
+    ...previewBody.plan, versions: { add: [key], skip: ['other/200-fixture'] },
+  } })).mockResolvedValueOnce(json({
+    projects: { restored: ['example'], skipped: [], failed: [], unsupported: [] },
+    versions: { restored: [key], skipped: [], failed: [] },
+    unsupported: [],
+  }))
+  pick('history.zip')
+  await act(async () => button('预览恢复')!.click())
+  expect(document.body.textContent).toContain('可添加的历史版本（1）')
+  expect(document.body.textContent).toContain('将跳过的历史版本（1）')
+  await act(async () => button('确认添加项目')!.click())
+  expect(document.body.textContent).toContain('新增历史版本（1）')
+  expect(document.body.textContent).toContain(key)
+  expect(document.body.textContent).not.toContain('将跳过的历史版本')
+}))

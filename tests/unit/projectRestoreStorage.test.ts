@@ -95,3 +95,32 @@ it('fails closed and removes staging if the filesystem cannot publish without re
   await expect(projects.get(archive.id)).resolves.toBeNull()
   await expect(readdir(dir)).resolves.toEqual([])
 })
+
+it('holds the fresh parent queue while publishing its dependent assets', async () => {
+  const { projects } = await setup()
+  const dependencies = checkpoint()
+  const prepare = vi.fn(async () => {
+    dependencies.entered.resolve()
+    await dependencies.release.promise
+    return true
+  })
+  const restoring = projects.restore(archive, prepare)
+  const first = await Promise.race([
+    dependencies.entered.promise.then(() => 'dependencies'),
+    restoring.then(() => 'project'),
+  ])
+  try {
+    expect(first).toBe('dependencies')
+    const competingSave = expect(projects.put({ id: archive.id, title: 'Concurrent local draft' })).rejects.toMatchObject({ status: 409 })
+    dependencies.release.resolve()
+    const restored = await restoring
+    expect(restored).toMatchObject({ id: archive.id, title: archive.title })
+    await competingSave
+    await expect(projects.get(archive.id)).resolves.toEqual(restored)
+    await expect(projects.restore(archive, prepare)).resolves.toBeNull()
+    expect(prepare).toHaveBeenCalledTimes(1)
+  } finally {
+    dependencies.release.resolve()
+    await restoring
+  }
+})

@@ -9,6 +9,7 @@ import { extname, join } from 'node:path'
 import { nanoid } from 'nanoid'
 import sharp from 'sharp'
 import { DIRS, readJson, safeId, writeJson } from './store'
+import { validMediaGeneration } from '../src/core/managedMediaUrl'
 
 export interface Asset {
   id: string
@@ -18,6 +19,7 @@ export interface Asset {
   height: number
   size: number
   sourceUrl?: string
+  generation?: string
   createdAt: number
 }
 
@@ -146,8 +148,11 @@ export const assetRestoreStore = {
   },
   // Keep normal uploads and deletion out while projects that depend on the
   // accepted asset snapshot are published. Work here must not reenter the queue.
-  withApplyLock<T>(apply: (restore: typeof applyArchivedAsset) => Promise<T>): Promise<T> {
-    return serializeIndex(() => apply(applyArchivedAsset))
+  withApplyLock<T>(apply: (restore: typeof applyArchivedAsset, check: (asset: ArchivedAsset) => Promise<AssetStatus>) => Promise<T>): Promise<T> {
+    return serializeIndex(() => apply(applyArchivedAsset, async asset => {
+      checkedAsset(asset.asset)
+      return archivedAssetStatus(await strictIndex(), asset)
+    }))
   },
 }
 
@@ -223,11 +228,42 @@ function sourceGeneration(file: string, snapshot: BigIntStats): string {
   return createHash('sha256').update([file, dev, ino, size, birthtimeNs, mtimeNs, ctimeNs].join(':')).digest('hex')
 }
 
+async function pinMediaGeneration(path: string, file: string, snapshotKey: string, expected: string) {
+  if (!validMediaGeneration(expected)) throw Object.assign(new Error('素材版本无效'), { status: 400 })
+  const output = join(DIRS.cache, `source-${snapshotKey}-${expected}${extname(file)}`)
+  if (existsSync(output)) return output
+  return withImageBudget(async () => {
+    if (existsSync(output)) return output
+    const fd = await open(path, 'r')
+    let bytes: Buffer
+    const renamed = () => Object.assign(new Error('素材版本不可用'), { status: 404 })
+    try {
+      if (sourceGeneration(file, await fd.stat({ bigint: true })) !== snapshotKey) throw renamed()
+      bytes = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)
+      if (sourceGeneration(file, await fd.stat({ bigint: true })) !== snapshotKey ||
+          createHash('sha256').update(bytes).digest('hex') !== expected) throw renamed()
+    } finally {
+      await fd.close()
+    }
+    // The HTTP sender must open the verified snapshot, never the reusable
+    // source filename. Publish only complete copies; concurrent readers share.
+    const temporary = join(DIRS.cache, `.${nanoid()}.media-snapshot.tmp`)
+    try {
+      await writeFile(temporary, bytes, { flag: 'wx' })
+      try { await link(temporary, output) }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }
+    } finally {
+      await rm(temporary, { force: true }).catch(() => {})
+    }
+    return output
+  })
+}
+
 /**
  * 返回素材的变体文件路径：w = 目标宽度，fit = 宽高比（居中裁切，利用 attention 策略保留主体）
  * 结果缓存到 data/cache。
  */
-export async function variantPath(file: string, fit?: string, w?: number): Promise<string> {
+export async function variantPath(file: string, fit?: string, w?: number, expectedGeneration?: string): Promise<string> {
   if (!/^[\w-]+\.(jpg|png)$/.test(file)) throw Object.assign(new Error('非法文件名'), { status: 400 })
   const src = join(DIRS.assets, file)
   if (!existsSync(src)) throw Object.assign(new Error('素材不存在'), { status: 404 })
@@ -238,20 +274,22 @@ export async function variantPath(file: string, fit?: string, w?: number): Promi
     if (!Number.isSafeInteger(height) || height < 1) throw Object.assign(new Error('Image aspect ratio must produce a positive integer height.'), { status: 400 })
     if (width * height > MAX_VARIANT_PIXELS) throw Object.assign(new Error('Image variant exceeds the 64-megapixel output limit. Reduce its width or choose a less extreme aspect ratio.'), { status: 413 })
   }
-  if (!m && width >= 2400) return src
-  const suffix = `${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
-  const codec = (generation: string) => `${generation}_${suffix}`
+  if (!m && width >= 2400 && expectedGeneration === undefined) return src
   const generation = sourceGeneration(file, await stat(src, { bigint: true }))
+  const sourcePath = expectedGeneration === undefined ? src : await pinMediaGeneration(src, file, generation, expectedGeneration)
+  if (!m && width >= 2400) return sourcePath
+  const suffix = `${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
+  const codec = (generation: string) => `${generation}_${expectedGeneration ? expectedGeneration + '_' : ''}${suffix}`
   const warm = join(DIRS.cache, codec(generation))
   // Warm cache reads need no source-byte reads, allocation, or Sharp slot.
   if (existsSync(warm)) return warm
   return withImageBudget(async () => {
-    const fd = await open(src, 'r')
+    const fd = await open(sourcePath, 'r')
     let source: Buffer
     let key: string
     try {
       const current = sourceGeneration(file, await fd.stat({ bigint: true }))
-      key = codec(current)
+      key = codec(expectedGeneration === undefined ? current : generation)
       const queuedHit = join(DIRS.cache, key)
       if (existsSync(queuedHit)) return queuedHit
       source = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)

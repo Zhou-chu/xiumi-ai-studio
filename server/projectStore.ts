@@ -14,6 +14,14 @@ function serialize<T>(key: string, action: () => Promise<T>): Promise<T> {
   void settled.then(() => { if (pending.get(key) === settled) pending.delete(key) })
   return result
 }
+async function pathOccupied(path: string) {
+  // Detect corrupt files and links, not just readable JSON.
+  try { await lstat(path); return true }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
 function versioned<T extends Project>(doc: T): T & { revision: string } {
   // Stable read-only migration: old files need not be rewritten on GET.
   return { ...doc, revision: doc.revision ?? `legacy-${createHash('sha256').update(JSON.stringify(doc)).digest('hex')}` }
@@ -43,20 +51,25 @@ export function projectCollection<T extends Project = Project>(dir: string) {
         return doc
       })
     },
-    async occupied(id: string) {
-      // Preview must detect corrupt files and links, not just readable JSON.
-      try {
-        await lstat(target(id))
-        return true
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
-        throw error
-      }
+    serializeDependent<R>(id: string, action: () => Promise<R>) {
+      return serialize(key(target(id)), action)
     },
-    async restore(item: T) {
+    /** Lock an exact live parent for dependent data writes. The callback must not re-enter this project collection. */
+    withRevision<R>(id: string, revision: string, action: (current: T) => Promise<R>) {
+      return serialize(key(target(id)), async () => {
+        const current = await base.get(id)
+        if (!current || current.id !== id || versioned(current).revision !== revision) return null
+        return action(current)
+      })
+    },
+    occupied: (id: string) => pathOccupied(target(id)),
+    // An optional dependency publisher runs only for a fresh parent,
+    // inside the same queue as ordinary PUT/remove. It must not re-enter it.
+    async restore(item: T, prepareFresh?: () => Promise<boolean>) {
       const snapshot = structuredClone(item)
       const file = target(snapshot.id)
       return serialize(key(file), async () => {
+        if (prepareFresh && (await pathOccupied(file) || !(await prepareFresh()))) return null
         const doc = { ...snapshot, revision: randomUUID() }
         const staging = await mkdtemp(join(root, '.restore-'))
         try {

@@ -1,3 +1,4 @@
+import { variantUrl } from '../core/managedMediaUrl'
 import { ReplayPanel } from './ReplayPanel'
 import './accessibility-controls.css'
 import { Help } from './Help'
@@ -206,7 +207,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
             {imgs.map((src, i) => (
               <div key={i} className={`g-item ${picking === i ? 'picking' : ''}`}>
                 <button type="button" data-editor-image-choice className="image-choice" aria-label={`替换第 ${i + 1} 张图片`} aria-pressed={picking === i} onClick={() => setPicking(picking === i ? -1 : i)}>
-                <img src={src.startsWith('/media/') ? `${src.split('?')[0]}?fit=1:1&w=160` : src} alt="" />
+                <img src={src.startsWith('/media/') ? variantUrl(src, '1:1', 160) : src} alt="" />
                 </button>
                 <div>
                   <button
@@ -245,7 +246,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
           <div className="gallery-edit">
             {bgPhotos.map((b, i) => (
               <button data-editor-background-choice type="button" aria-label={`替换第 ${i + 1} 张背景图`} aria-pressed={bgPicking === b.src} key={b.src} className={`g-item ${bgPicking === b.src ? 'picking' : ''}`} onClick={() => setBgPicking(bgPicking === b.src ? '' : b.src)} data-testid={`bg-photo-${i}`}>
-                <img src={b.src.startsWith('/media/') ? `${b.src.split('?')[0]}?fit=1:1&w=160` : displayUrl(b.src)} alt="" />
+                <img src={b.src.startsWith('/media/') ? variantUrl(b.src, '1:1', 160) : displayUrl(b.src)} alt="" />
                 {b.count > 1 && <small className="g-count">×{b.count}</small>}
               </button>
             ))}
@@ -314,7 +315,7 @@ function PicsField({ pics, onChange, removable }: { pics: PicItem[]; onChange: (
       <div className="pics-edit">
         {pics.map((x, i) => (
           <div key={i} className="pic-row" data-testid="pic-row">
-            {x.image ? <img src={x.image.src.startsWith('/media/') ? `${x.image.src.split('?')[0]}?fit=1:1&w=120` : x.image.src} alt="" /> : <span className="pic-empty">图片 {i + 1}</span>}
+            {x.image ? <img src={x.image.src.startsWith('/media/') ? variantUrl(x.image.src, '1:1', 120) : x.image.src} alt="" /> : <span className="pic-empty">图片 {i + 1}</span>}
             <input value={x.caption} placeholder="图注（可留空）" onChange={(e) => set(i, { caption: e.target.value }, `pic${i}`)} />
             <div className="pic-actions">
               <button title="前移" disabled={i === 0} onClick={() => move(i)}>←</button>

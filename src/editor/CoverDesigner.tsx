@@ -1,3 +1,4 @@
+import { variantUrl } from '../core/managedMediaUrl'
 import { Help } from './Help'
 // 封面设计：在 canvas 上合成 900×383（2.35:1）公众号封面，导出 PNG 存入素材库。
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -70,7 +71,7 @@ export function CoverDesigner({ onClose }: { onClose: () => void }) {
       ctx.fillRect(0, 0, W, H)
       if (bg) {
         try {
-          const img = await loadImg(`${bg.split('?')[0]}?w=1200`)
+          const img = await loadImg(variantUrl(bg, undefined, 1200))
           if (cancelled) return
           const s = Math.max(W / img.width, H / img.height)
           ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s)

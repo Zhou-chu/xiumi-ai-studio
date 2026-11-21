@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import type { Express, Request, RequestHandler } from 'express'
 import multer from 'multer'
 import { stageLegacyTextProjects } from './legacyProjectRestore'
+import { assetRestoreStore } from './assets'
 import { localArchiveOrigin } from './localArchiveOrigin'
 import { createUploadGate } from './uploadGate'
 import { archiveUploadStorage } from './archiveUploadStorage'
@@ -32,6 +33,7 @@ export function registerLegacyRestoreRoutes(
   app: Express,
   projects: Store,
   tempRoot = tmpdir(),
+  history?: Parameters<typeof stageLegacyTextProjects>[2],
 ) {
   let pending: Pending | undefined
   let applying = false
@@ -61,7 +63,7 @@ export function registerLegacyRestoreRoutes(
     }
     let stage: Stage
     try {
-      stage = await stageLegacyTextProjects(archive.path, projects)
+      stage = await stageLegacyTextProjects(archive.path, projects, history, req.query.indexedImages === '1' ? assetRestoreStore : undefined)
     } finally {
       await archive.dispose()
     }

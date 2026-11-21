@@ -1,3 +1,4 @@
+import { variantUrl } from '../core/managedMediaUrl'
 import { UiIcon } from './UiIcon'
 import { Help } from './Help'
 import { useDraggable } from '@dnd-kit/core'
@@ -5,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { BLOCK_TYPES, blockMeta, cloneBlock, createBlock } from '../core/blocks'
 import { addPicTo } from '../core/photos'
 import type { BlockType } from '../core/types'
-import { api, assetRef, type Asset, type ProjectSummary, type Template } from './api'
+import { api, assetMediaSrc, assetRef, type Asset, type ProjectSummary, type Template } from './api'
 import { TemplateModules } from './TemplateModules'
 import { ComponentLibrary } from './ComponentLibrary'
 import { CropModal } from './CropModal'
@@ -74,7 +75,7 @@ function AssetThumb({ a, onCrop, onDelete }: { a: Asset; onCrop: () => void; onD
   const { attributes, listeners, setNodeRef } = useDraggable({ id: `asset:${a.id}`, data: { asset: a } })
   return (
     <div className="asset" ref={setNodeRef} {...listeners} {...attributes}>
-      <img src={`/media/${a.file}?fit=1:1&w=240`} alt={a.name} onClick={() => toDoc(a)} title={`${a.name} ${a.width}×${a.height}\n点击：插入或替换选中模块的图片`} />
+      <img src={a.generation ? variantUrl(assetMediaSrc(a), '1:1', 240) : `/media/${a.file}?fit=1:1&w=240`} alt={a.name} onClick={() => toDoc(a)} title={`${a.name} ${a.width}×${a.height}\n点击：插入或替换选中模块的图片`} />
       <div className="asset-actions">
         <button onClick={onCrop} title="裁剪">裁剪</button>
         <button onClick={onDelete} title="删除" className="danger">删除</button>

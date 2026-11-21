@@ -2,6 +2,7 @@ import type { ArticleImageResult } from '../../server/articleImages'
 import type { ComponentDraft, LibraryComponent } from '../core/components'
 import type { RoleId } from '../core/roles'
 import type { Block, Doc, ImageRef, Theme } from '../core/types'
+import { validMediaGeneration } from '../core/managedMediaUrl'
 
 export interface Asset {
   id: string
@@ -10,6 +11,7 @@ export interface Asset {
   width: number
   height: number
   size: number
+  generation?: string
   createdAt: number
 }
 export interface ProjectSummary {
@@ -102,7 +104,9 @@ async function req<T>(method: string, url: string, body?: unknown, signal?: Abor
   return await res.json() as T
 }
 
-export const assetRef = (a: Asset): ImageRef => ({ src: `/media/${a.file}`, assetId: a.id, alt: a.name, width: a.width, height: a.height })
+export const assetMediaSrc = (a: Asset) =>
+  `/media/${a.file}${typeof a.generation === 'string' && validMediaGeneration(a.generation) ? '?gen=' + a.generation : ''}`
+export const assetRef = (a: Asset): ImageRef => ({ src: assetMediaSrc(a), assetId: a.id, alt: a.name, width: a.width, height: a.height })
 
 // Match the server's resource-ID grammar before interpolating into a route.
 // Encoding alone is insufficient: URL parsers normalize dot path segments.
@@ -113,10 +117,14 @@ function resourceId(value: string): string {
 
 export interface LegacyRestorePlan {
   projects: { add: string[]; skip: string[]; unsupported: string[] }
+  versions?: { add: string[]; skip: string[] }
+  assets?: { add: string[]; skip: string[]; alreadyPresent: string[] }
   unsupported: string[]
 }
 export interface LegacyRestoreResult {
   projects: { restored: string[]; skipped: string[]; failed: string[]; unsupported: string[] }
+  versions?: { restored: string[]; skipped: string[]; failed: string[] }
+  assets?: { restored: string[]; skipped: string[]; failed: string[]; alreadyPresent: string[] }
   unsupported: string[]
 }
 const restoreEndpoint = '/api/data/restore'
@@ -125,19 +133,33 @@ const jsonObject = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null
 const stringList = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string')
 function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
-  const body = jsonObject(v), plan = jsonObject(body?.plan), projects = jsonObject(plan?.projects)
+  const body = jsonObject(v), plan = jsonObject(body?.plan), projects = jsonObject(plan?.projects), versions = jsonObject(plan?.versions)
   if (typeof body?.token !== 'string' || !restoreToken.test(body.token) ||
       !projects || !stringList(projects.add) || !stringList(projects.skip) ||
       !stringList(projects.unsupported) || !stringList(plan?.unsupported)) throw new Error('无法读取恢复预览')
-  return { token: body.token, plan: { projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
+  const history = versions && stringList(versions.add) && stringList(versions.skip)
+    ? { add: versions.add, skip: versions.skip } : undefined
+  if (plan.versions !== undefined && !history) throw new Error('无法读取恢复预览')
+  const raw = jsonObject(plan.assets)
+  const assets = raw && stringList(raw.add) && stringList(raw.skip) && stringList(raw.alreadyPresent)
+    ? { add: raw.add, skip: raw.skip, alreadyPresent: raw.alreadyPresent } : null
+  if (plan.assets !== undefined && !assets) throw new Error('无法读取素材恢复预览')
+  return { token: body.token, plan: { ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
 }
 function decodeResult(v: unknown): LegacyRestoreResult {
-  const body = jsonObject(v), projects = jsonObject(body?.projects)
+  const body = jsonObject(v), projects = jsonObject(body?.projects), versions = jsonObject(body?.versions)
   if (!projects || !stringList(projects.restored) || !stringList(projects.skipped) ||
       !stringList(projects.failed) || !stringList(projects.unsupported) || !stringList(body?.unsupported)) {
     throw new Error('无法读取恢复结果')
   }
-  return { projects: { restored: projects.restored, skipped: projects.skipped, failed: projects.failed, unsupported: projects.unsupported }, unsupported: body.unsupported }
+  const history = versions && stringList(versions.restored) && stringList(versions.skipped) && stringList(versions.failed)
+    ? { restored: versions.restored, skipped: versions.skipped, failed: versions.failed } : undefined
+  if (body.versions !== undefined && !history) throw new Error('无法读取恢复结果')
+  const raw = jsonObject(body.assets)
+  const assets = raw && stringList(raw.restored) && stringList(raw.skipped) && stringList(raw.failed) && stringList(raw.alreadyPresent)
+    ? { restored: raw.restored, skipped: raw.skipped, failed: raw.failed, alreadyPresent: raw.alreadyPresent } : null
+  if (body.assets !== undefined && !assets) throw new Error('无法读取素材恢复结果')
+  return { ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { restored: projects.restored, skipped: projects.skipped, failed: projects.failed, unsupported: projects.unsupported }, unsupported: body.unsupported }
 }
 
 export const api = {
@@ -156,10 +178,10 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
-  async previewLegacyRestore(file: File, signal?: AbortSignal) {
+  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false) {
     const payload = new FormData()
     payload.append('file', file)
-    return decodePlan(await req<unknown>('POST', restoreEndpoint, payload, signal))
+    return decodePlan(await req<unknown>('POST', indexedImages ? restoreEndpoint + '?indexedImages=1' : restoreEndpoint, payload, signal))
   },
   async applyLegacyRestore(token: string, signal?: AbortSignal) {
     if (!restoreToken.test(token)) throw new Error('恢复会话无效')
