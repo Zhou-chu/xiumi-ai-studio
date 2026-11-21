@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type LegacyRestorePlan, type LegacyRestoreResult } from './api'
+import { loadCustomThemes } from './store'
 
 import { MAX_RESTORE_ARCHIVE_MIB, MAX_RESTORE_ARCHIVE_UPLOAD } from '../core/backupLimits'
 type Preview = { token: string; plan: LegacyRestorePlan }
@@ -10,11 +11,42 @@ function RestoreList({ label, entries }: { label: string; entries: string[] }) {
     <ul>{entries.map((entry, index) => <li key={index}>{entry}</li>)}</ul>
   </details>
 }
+type ItemGroup = { themes: string[]; templates: string[] }
+function designGroup(value: LegacyRestorePlan['design'] | LegacyRestoreResult['design'], key: 'conflicts' | 'alreadyPresent'): ItemGroup {
+  return { themes: value?.themes[key] ?? [], templates: value?.templates[key] ?? [] }
+}
+function StyleLists({ label, group }: { label: string; group: ItemGroup }) {
+  return <>
+    <RestoreList label={label + '模板'} entries={group.templates} />
+    <RestoreList label={label + '主题'} entries={group.themes} />
+  </>
+}
+function DesignPreview({ design }: { design: NonNullable<LegacyRestorePlan['design']> }) {
+  return <>
+    <StyleLists label="可添加的" group={{ themes: design.themes.add, templates: design.templates.add }} />
+    <StyleLists label="已有相同" group={designGroup(design, 'alreadyPresent')} />
+    <StyleLists label="冲突，未覆盖的" group={designGroup(design, 'conflicts')} />
+    <RestoreList label="缺少匹配主题的模板" entries={design.templates.unresolved} />
+  </>
+}
+function DesignResult({ design }: { design: NonNullable<LegacyRestoreResult['design']> }) {
+  return <>
+    <StyleLists label="新增" group={{ themes: design.themes.restored, templates: design.templates.restored }} />
+    <StyleLists label="已有相同" group={designGroup(design, 'alreadyPresent')} />
+    <StyleLists label="冲突，未覆盖的" group={designGroup(design, 'conflicts')} />
+    <StyleLists label="写入失败的" group={{ themes: design.themes.failed, templates: design.templates.failed }} />
+    <RestoreList label="缺少匹配主题的模板" entries={design.templates.unresolved} />
+  </>
+}
+function hasAdditions(plan: LegacyRestorePlan | undefined): boolean {
+  return !!(plan?.projects.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length)
+}
 const message = (failure: unknown) => failure instanceof Error ? failure.message : '请求未完成，请重试。'
 
 export function LegacyRestorePanel() {
   const [file, setFile] = useState<File | null>(null)
   const [indexedImages, setIndexedImages] = useState(false)
+  const [includeDesign, setIncludeDesign] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [result, setResult] = useState<LegacyRestoreResult | null>(null)
   const [busy, setBusy] = useState<'preview' | 'apply' | null>(null)
@@ -23,7 +55,7 @@ export function LegacyRestorePanel() {
   useEffect(() => () => active.current?.abort(), [])
 
   const run = async (stage: 'preview' | 'apply') => {
-    if (active.current || !file || (stage === 'apply' && !preview?.plan.projects.add.length)) return
+    if (active.current || !file || (stage === 'apply' && !hasAdditions(preview?.plan))) return
     const controller = new AbortController()
     active.current = controller
     setBusy(stage)
@@ -32,13 +64,15 @@ export function LegacyRestorePanel() {
     setPreview(null)
     try {
       if (stage === 'preview') {
-        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages)
+        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign)
         if (!controller.signal.aborted) setPreview(response)
       } else if (preview) {
         const response = await api.applyLegacyRestore(preview.token, controller.signal)
+        if (response.design?.themes.restored.length) await loadCustomThemes()
         if (!controller.signal.aborted) setResult(response)
         if (response.projects.restored.length) window.dispatchEvent(new Event('projects-changed'))
         if (response.assets?.restored.length) window.dispatchEvent(new Event('assets-changed'))
+        if (response.design?.templates.restored.length) window.dispatchEvent(new Event('templates-changed'))
       }
     } catch (failure) {
       if (!controller.signal.aborted) {
@@ -54,8 +88,8 @@ export function LegacyRestorePanel() {
 
   return <section aria-label="从整库 ZIP 恢复部分项目">
     <h4>从整库 ZIP 恢复部分项目</h4>
-    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的纯文字项目可恢复符合条件的文字历史；可另外选择恢复普通图片模块的已索引 PNG/JPEG。图片项目的历史、复杂排版、链接、模板、主题、组件及设置不在此范围内；不支持迁移。</p>
-    <p className="hint">ZIP 必须小于 {MAX_RESTORE_ARCHIVE_MIB} MiB，解压后的项目、图片和历史数据各有限额。</p>
+    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的纯文字项目可恢复符合条件的文字历史；可另外选择恢复普通图片模块的已索引 PNG/JPEG。还可独立选择恢复受支持的简单模板和自定义主题。图片项目的历史、模板内媒体、复杂排版、链接、组件及设置不在此范围内；不支持迁移。</p>
+    <p className="hint">ZIP 必须小于 {MAX_RESTORE_ARCHIVE_MIB} MiB，解压后的项目、图片、历史、模板和主题数据有限额。</p>
     <label className="field">选择整库 ZIP
       <input type="file" accept=".zip,application/zip" disabled={!!busy} onChange={event => {
         if (active.current) return
@@ -81,11 +115,20 @@ export function LegacyRestorePanel() {
       }} />
       同时恢复项目引用的已索引图片
     </label>
+    <label className="row gap">
+      <input type="checkbox" checked={includeDesign} disabled={!!busy} onChange={event => {
+        setIncludeDesign(event.currentTarget.checked)
+        setPreview(null)
+        setResult(null)
+        setError('')
+      }} />
+      同时恢复简单模板和自定义主题
+    </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>
-      {preview && <button type="button" disabled={!preview.plan.projects.add.length || !!busy} onClick={() => void run('apply')}>确认添加项目</button>}
+      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{preview.plan.design ? '确认添加所选数据' : '确认添加项目'}</button>}
     </div>
-    {busy === 'apply' && <p role="status">正在添加项目。关闭窗口不会撤销已经添加的项目。</p>}
+    {busy === 'apply' && <p role="status">正在添加所选数据。关闭窗口不会撤销已经添加的数据。</p>}
     {error && <p role="alert" className="warn">{error}</p>}
     {preview && <div className="report" aria-label="恢复预览">
       <p role="status">预览未写入项目数据。预计新增 {preview.plan.projects.add.length} 个项目；确认时会重新检查。</p>
@@ -97,6 +140,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="可添加的项目图片" entries={preview.plan.assets?.add ?? []} />
       <RestoreList label="已有相同图片" entries={preview.plan.assets?.alreadyPresent ?? []} />
       <RestoreList label="冲突图片，不覆盖" entries={preview.plan.assets?.skip ?? []} />
+      {preview.plan.design && <DesignPreview design={preview.plan.design} />}
       <RestoreList label="不恢复的其他档案" entries={preview.plan.unsupported} />
     </div>}
     {result && <div className="report" aria-label="本次恢复结果">
@@ -112,6 +156,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="已有相同图片" entries={result.assets?.alreadyPresent ?? []} />
       <RestoreList label="已跳过的冲突图片" entries={result.assets?.skipped ?? []} />
       <RestoreList label="图片写入失败" entries={result.assets?.failed ?? []} />
+      {result.design && <DesignResult design={result.design} />}
       <RestoreList label="未恢复的其他档案" entries={result.unsupported} />
     </div>}
   </section>

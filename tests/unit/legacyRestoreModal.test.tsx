@@ -6,6 +6,7 @@ import ProjectBackupModal from '../../src/editor/ProjectBackupModal'
 
 vi.mock('../../src/editor/store', () => ({
   saveNow: vi.fn(),
+  loadCustomThemes: vi.fn().mockResolvedValue(undefined),
   useStore: Object.assign((select: (value: { saveStatus: string }) => unknown) => select({ saveStatus: 'saved' }),
     { getState: () => ({ saveStatus: 'saved' }) }),
 }))
@@ -128,4 +129,35 @@ it('shows planned and confirmed history separately from unsupported files', () =
   expect(document.body.textContent).toContain('新增历史版本（1）')
   expect(document.body.textContent).toContain(key)
   expect(document.body.textContent).not.toContain('将跳过的历史版本')
+}))
+
+it('restores style-only selections, refreshes themes/templates and renders per-category partial results', () => modal(async requests => {
+  const plan = { add: ['fixture'], alreadyPresent: [], conflicts: [] }
+  requests.mockResolvedValueOnce(json({ ...previewBody, plan: {
+    projects: { add: [], skip: [], unsupported: [] }, unsupported: [],
+    design: { themes: plan, templates: { ...plan, unresolved: [] } },
+  }})).mockResolvedValueOnce(json({
+    projects: { restored: [], skipped: [], failed: [], unsupported: [] }, unsupported: [],
+    design: {
+      themes: { restored: ['custom'], alreadyPresent: [], conflicts: [], failed: [] },
+      templates: { restored: ['good'], alreadyPresent: [], conflicts: ['occupied'], failed: [], unresolved: ['bad'] },
+    },
+  }))
+  const refresh = vi.fn()
+  window.addEventListener('templates-changed', refresh)
+  try {
+    pick('design.zip')
+    const options = [...document.querySelectorAll('label')].find(label => label.textContent?.includes('同时恢复简单模板和自定义主题'))
+    act(() => options?.querySelector('input')?.click())
+    await act(async () => button('预览恢复')!.click())
+    expect(requests.mock.calls[0][0]).toBe('/api/data/restore?design=1')
+    expect(document.body.textContent).toContain('可添加的主题（1）')
+    expect(document.body.textContent).toContain('可添加的模板（1）')
+    expect(button('确认添加所选数据')?.disabled).toBe(false)
+    await act(async () => button('确认添加所选数据')!.click())
+    expect(document.body.textContent).toContain('新增主题（1）')
+    expect(document.body.textContent).toContain('冲突，未覆盖的模板（1）')
+    expect(document.body.textContent).toContain('缺少匹配主题的模板（1）')
+    expect(refresh).toHaveBeenCalledOnce()
+  } finally { window.removeEventListener('templates-changed', refresh) }
 }))

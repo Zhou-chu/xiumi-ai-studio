@@ -106,7 +106,7 @@ export function createApp({ restoreTempRoot }: { restoreTempRoot?: string } = {}
     }
   }))
 
-  registerLegacyRestoreRoutes(app, projects, restoreTempRoot, projectHistoryRestore(DIRS.versions, projects))
+  registerLegacyRestoreRoutes(app, projects, restoreTempRoot, projectHistoryRestore(DIRS.versions, projects), { templates, themes })
 
   // ---------- 素材 ----------
   app.get('/media/:file', h(async (req, res) => {

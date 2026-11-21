@@ -34,6 +34,7 @@ export function registerLegacyRestoreRoutes(
   projects: Store,
   tempRoot = tmpdir(),
   history?: Parameters<typeof stageLegacyTextProjects>[2],
+  design?: Parameters<typeof stageLegacyTextProjects>[4],
 ) {
   let pending: Pending | undefined
   let applying = false
@@ -63,7 +64,7 @@ export function registerLegacyRestoreRoutes(
     }
     let stage: Stage
     try {
-      stage = await stageLegacyTextProjects(archive.path, projects, history, req.query.indexedImages === '1' ? assetRestoreStore : undefined)
+      stage = await stageLegacyTextProjects(archive.path, projects, history, req.query.indexedImages === '1' ? assetRestoreStore : undefined, req.query.design === '1' ? design : undefined)
     } finally {
       await archive.dispose()
     }
