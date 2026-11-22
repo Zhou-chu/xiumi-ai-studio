@@ -55,7 +55,7 @@ export function decodeCrossSvgPreview(input: unknown): CrossSvgPreview | null {
 }
 
 function tags(text: string, names: readonly string[], required = names) {
-  const scanner = /\s+([A-Za-z]+)="([^"<>]*)"/gy
+  const scanner = /\s+([A-Za-z]+)="([^"<>]*)"/y
   const attrs = new Map<string, string>()
   let offset = 0
   while (text.slice(offset).trim()) {
