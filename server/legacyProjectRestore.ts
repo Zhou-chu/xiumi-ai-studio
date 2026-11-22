@@ -341,7 +341,22 @@ const quoteKeys = new Set(['variant', 'text', 'source'])
 const dividerKeys = new Set(['variant'])
 const paragraphKeys = new Set(['content', 'align'])
 const cardKeys = new Set(['content', 'title', 'variant'])
+const coverTextKeys = new Set(['titleAlign', 'kicker', 'title', 'subtitle', 'meta', 'variant'])
+const endingTextKeys = new Set(['text', 'author', 'note'])
+const legacyCoverAlignments = new Set<unknown>(['auto', 'left', 'center', 'right'])
+const legacyCoverVariants = new Set<unknown>(['auto', 'hero', 'band', 'minimal'])
 const knownKeys = (value: Record<string, unknown>, allowed: Set<string>) => Object.keys(value).every(key => allowed.has(key))
+
+function acceptsTextCover(props: Record<string, unknown>) {
+  return knownKeys(props, coverTextKeys) && legacyCoverVariants.has(props.variant) &&
+    (props.titleAlign === undefined || legacyCoverAlignments.has(props.titleAlign)) &&
+    ['kicker', 'title', 'subtitle', 'meta'].every(key => boundedText(props[key], 2000))
+}
+
+function acceptsTextEnding(props: Record<string, unknown>) {
+  return knownKeys(props, endingTextKeys) && boundedText(props.text, 20_000) &&
+    boundedText(props.author, 2000) && boundedText(props.note, 2000)
+}
 
 function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget) {
   if (!isObject(value) || !knownKeys(value, blockKeys) || typeof value.id !== 'string' ||
@@ -352,6 +367,8 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
       legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget)
   }
   if (value.type === 'timeline' || value.type === 'table') return acceptsLegacyDataBlock(value.type, props, dataBudget)
+  if (value.type === 'ending') return acceptsTextEnding(props)
+  if (value.type === 'cover') return acceptsTextCover(props)
   if (typeof props.variant !== 'string') return false
   if (value.type === 'card') {
     return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&
@@ -695,7 +712,8 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   }
 
   function withVersionThemes<T>(parent: Doc, snapshot: Doc, publish: () => Promise<T>) {
-    const [first, second] = [parent.themeId, snapshot.themeId].sort()
+    const [first, second] = [parent.themeId, snapshot.themeId].sort((a, b) =>
+      a.localeCompare(b, 'en') || (a < b ? -1 : Number(a > b)))
     if (first === second) return withTheme(first, publish)
     // For two different custom styles, hold both in a stable order.
     return withTheme(first, () => withTheme(second, publish))

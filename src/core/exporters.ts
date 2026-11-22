@@ -2,7 +2,7 @@ import { stripTagSpans } from './textLinear'
 import { richToMarkdown } from './richtext'
 import type { Block, Doc } from './types'
 
-// Escape literal data before rendering the trusted Markdown list/table structure.
+// Escape literal data before rendering trusted Markdown structure.
 function markdownDataText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/[\\\x60*_[\]{}()|~#+]/g, '\\$&')
@@ -29,7 +29,8 @@ export function docToMarkdown(doc: Doc): string {
     const p: any = b.props
     switch (b.type) {
       case 'cover':
-        out.push(`# ${p.title}`, p.subtitle && `> ${p.subtitle}`, p.meta, img(p.image?.src))
+        out.push(`# ${markdownDataText(b.props.title)}`,
+          b.props.subtitle && `> ${markdownDataText(b.props.subtitle)}`, markdownDataText(b.props.meta), img(b.props.image?.src))
         break
       case 'heading':
         out.push(`## ${p.index ? p.index + ' ' : ''}${p.title}`, p.subtitle)
@@ -80,7 +81,8 @@ export function docToMarkdown(doc: Doc): string {
         break
       }
       case 'ending':
-        out.push('---', p.text && `**${p.text}**`, p.note, p.author)
+        out.push('---', b.props.text && `**${markdownDataText(b.props.text)}**`,
+          markdownDataText(b.props.note), markdownDataText(b.props.author))
         break
       case 'box':
         out.push(p.title && `### ${p.title}`)
