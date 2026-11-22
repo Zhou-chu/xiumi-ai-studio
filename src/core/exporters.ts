@@ -2,6 +2,25 @@ import { stripTagSpans } from './textLinear'
 import { richToMarkdown } from './richtext'
 import type { Block, Doc } from './types'
 
+// Escape literal data before rendering the trusted Markdown list/table structure.
+function markdownDataText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/[\\\x60*_[\]{}()|~#+]/g, '\\$&')
+    .replace(/\r\n|[\r\n]/g, '<br>')
+}
+
+function markdownDataTable({ headers, rows, caption }: Extract<Block, { type: 'table' }>['props']): string[] {
+  // The native editor accepts uneven rows. Prevent GFM from dropping cells.
+  const width = rows.reduce((size, row) => Math.max(size, row.length), headers.length)
+  const formattedCaption = caption && `*${markdownDataText(caption)}*`
+  if (!width) return formattedCaption ? [formattedCaption] : []
+  const row = (cells: string[]) => `| ${Array.from({ length: width }, (_, index) => cells[index] ?? '').join(' | ')} |`
+  return [
+    [row(headers.map(markdownDataText)), row(Array<string>(width).fill('---')), ...rows.map(cells => row(cells.map(markdownDataText)))].join('\n'),
+    formattedCaption,
+  ]
+}
+
 export function docToMarkdown(doc: Doc): string {
   const out: string[] = []
   const img = (src?: string, alt = '') => (src ? `![${alt}](${src})` : '')
@@ -34,12 +53,11 @@ export function docToMarkdown(doc: Doc): string {
         out.push(p.images.map((i: any) => img(i.src)).join('\n'), p.caption && `*${p.caption}*`)
         break
       case 'timeline':
-        out.push(p.items.map((i: any) => `- **${i.time}** ${i.title}${i.desc ? `：${i.desc}` : ''}`).join('\n'))
+        out.push(b.props.items.map(({ time, title, desc }) =>
+          `- ${time ? `**${markdownDataText(time)}** ` : ''}${markdownDataText(title)}${desc ? `：${markdownDataText(desc)}` : ''}`).join('\n'))
         break
       case 'table':
-        out.push(
-          [`| ${p.headers.join(' | ')} |`, `| ${p.headers.map(() => '---').join(' | ')} |`, ...p.rows.map((r: string[]) => `| ${r.join(' | ')} |`)].join('\n'),
-        )
+        out.push(...markdownDataTable(b.props))
         break
       case 'profile':
         out.push(img(p.image?.src, p.name), `**${p.name}** · ${p.role}`, p.bio)

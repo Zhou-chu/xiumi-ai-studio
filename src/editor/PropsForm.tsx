@@ -1,4 +1,5 @@
 import { variantUrl } from '../core/managedMediaUrl'
+import { LinkedSvgFields } from './LinkedSvgBlock'
 import { ReplayPanel } from './ReplayPanel'
 import './accessibility-controls.css'
 import { Help } from './Help'
@@ -504,6 +505,9 @@ export function PropsForm({ block }: { block: Block }) {
       break
     case 'divider':
       body = variant('divider')
+      break
+    case 'linkedSvg':
+      body = <LinkedSvgFields scene={block.props.scene} onChange={(scene, field) => upd({ scene }, field)} />
       break
     case 'replay':
       body = <ReplayPanel block={block} />

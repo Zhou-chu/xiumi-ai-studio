@@ -1,4 +1,4 @@
-import { compileDoc, REPLAY_ERROR, type CompileResult } from '../core/compiler'
+import { compileDoc, compileLocalSvgDocument, REPLAY_ERROR, type CompileResult } from '../core/compiler'
 import { validMediaGeneration } from '../core/managedMediaUrl'
 import { flatBlocks } from '../core/tree'
 import type { Doc, ImageRef } from '../core/types'
@@ -110,7 +110,7 @@ async function readRaster(asset: OwnedRaster): Promise<string> {
 }
 
 /** Standalone replay only. Never resolves user-supplied hosts or renews a stale generation. */
-export async function compileOfflineReplayRaster(doc: Doc, onProgress?: (message: string) => void): Promise<CompileResult> {
+export async function compileOfflineReplayRaster(doc: Doc, onProgress?: (message: string) => void, linkedSvg = false): Promise<CompileResult> {
   preflightReplayImages(doc)
   const sources = new Map<string, number>()
   let count = 0
@@ -135,7 +135,8 @@ export async function compileOfflineReplayRaster(doc: Doc, onProgress?: (message
     encoded.set(asset.file, await readRaster(asset))
   }
   const embedded = new Map(references.map(({ url, file }) => [url, encoded.get(file)!]))
-  const result = compileDoc(doc, { mapImage: url => embedded.get(url) ?? url })
+  const compile = linkedSvg ? compileLocalSvgDocument : compileDoc
+  const result = compile(doc, { mapImage: url => embedded.get(url) ?? url })
   const error = result.warnings.find(w => w.startsWith(REPLAY_ERROR))
   if (error) throw new Error(error)
   return result

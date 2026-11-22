@@ -281,3 +281,18 @@ it('shows only a sandboxed opt-in SVG preview and cancels it without applying', 
   expect(requests.mock.calls[1][0]).toBe(`/api/data/restore/${previewBody.token}/cancel`)
   expect(document.querySelector('iframe')).toBeNull()
 }))
+
+it('keeps persisted linked SVG restoration opt-in and separate from read-only preview', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json(previewBody))
+  const checks = [...document.querySelectorAll('label')].filter(node => node.querySelector('input[type=checkbox]'))
+  const restoreCheck = checks.find(node => node.textContent!.includes('恢复支持的跨块 SVG 联动'))!.querySelector('input')!
+  const previewCheck = checks.find(node => node.textContent!.includes('离线查看受支持的跨块 SVG'))!.querySelector('input')!
+  pick('linked-scene.zip')
+  expect(restoreCheck.checked).toBe(false)
+  act(() => previewCheck.click())
+  act(() => restoreCheck.click())
+  expect(previewCheck.checked).toBe(false)
+  await act(async () => button('预览恢复')!.click())
+  expect(requests.mock.calls[0][0]).toBe('/api/data/restore?crossSvgRestore=1')
+  expect(button('确认添加项目')?.disabled).toBe(false)
+}))

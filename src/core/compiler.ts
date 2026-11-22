@@ -1,3 +1,4 @@
+import { renderLinkedSvgScene } from './crossSvgPreview'
 import { normalizeReplay } from './replay/schema'
 import { renderReplay, type ReplayOutput } from './replay/render'
 import { applyImageWidths } from './imageResize'
@@ -194,7 +195,7 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
 // ---------- 模块 ----------
 
 type Renderer<T extends Block['type']> = (b: Extract<Block, { type: T }>, ctx: Ctx) => string
-type Renderers = { [K in Exclude<Block['type'], 'html' | 'replay' | (typeof KIT_TYPES)[number]>]: Renderer<K> }
+type Renderers = { [K in Exclude<Block['type'], 'html' | 'replay' | 'linkedSvg' | (typeof KIT_TYPES)[number]>]: Renderer<K> }
 
 const R: Renderers = {
   cover(b, ctx) {
@@ -500,6 +501,7 @@ function renderHtml(b: Extract<Block, { type: 'html' }>, ctx: Ctx): string {
 export const BOX_GAP = 16
 
 export function compileBlock(block: Block, theme: Theme, opts: CompileOptions = {}): string {
+  if (block.type === 'linkedSvg') return renderLinkedSvgScene(block.props.scene)
   if (block.type === 'replay') return compileReplay(block, opts).html
   // 文本框内的模块统一使用文本框的字号、颜色和间距
   const t = opts.inBox ? boxTheme(theme) : theme
@@ -537,7 +539,8 @@ export function rootStyle(theme: Theme): string {
 /** 模块之间的间距：相邻的原文片段保持原文连续（不插入间距） */
 export function blockGap(block: Block, next: Block | undefined, theme: Theme): number {
   if (!next) return 0
-  return block.type === 'html' && next.type === 'html' ? 0 : theme.blockSpacing
+  const fragment = (type: Block['type']) => type === 'html' || type === 'linkedSvg'
+  return fragment(block.type) && fragment(next.type) ? 0 : theme.blockSpacing
 }
 
 export const REPLAY_ERROR = '编辑回放 ✕'
@@ -547,6 +550,15 @@ export function compileReplay(block: Extract<Block, { type: 'replay' }>, opts: C
 }
 
 export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {
+  return renderDoc(doc, opts, false)
+}
+
+/** Only the dedicated CSP-bound local file export may render cross-fragment references. */
+export function compileLocalSvgDocument(doc: Doc, opts: CompileOptions = {}): CompileResult {
+  return renderDoc(doc, opts, true)
+}
+
+function renderDoc(doc: Doc, opts: CompileOptions, interactiveSvg: boolean): CompileResult {
   const theme = resolveTheme(doc)
   const failed: number[] = []
   const replayIssues: string[] = []
@@ -557,7 +569,8 @@ export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {
         const replay = compileReplay(b, opts)
         inner = replay.html
         replayIssues.push(...replay.errors.map(e => REPLAY_ERROR+' '+e), ...replay.warnings)
-      } else inner = compileBlock(b, theme, opts)
+      } else if (interactiveSvg && b.type === 'linkedSvg') inner = renderLinkedSvgScene(b.props.scene, i + 1)
+      else inner = compileBlock(b, theme, opts)
     } catch {
       // 单个模块数据损坏时跳过，不影响整篇输出
       failed.push(i + 1)

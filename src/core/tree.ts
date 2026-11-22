@@ -59,7 +59,7 @@ function updateParentOf(blocks: Block[], childId: string, fn: (kids: Block[]) =>
   })
 }
 
-export const requiresTopLevel = (block: Block): boolean => block.type === 'box' || block.type === 'replay'
+export const requiresTopLevel = (block: Block): boolean => block.type === 'box' || block.type === 'replay' || block.type === 'linkedSvg'
 
 /** 插入到顶层或某个文本框内；文本框和编辑回放不能放进文本框。 */
 export function insertBlocksAt(blocks: Block[], parentId: string | null, index: number, list: Block[]): Block[] {
@@ -94,7 +94,7 @@ export function replaceBlockWith(blocks: Block[], id: string, list: Block[]): Bl
     return out
   }
   if (!at.parent) return swap(blocks)
-  if (list.some(b => b.type === 'replay')) return blocks
+  if (list.some(b => b.type === 'replay' || b.type === 'linkedSvg')) return blocks
   return updateParentOf(blocks, id, (kids) => swap(kids).filter((b) => b.type !== 'box'))
 }
 

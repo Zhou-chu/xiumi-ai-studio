@@ -117,3 +117,20 @@ sent to the UI. Cancel releases the same loopback owner-and-token stage, and the
 manuscript remains listed as unsupported for project restoration. This does not
 enable cross-fragment SVG recovery, normal editor output, clipboard export, or
 publishing.
+
+### Opt-in local cross-fragment SVG recovery
+
+A different ZIP option restores the same bounded adjacent rectangle pair as a
+single editable linked scene. The surrounding reviewed independent SVG blocks
+remain in order. The original cross-fragment names and SVG source are not
+persisted in the scene; only bounded geometry, colors, and opacity actions are
+stored. Restoration uses the existing add-only, same-origin owner-and-token
+confirmation, and the project saves through ordinary editor persistence. The same
+validation applies to its eligible archived versions, including the edited typed
+scene when restoring a freshly exported full-library ZIP. The
+inspector edits the two opacity values; the canvas runs only generated markup
+in a no-permission sandbox. Export this interaction via the explicit local HTML
+option: the file denies network resource loading and generates distinct names
+for each scene. Generic compilation omits the link actions. WeChat clipboard and
+draft workflows and Xiumi packaging are not enabled for these projects; no
+full publishing or arbitrary archive parity is claimed.

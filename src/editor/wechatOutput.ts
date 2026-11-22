@@ -14,7 +14,14 @@ export function hasReplay(doc: Doc): boolean {
   return doc.blocks.some(block => block.type === 'replay')
 }
 
+export const LINKED_SVG_LOCAL_ONLY = '跨块 SVG 联动仅支持本地 HTML 导出，暂不支持公众号或秀米。'
+
+export function hasLinkedSvg(doc: Doc): boolean {
+  return doc.blocks.some(block => block.type === 'linkedSvg')
+}
+
 export function assertReplayCanPublish(doc: Doc): void {
+  if (hasLinkedSvg(doc)) throw new Error(LINKED_SVG_LOCAL_ONLY)
   if (hasReplay(doc)) throw new Error(REPLAY_LOCAL_ONLY)
 }
 
@@ -118,6 +125,12 @@ export function standaloneHtml(doc: Doc, body: string, offline = false): string 
 <body><div class="page"><h1>${esc(doc.title)}</h1><div class="meta">${esc(doc.author || '')}</div>${body}</div></body></html>`
 }
 
+export async function compileOfflineLinkedSvg(doc: Doc, onProgress?: (message: string) => void): Promise<string> {
+  const snapshot = structuredClone(doc)
+  const result = await compileOfflineReplayRaster(snapshot, onProgress, true)
+  return standaloneHtml(snapshot, result.html, true)
+}
+
 export async function compileOfflineReplay(doc: Doc, onProgress?: (message: string) => void): Promise<string> {
   const snapshot = structuredClone(doc)
   const result = await compileOfflineReplayRaster(snapshot, onProgress)
@@ -197,6 +210,7 @@ function xiumiZip(files: { name: string; data: Uint8Array }[], images: number): 
 
 /** 导出给秀米（不需要公众号接口）：本地图片换成占位图，另附按出现顺序编号的图片包 */
 export async function xiumiPackage(doc: Doc, onProgress?: (msg: string) => void): Promise<XiumiDownload> {
+  if (hasLinkedSvg(doc)) throw new Error(LINKED_SVG_LOCAL_ONLY)
   for (const block of doc.blocks) {
     // Replay SVG image references cannot use the ordinary image-placeholder mechanism.
     if (block.type === 'replay' && /<image\b/i.test(compileReplay(block).html)) {

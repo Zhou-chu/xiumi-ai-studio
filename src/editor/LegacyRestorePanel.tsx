@@ -84,6 +84,7 @@ export function LegacyRestorePanel() {
   const [includeDesign, setIncludeDesign] = useState(false)
   const [includeModelCards, setIncludeModelCards] = useState(false)
   const [crossSvgOptIn, setCrossSvgOptIn] = useState(false)
+  const [crossSvgRestore, setCrossSvgRestore] = useState(false)
   const [includeComponents, setIncludeComponents] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [result, setResult] = useState<LegacyRestoreResult | null>(null)
@@ -102,7 +103,7 @@ export function LegacyRestorePanel() {
     setPreview(null)
     try {
       if (stage === 'preview') {
-        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages, includeModelCards, crossSvgOptIn)
+        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages, includeModelCards, crossSvgOptIn, ...(crossSvgRestore ? [true] as const : []))
         if (!controller.signal.aborted) setPreview(response)
       } else if (stage === 'cancel' && preview) {
         await api.cancelLegacyRestore(preview.token, controller.signal)
@@ -197,11 +198,22 @@ export function LegacyRestorePanel() {
     <label className="row gap">
       <input type="checkbox" checked={crossSvgOptIn} disabled={!!busy} onChange={event => {
         setCrossSvgOptIn(event.currentTarget.checked)
+        if (event.currentTarget.checked) setCrossSvgRestore(false)
         setPreview(null)
         setResult(null)
         setError('')
       }} />
       离线查看受支持的跨块 SVG（只读）
+    </label>
+    <label className="row gap">
+      <input type="checkbox" checked={crossSvgRestore} disabled={!!busy} onChange={event => {
+        setCrossSvgRestore(event.currentTarget.checked)
+        if (event.currentTarget.checked) setCrossSvgOptIn(false)
+        setPreview(null)
+        setResult(null)
+        setError('')
+      }} />
+      恢复支持的跨块 SVG 联动（仅本机编辑与导出）
     </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>

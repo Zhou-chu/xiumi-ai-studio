@@ -1,9 +1,9 @@
 import { fork } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { independentSvgBackup, nativeSvgFixture, nativeSvgProjectId } from '../fixtures/legacy-native-svg'
 
@@ -125,6 +125,85 @@ test('rejects the full cross-fragment article, then restores independent SVG cli
     await expect(discrete).toHaveAttribute('calcMode', 'discrete')
     await expect(article.locator('svg [id], svg [href]')).toHaveCount(0)
     await expect(page.getByTestId('canvas').locator('svg rect').first()).toHaveCSS('visibility', 'visible')
+  } finally {
+    if (child.connected) child.disconnect()
+    await exited
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('restores, edits and reopens the upstream linked SVG and downloads working offline HTML', async ({ page }) => {
+  const root = await mkdtemp(join(tmpdir(), 'xiumi-linked-svg-browser-'))
+  const child = fork('tests/fixtures/start-owned-directory-migration.ts', [join(root, 'unused'), join(root, 'target')], {
+    execArgv: ['--import', 'tsx'], stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+  })
+  const exited = once(child, 'exit')
+  try {
+    const [port] = await Promise.race([once(child, 'message'), exited.then(() => { throw Error('Test server failed to start') })])
+    const origin = 'http://127.0.0.1:' + port
+    const project = origin + '/api/projects/' + nativeSvgProjectId
+    await page.goto(origin)
+    await expect(page.getByTestId('save-status')).toHaveText('已保存')
+    await page.getByTestId('tab-projects').click()
+    const backup = page.getByRole('button', { name: '项目和素材备份', exact: true })
+    if (!await backup.isVisible()) await page.getByTestId('toolbar-more').click()
+    await backup.click()
+    const panel = page.getByRole('dialog', { name: '项目和素材备份' })
+    const restore = panel.getByRole('region', { name: '从整库 ZIP 恢复部分项目' })
+    const optIn = restore.getByLabel('恢复支持的跨块 SVG 联动（仅本机编辑与导出）')
+    await expect(optIn).not.toBeChecked()
+    await optIn.check()
+    await restore.getByLabel('选择整库 ZIP').setInputFiles(fileURLToPath(nativeSvgFixture))
+    await restore.getByRole('button', { name: '预览恢复' }).click()
+    await expect(restore.getByRole('status')).toContainText('预计新增 1 个项目')
+    expect((await page.request.get(project)).status()).toBe(404)
+    await restore.getByRole('button', { name: '确认添加项目' }).click()
+    await expect(restore.getByRole('status')).toHaveText('新增 1 个项目。')
+    await panel.getByRole('button', { name: '关闭', exact: true }).last().click()
+    const item = page.getByRole('button', { name: /Native SVG interaction acceptance fixture/ })
+    await item.click()
+    await expect(item).toHaveAttribute('aria-current', 'page')
+    const frame = page.locator('iframe[title="跨块 SVG 联动"]')
+    await expect(frame).toHaveAttribute('sandbox', '')
+    await frame.contentFrame().locator('#xiumi_proof_1').click()
+    await expect(frame.contentFrame().locator('svg').nth(1).locator('rect')).toHaveCSS('opacity', '0.3')
+    await expect(frame.contentFrame().locator('#xiumi_proof_2')).toHaveCSS('opacity', '0.4')
+    await page.locator('[data-block-id="cross-trigger"]').focus()
+    await page.locator('[data-block-id="cross-trigger"]').press('Enter')
+    const opacity = page.getByLabel('跟随图形的联动透明度')
+    const saving = page.waitForResponse(r => r.url() === project && r.request().method() === 'PUT' &&
+      r.request().postDataJSON()?.blocks?.[2]?.props?.scene?.timing === 7)
+    await opacity.selectOption('7')
+    expect((await saving).ok()).toBe(true)
+    await expect(page.getByTestId('save-status')).toHaveText('已保存')
+    await page.reload()
+    await expect(page.getByRole('textbox', { name: '文章标题' })).toHaveValue('Native SVG interaction acceptance fixture')
+    await frame.contentFrame().locator('#xiumi_proof_1').click()
+    await expect(frame.contentFrame().locator('svg').nth(1).locator('rect')).toHaveCSS('opacity', '0.7')
+    await expect(frame.contentFrame().locator('#xiumi_proof_2')).toHaveCSS('opacity', '0.4')
+    await page.getByTestId('open-export').click()
+    const exporter = page.getByRole('dialog', { name: '导出与发布' })
+    await expect(exporter.getByTestId('copy-wechat')).toBeDisabled()
+    await expect(exporter.getByTestId('xiumi-package')).toBeDisabled()
+    const downloading = page.waitForEvent('download')
+    await exporter.getByRole('button', { name: '本地 HTML（保留跨块联动）' }).click()
+    const file = join(root, 'offline.html')
+    await (await downloading).saveAs(file)
+    const content = await readFile(file, 'utf8')
+    expect(content).toContain("default-src 'none'")
+    expect(content).not.toMatch(/art_trigger|art_explicit_target/)
+    const offline = await page.context().newPage()
+    const http: string[] = []
+    offline.on('request', req => { if (/^https?:/.test(req.url())) http.push(req.url()) })
+    try {
+      await offline.goto(pathToFileURL(file).href)
+      await offline.locator('#xiumi_proof_3_1').click()
+      await expect(offline.locator('#xiumi_proof_3_2')).toHaveCSS('opacity', '0.4')
+      await expect(offline.locator('svg').nth(3).locator('rect')).toHaveCSS('opacity', '0.7')
+      expect(http).toEqual([])
+    } finally {
+      await offline.close()
+    }
   } finally {
     if (child.connected) child.disconnect()
     await exited

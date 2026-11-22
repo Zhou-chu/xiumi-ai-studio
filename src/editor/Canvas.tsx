@@ -1,3 +1,4 @@
+import { LinkedSvgCanvasBody } from './LinkedSvgBlock'
 import { ReplayCanvasBody } from './ReplayPreview'
 import './canvas-accessibility.css'
 import { HtmlTypographyControls } from './HtmlTypographyControls'
@@ -359,7 +360,7 @@ function BlockView({ block, theme, gap, parentId }: { block: Block; theme: Theme
     notify(`已拆成 ${parts.length} 个模块，可撤销`)
   }
 
-  let body = block.type === 'box' ? <BoxBody block={block} theme={theme} /> : block.type === 'replay' ? <ReplayCanvasBody block={block} /> : <BlockHtml block={block} theme={theme} inBox={inBox} />
+  let body = block.type === 'box' ? <BoxBody block={block} theme={theme} /> : block.type === 'replay' ? <ReplayCanvasBody block={block} /> : block.type === 'linkedSvg' ? <LinkedSvgCanvasBody block={block} /> : <BlockHtml block={block} theme={theme} inBox={inBox} />
   if (picking && block.type === 'html') body = <FragmentPicker block={block} theme={theme} onDone={finishPicking} />
   else if (editing && block.type === 'html') body = <HtmlEditor block={block} onDone={finishEdit} />
   else if (editing && canText) {

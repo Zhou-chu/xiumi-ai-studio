@@ -10,10 +10,12 @@ const localShapes = [
 
 type Box = { width: number; height: number; viewBox: [number, number, number, number] }
 type Rect = { width: number; height: number; x: number; y: number; fill: string }
-export type CrossSvgPreview = {
-  timing: number; target: number; context: boolean
+export type LinkedSvgScene = {
+  timing: number; target: number
   sourceBox: Box; followerBox: Box; sourceRect: Rect; targetRect: Rect; followerRect: Rect
 }
+
+export type CrossSvgPreview = LinkedSvgScene & { context: boolean }
 
 const sourceName = /^[A-Za-z][A-Za-z0-9_]{0,31}$/
 const decimal = /^-?\d{1,4}(?:\.\d{1,4})?$/
@@ -44,14 +46,20 @@ function rect(input: unknown): Rect | null {
   return { width: v.width as number, height: v.height as number, x: v.x as number, y: v.y as number, fill: v.fill }
 }
 
-export function decodeCrossSvgPreview(input: unknown): CrossSvgPreview | null {
-  const keys = ['timing', 'target', 'context', 'sourceBox', 'followerBox', 'sourceRect', 'targetRect', 'followerRect']
-  const v = fields(input, keys)
-  if (!v || !idDigit(v.timing) || !idDigit(v.target) || typeof v.context !== 'boolean') return null
+export function decodeLinkedSvgScene(input: unknown): LinkedSvgScene | null {
+  const v = fields(input, ['timing', 'target', 'sourceBox', 'followerBox', 'sourceRect', 'targetRect', 'followerRect'])
+  if (!v || !idDigit(v.timing) || !idDigit(v.target)) return null
   const sourceBox = box(v.sourceBox), followerBox = box(v.followerBox)
   const sourceRect = rect(v.sourceRect), targetRect = rect(v.targetRect), followerRect = rect(v.followerRect)
   return sourceBox && followerBox && sourceRect && targetRect && followerRect
-    ? { timing: v.timing, target: v.target, context: v.context, sourceBox, followerBox, sourceRect, targetRect, followerRect } : null
+    ? { timing: v.timing, target: v.target, sourceBox, followerBox, sourceRect, targetRect, followerRect } : null
+}
+
+export function decodeCrossSvgPreview(input: unknown): CrossSvgPreview | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.hasOwn(input, 'context')) return null
+  const { context, ...raw } = input as Record<string, unknown>
+  const scene = decodeLinkedSvgScene(raw)
+  return scene && typeof context === 'boolean' ? { ...scene, context } : null
 }
 
 function tags(text: string, names: readonly string[], required = names) {
@@ -124,11 +132,25 @@ export function parseCrossSvgPreview(fragments: readonly string[]): CrossSvgPrev
 
 const rectAttrs = (value: Rect) => `width="${value.width}" height="${value.height}" x="${value.x}" y="${value.y}" fill="${value.fill}"`
 const rootAttrs = (value: Box) => `width="${value.width}" height="${value.height}" viewBox="${value.viewBox.join(' ')}"`
+/** The only interaction emitted is two generated, bounded opacity actions. */
+export function renderLinkedSvgScene(value: unknown, scope?: number): string {
+  const scene = decodeLinkedSvgScene(value)
+  if (!scene) return ''
+  const interactive = Number.isSafeInteger(scope) && scope! >= 0
+  const prefix = scope ? `xiumi_proof_${scope}_` : 'xiumi_proof_'
+  const sourceId = prefix + '1', targetId = prefix + '2'
+  const id = (value: string) => interactive ? ` id="${value}"` : ''
+  const action = (alpha: number, explicit = false) => interactive
+    ? `<set${explicit ? ` href="#${targetId}"` : ''} attributeName="opacity" to="0.${alpha}" begin="${sourceId}.click" fill="freeze" />` : ''
+  const first = `<svg ${rootAttrs(scene.sourceBox)}><rect${id(sourceId)} ${rectAttrs(scene.sourceRect)} /><rect${id(targetId)} ${rectAttrs(scene.targetRect)} /></svg>`
+  const second = `<svg ${rootAttrs(scene.followerBox)}><rect ${rectAttrs(scene.followerRect)}>${action(scene.timing)}</rect>${action(scene.target, true)}</svg>`
+  return first + second
+}
+
 export function renderCrossSvgPreview(value: CrossSvgPreview): string | null {
   const decoded = decodeCrossSvgPreview(value)
   if (!decoded) return null
-  const localSource = 'xiumi_proof_1', localTarget = 'xiumi_proof_2'
-  const first = `<svg ${rootAttrs(decoded.sourceBox)}><rect id="${localSource}" ${rectAttrs(decoded.sourceRect)} /><rect id="${localTarget}" ${rectAttrs(decoded.targetRect)} /></svg>`
-  const second = `<svg ${rootAttrs(decoded.followerBox)}><rect ${rectAttrs(decoded.followerRect)}><set attributeName="opacity" to="0.${decoded.timing}" begin="${localSource}.click" fill="freeze" /></rect><set href="#${localTarget}" attributeName="opacity" to="0.${decoded.target}" begin="${localSource}.click" fill="freeze" /></svg>`
-  return header('本机跨块 SVG 预览', deny) + (decoded.context ? localShapes[0] + localShapes[1] + first + second + localShapes[2] : first + second)
+  const { context, ...scene } = decoded
+  const paired = renderLinkedSvgScene(scene, 0)
+  return header('本机跨块 SVG 预览', deny) + (context ? localShapes[0] + localShapes[1] + paired + localShapes[2] : paired)
 }

@@ -29,3 +29,11 @@ The SHA-256 of the extracted PNG is
 `cfe2fa9eb3c9be7dab3ed1ae3b8a4e1b074d8216c7f6cf3e113d70ca2f16dd12`;
 all pixels are RGBA (33, 122, 118, 255). There is no project/version/component,
 configuration or other media in the archive.
+
+`upstream-native-data-blocks.zip` was written by the same upstream writer,
+then restored with upstream's `extractBackup`, `planMerge`, and `applyMerge`.
+It contains four synthetic projects (normal divider control, space divider,
+timeline, and table). All four restored with identical project data except for
+fresh revisions; no settings, files, media, or original user inputs were used.
+Archive SHA-256:
+`ac894629f031cfcad749fbab97f3270500ce843471c1edddb3e56e4b2cb3a3b1`.

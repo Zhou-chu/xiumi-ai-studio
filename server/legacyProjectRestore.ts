@@ -1,4 +1,4 @@
-import { parseCrossSvgPreview, type CrossSvgPreview } from '../src/core/crossSvgPreview'
+import { decodeLinkedSvgScene, parseCrossSvgPreview, type CrossSvgPreview } from '../src/core/crossSvgPreview'
 import { crc32 } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
@@ -12,6 +12,7 @@ import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
+import { acceptsLegacyDataBlock, type LegacyDataBlockBudget } from './legacyDataBlocks'
 import { COMPONENT_ENTRY, qualifyLegacyComponent, stageLegacyComponents, type ComponentCollection, type ComponentCandidate } from './legacyComponentRestore'
 import { DESIGN_ENTRY, qualifyLegacyDesign, stageLegacyDesign, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
 import { VERSION_RETENTION_LIMIT, type projectHistoryRestore, type VersionSnapshot } from './projectHistoryRestore'
@@ -334,7 +335,7 @@ const paragraphKeys = new Set(['content', 'align'])
 const cardKeys = new Set(['content', 'title', 'variant'])
 const knownKeys = (value: Record<string, unknown>, allowed: Set<string>) => Object.keys(value).every(key => allowed.has(key))
 
-function textBlock(value: unknown, budget: RichTextBudget) {
+function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget) {
   if (!isObject(value) || !knownKeys(value, blockKeys) || typeof value.id !== 'string' ||
       !idPattern.test(value.id) || !isObject(value.props)) return false
   const { props } = value
@@ -342,6 +343,7 @@ function textBlock(value: unknown, budget: RichTextBudget) {
     return knownKeys(props, paragraphKeys) && typeof props.align === 'string' &&
       legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget)
   }
+  if (value.type === 'timeline' || value.type === 'table') return acceptsLegacyDataBlock(value.type, props, dataBudget)
   if (typeof props.variant !== 'string') return false
   if (value.type === 'card') {
     return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&
@@ -355,7 +357,7 @@ function textBlock(value: unknown, budget: RichTextBudget) {
     return knownKeys(props, quoteKeys) && ['auto', 'line', 'mark', 'center'].includes(props.variant) &&
       boundedText(props.text, 20_000) && boundedText(props.source, 2000)
   }
-  return value.type === 'divider' && knownKeys(props, dividerKeys) && ['auto', 'line', 'dots', 'ornament'].includes(props.variant)
+  return value.type === 'divider' && knownKeys(props, dividerKeys) && ['auto', 'line', 'dots', 'ornament', 'space'].includes(props.variant)
 }
 
 const imageBlockKeys = new Set(['image', 'caption', 'variant'])
@@ -388,7 +390,33 @@ function acceptedLocalSvgBlock(block: unknown): boolean {
     typeof block.props.html === 'string' && renderLocalSvgInteraction(block.props.html) !== null
 }
 
-function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>) {
+function acceptedLinkedSvgBlock(block: unknown): boolean {
+  return isObject(block) && knownKeys(block, blockKeys) && block.type === 'linkedSvg' &&
+    typeof block.id === 'string' && idPattern.test(block.id) && isObject(block.props) &&
+    knownKeys(block.props, linkedSvgBlockKeys) && !!decodeLinkedSvgScene(block.props.scene)
+}
+const linkedSvgBlockKeys = new Set(['scene'])
+
+function linkedSvgProject(doc: Project): Project | null {
+  if (!Array.isArray(doc.blocks) || ![2, 5].includes(doc.blocks.length)) return null
+  const fragments: string[] = []
+  for (const block of doc.blocks) {
+    if (!isObject(block) || !knownKeys(block, blockKeys) || block.type !== 'html' ||
+      typeof block.id !== 'string' || !idPattern.test(block.id) || !isObject(block.props) ||
+      !knownKeys(block.props, svgBlockKeys) || !boundedText(block.props.label, 2000) ||
+      typeof block.props.html !== 'string') return null
+    fragments.push(block.props.html)
+  }
+  if (new Set(doc.blocks.map(block => block.id)).size !== doc.blocks.length) return null
+  const parsed = parseCrossSvgPreview(fragments)
+  if (!parsed) return null
+  const { context, ...scene } = parsed
+  const at = context ? 2 : 0
+  const paired: Block<'linkedSvg'> = { id: doc.blocks[at].id, type: 'linkedSvg', props: { scene } }
+  return { ...doc, blocks: [...doc.blocks.slice(0, at), paired, ...doc.blocks.slice(at + 2)] }
+}
+
+function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>, linkedSvg = false) {
   // Accept only a finite, shallow schema. Extra or nested application data
   // is explicitly deferred instead of being silently pruned or restored.
   if (!knownKeys(doc, projectKeys) || !boundedText(doc.title, 2000) ||
@@ -401,7 +429,9 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
     if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) return false
   }
   const budget = { nodes: 0, characters: 0 }
-  return doc.blocks.every(block => textBlock(block, budget) || acceptedImageBlock(block, images) || acceptedLocalSvgBlock(block)) &&
+  const dataBudget = { characters: 0 }
+  return doc.blocks.every(block => textBlock(block, budget, dataBudget) || acceptedImageBlock(block, images) ||
+    acceptedLocalSvgBlock(block) || (linkedSvg && acceptedLinkedSvgBlock(block))) &&
     new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length
 }
 
@@ -437,23 +467,27 @@ function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<st
 const historyKeys = new Set(['id', 'projectId', 'label', 'createdAt', 'doc'])
 type ManagedVersion = { version: VersionSnapshot; dependencies: Set<string> }
 
-function managedProject(source: Project, fallbackTime: number, images: Map<string, RestoreImage>): ManagedProject | null {
-  if (!independentlyRestorable(source, images)) return null
-  const doc = canonicalTextProject(source, fallbackTime, images)
+function managedProject(source: Project, fallbackTime: number, images: Map<string, RestoreImage>, linkedSvg = false): ManagedProject | null {
+  const candidate = (linkedSvg && linkedSvgProject(source)) || source
+  if (!independentlyRestorable(candidate, images, linkedSvg)) return null
+  const doc = canonicalTextProject(candidate, fallbackTime, images)
   const dependencies = new Set(doc.blocks.flatMap(block =>
     block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
   const known = { ids: dependencies, files: new Set([...dependencies].map(id => images.get(id)!.asset.asset.file)) }
-  return missingManagedMedia(source, known) ? null : { doc, dependencies }
+  // Already-qualified table/timeline fields are literal text, not references.
+  // Preserve the existing scan for every other type, including real image/HTML data.
+  const referenceSource = { ...source, blocks: source.blocks.filter((block: Block) => block.type !== 'timeline' && block.type !== 'table') }
+  return missingManagedMedia(referenceSource, known) ? null : { doc, dependencies }
 }
 
 function acceptedSnapshot(candidate: HistoryCandidate, parents: Map<string, Doc>, fallbackTime: number,
-  images: Map<string, RestoreImage>): ManagedVersion | null {
+  images: Map<string, RestoreImage>, linkedSvg: boolean): ManagedVersion | null {
   const { id, projectId, raw } = candidate
   if (!isObject(raw) || !knownKeys(raw, historyKeys) || raw.id !== id || raw.projectId !== projectId ||
       !parents.has(projectId) || !boundedText(raw.label, 2000) ||
       typeof raw.createdAt !== 'number' || !Number.isSafeInteger(raw.createdAt) || raw.createdAt < 0 ||
       !isObject(raw.doc) || raw.doc.id !== projectId) return null
-  const restored = managedProject({ ...raw.doc, id: projectId }, fallbackTime, images)
+  const restored = managedProject({ ...raw.doc, id: projectId }, fallbackTime, images, linkedSvg)
   if (!restored) return null
   return { version: { id, projectId, label: raw.label, createdAt: raw.createdAt, doc: restored.doc }, dependencies: restored.dependencies }
 }
@@ -467,7 +501,7 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; crossSvgPreview?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards)
@@ -592,7 +626,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   const fallbackTime = Date.now()
   let crossSvgPreview: CrossSvgPreview | null = null
   for (const source of projects) {
-    const candidate = managedProject(source, fallbackTime, projectImages)
+    const candidate = managedProject(source, fallbackTime, projectImages, options.crossSvgRestore)
     if (!candidate) {
       unsupported.push(source.id)
       if (options.crossSvgPreview && !crossSvgPreview && Array.isArray(source.blocks) && [2, 5].includes(source.blocks.length)) {
@@ -609,7 +643,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   for (const candidate of preparedComponents) if (!candidate.missing) for (const id of candidate.dependencies) selected.add(id)
   const versions: ManagedVersion[] = []
   for (const entry of history) {
-    const snapshot = acceptedSnapshot(entry, parents, fallbackTime, projectImages)
+    const snapshot = acceptedSnapshot(entry, parents, fallbackTime, projectImages, !!options.crossSvgRestore)
     if (!snapshot) { otherLibraryEntries.push(entry.path); continue }
     versions.push(snapshot)
     for (const id of snapshot.dependencies) selected.add(id)

@@ -229,7 +229,7 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
-  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false, includeModelCards = false, crossSvgPreview = false) {
+  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false, includeModelCards = false, crossSvgPreview = false, crossSvgRestore = false) {
     const payload = new FormData()
     payload.append('file', file)
     const options = new URLSearchParams()
@@ -239,6 +239,7 @@ export const api = {
     if (standaloneImages) options.set('standaloneImages', '1')
     if (includeModelCards) options.set('modelCards', '1')
     if (crossSvgPreview) options.set('crossSvgPreview', '1')
+    if (crossSvgRestore) options.set('crossSvgRestore', '1')
     return decodePlan(await req<unknown>('POST', options.size ? restoreEndpoint + '?' + options : restoreEndpoint, payload, signal))
   },
   async applyLegacyRestore(token: string, signal?: AbortSignal) {
