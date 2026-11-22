@@ -49,8 +49,18 @@ function ComponentLists({ value }: { value: NonNullable<LegacyRestorePlan['compo
     <RestoreList label="缺少匹配图片的组件" entries={value.unresolved} />
   </>
 }
+function ModelCardLists({ value }: { value: NonNullable<LegacyRestorePlan['modelCards'] | LegacyRestoreResult['modelCards']> }) {
+  return <>
+    {'add' in value ? <RestoreList label="可添加的模型资料" entries={value.add} /> : <>
+      <RestoreList label="新增模型资料" entries={value.restored} />
+      <RestoreList label="写入失败的模型资料" entries={value.failed} />
+    </>}
+    <RestoreList label="已有相同模型资料" entries={value.alreadyPresent} />
+    <RestoreList label="冲突，未覆盖的模型资料" entries={value.conflicts} />
+  </>
+}
 function hasAdditions(plan: LegacyRestorePlan | undefined): boolean {
-  return !!(plan?.projects.add.length || plan?.assets?.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length)
+  return !!(plan?.projects.add.length || plan?.assets?.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length || plan?.modelCards?.add.length)
 }
 const message = (failure: unknown) => failure instanceof Error ? failure.message : '请求未完成，请重试。'
 
@@ -59,6 +69,7 @@ export function LegacyRestorePanel() {
   const [indexedImages, setIndexedImages] = useState(false)
   const [standaloneImages, setStandaloneImages] = useState(false)
   const [includeDesign, setIncludeDesign] = useState(false)
+  const [includeModelCards, setIncludeModelCards] = useState(false)
   const [includeComponents, setIncludeComponents] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [result, setResult] = useState<LegacyRestoreResult | null>(null)
@@ -77,7 +88,7 @@ export function LegacyRestorePanel() {
     setPreview(null)
     try {
       if (stage === 'preview') {
-        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages)
+        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages, includeModelCards)
         if (!controller.signal.aborted) setPreview(response)
       } else if (preview) {
         const response = await api.applyLegacyRestore(preview.token, controller.signal)
@@ -102,7 +113,7 @@ export function LegacyRestorePanel() {
 
   return <section aria-label="从整库 ZIP 恢复部分项目">
     <h4>从整库 ZIP 恢复部分项目</h4>
-    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的项目可恢复符合条件的历史；选择恢复图片后，会一并检查当前文稿和历史版本中普通图片模块引用的已索引 PNG/JPEG。还可独立选择恢复简单模板、自定义主题、或简单原文组件及引用图片。备份中的组件来源仅供参考，不继承授权或分发许可。同时选择图片与模板后可恢复简单模板引用的已索引图片和原生双图模块；模板支持有限的主题微调。其他模板媒体、复杂排版、链接及设置不在此范围内；不支持迁移。</p>
+    <p className="hint">只添加支持的项目，不覆盖现有数据。新加入的项目可恢复符合条件的历史；选择恢复图片后，会一并检查当前文稿和历史版本中普通图片模块引用的已索引 PNG/JPEG。还可独立选择恢复简单模板、自定义主题、或简单原文组件及引用图片。备份中的组件来源仅供参考，不继承授权或分发许可。同时选择图片与模板后可恢复简单模板引用的已索引图片和原生双图模块；模板支持有限的主题微调。其他模板媒体、复杂排版、链接及完整设置不在此范围内；不支持迁移。</p>
     <p className="hint">ZIP 必须小于 {MAX_RESTORE_ARCHIVE_MIB} MiB，解压后的项目、图片、历史、模板、组件和主题数据有限额。</p>
     <label className="field">选择整库 ZIP
       <input type="file" accept=".zip,application/zip" disabled={!!busy} onChange={event => {
@@ -156,9 +167,18 @@ export function LegacyRestorePanel() {
       }} />
       同时恢复简单原文组件及引用图片
     </label>
+    <label className="row gap">
+      <input type="checkbox" checked={includeModelCards} disabled={!!busy} onChange={event => {
+        setIncludeModelCards(event.currentTarget.checked)
+        setPreview(null)
+        setResult(null)
+        setError('')
+      }} />
+      恢复只读模型资料（不导入服务地址或密钥，也不会启用）
+    </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>
-      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components || standaloneImages) ? '确认添加所选数据' : '确认添加项目'}</button>}
+      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components || preview.plan.modelCards || standaloneImages) ? '确认添加所选数据' : '确认添加项目'}</button>}
     </div>
     {busy === 'apply' && <p role="status">正在添加所选数据。关闭窗口不会撤销已经添加的数据。</p>}
     {error && <p role="alert" className="warn">{error}</p>}
@@ -173,6 +193,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="已有相同图片" entries={preview.plan.assets?.alreadyPresent ?? []} />
       <RestoreList label="冲突图片，不覆盖" entries={preview.plan.assets?.skip ?? []} />
       {preview.plan.components && <ComponentLists value={preview.plan.components} />}
+      {preview.plan.modelCards && <ModelCardLists value={preview.plan.modelCards} />}
       {preview.plan.design && <DesignPreview design={preview.plan.design} />}
       <RestoreList label="不恢复的其他档案" entries={preview.plan.unsupported} />
     </div>}
@@ -190,6 +211,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="已跳过的冲突图片" entries={result.assets?.skipped ?? []} />
       <RestoreList label="图片写入失败" entries={result.assets?.failed ?? []} />
       {result.components && <ComponentLists value={result.components} />}
+      {result.modelCards && <ModelCardLists value={result.modelCards} />}
       {result.design && <DesignResult design={result.design} />}
       <RestoreList label="未恢复的其他档案" entries={result.unsupported} />
     </div>}

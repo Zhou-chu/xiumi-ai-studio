@@ -41,7 +41,7 @@ vi.mock('../../server/store', async () => {
       exists: (id: string) => getMap().has(id),
     }
   }
-  return { ROOT: state.root, DIRS: { projects: 'projects', templates: 'templates', themes: 'themes', versions: 'versions', assets: join(state.root, 'assets'), cache: join(state.root, 'cache') }, collection,
+  return { ROOT: state.root, DATA: state.root, DIRS: { projects: 'projects', templates: 'templates', themes: 'themes', versions: 'versions', assets: join(state.root, 'assets'), cache: join(state.root, 'cache') }, collection,
     safeId: (id: string) => { if (!/^[\w-]{1,64}$/.test(id)) throw Object.assign(new Error('invalid id'), { status: 400 }); return id } }
 })
 vi.mock('../../server/projectStore', async () => {
@@ -176,7 +176,7 @@ describe('application HTTP routes with isolated dependencies', () => {
   it('delegates public AI settings and distinct connection outcomes without exposing profiles', async () => {
     expect((await json('/api/ai/status?profileId=one')).body.enabled).toBe(true)
     expect(boundary.ai.aiStatus).toHaveBeenCalledWith('one')
-    expect((await json('/api/settings/ai')).body).toEqual({profiles:[]})
+    expect((await json('/api/settings/ai')).body).toEqual({profiles:[], modelCards:[]})
     expect((await json('/api/settings/ai','PUT',{profiles:[]})).body).toEqual(payload)
     expect((await json('/api/settings/ai/models','POST',{})).body).toEqual(['model'])
     expect((await json('/api/settings/ai/test','POST',{})).body).toMatchObject({ok:true,ms:expect.any(Number)})

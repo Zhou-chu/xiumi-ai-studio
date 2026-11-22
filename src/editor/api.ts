@@ -65,6 +65,7 @@ export interface EffortProbe {
 export interface AiSettings {
   activeId: string
   profiles: AiProfile[]
+  modelCards?: Pick<AiProfile, 'id' | 'name' | 'provider' | 'model'>[]
 }
 export interface AiStatus {
   enabled: boolean
@@ -120,6 +121,7 @@ const designPlanFields = ['add', 'conflicts', 'alreadyPresent'] as const
 const designResultFields = ['restored', 'conflicts', 'alreadyPresent', 'failed'] as const
 
 export interface LegacyRestorePlan {
+  modelCards?: Record<typeof designPlanFields[number], string[]>
   projects: { add: string[]; skip: string[]; unsupported: string[] }
   versions?: { add: string[]; skip: string[] }
   assets?: { add: string[]; skip: string[]; alreadyPresent: string[] }
@@ -128,6 +130,7 @@ export interface LegacyRestorePlan {
   unsupported: string[]
 }
 export interface LegacyRestoreResult {
+  modelCards?: Record<typeof designResultFields[number], string[]>
   projects: { restored: string[]; skipped: string[]; failed: string[]; unsupported: string[] }
   versions?: { restored: string[]; skipped: string[]; failed: string[] }
   assets?: { restored: string[]; skipped: string[]; failed: string[]; alreadyPresent: string[] }
@@ -168,9 +171,10 @@ function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
   const assets = raw && stringList(raw.add) && stringList(raw.skip) && stringList(raw.alreadyPresent)
     ? { add: raw.add, skip: raw.skip, alreadyPresent: raw.alreadyPresent } : null
   if (plan.assets !== undefined && !assets) throw new Error('无法读取素材恢复预览')
+  const modelCards = plan.modelCards === undefined ? undefined : designFields(plan.modelCards, designPlanFields, '模型资料')
   const design = decodeDesign(plan.design, designPlanFields)
   const components = plan.components === undefined ? undefined : designFields(plan.components, [...designPlanFields, 'unresolved'], '组件')
-  return { token: body.token, plan: { ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
+  return { token: body.token, plan: { ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
 }
 function decodeResult(v: unknown): LegacyRestoreResult {
   const body = jsonObject(v), projects = jsonObject(body?.projects), versions = jsonObject(body?.versions)
@@ -185,9 +189,10 @@ function decodeResult(v: unknown): LegacyRestoreResult {
   const assets = raw && stringList(raw.restored) && stringList(raw.skipped) && stringList(raw.failed) && stringList(raw.alreadyPresent)
     ? { restored: raw.restored, skipped: raw.skipped, failed: raw.failed, alreadyPresent: raw.alreadyPresent } : null
   if (body.assets !== undefined && !assets) throw new Error('无法读取素材恢复结果')
+  const modelCards = body.modelCards === undefined ? undefined : designFields(body.modelCards, designResultFields, '模型资料')
   const design = decodeDesign(body.design, designResultFields)
   const components = body.components === undefined ? undefined : designFields(body.components, [...designResultFields, 'unresolved'], '组件')
-  return { ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { restored: projects.restored, skipped: projects.skipped, failed: projects.failed, unsupported: projects.unsupported }, unsupported: body.unsupported }
+  return { ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { restored: projects.restored, skipped: projects.skipped, failed: projects.failed, unsupported: projects.unsupported }, unsupported: body.unsupported }
 }
 
 export const api = {
@@ -206,7 +211,7 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
-  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false) {
+  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false, includeModelCards = false) {
     const payload = new FormData()
     payload.append('file', file)
     const options = new URLSearchParams()
@@ -214,6 +219,7 @@ export const api = {
     if (includeDesign) options.set('design', '1')
     if (includeComponents) options.set('components', '1')
     if (standaloneImages) options.set('standaloneImages', '1')
+    if (includeModelCards) options.set('modelCards', '1')
     return decodePlan(await req<unknown>('POST', options.size ? restoreEndpoint + '?' + options : restoreEndpoint, payload, signal))
   },
   async applyLegacyRestore(token: string, signal?: AbortSignal) {

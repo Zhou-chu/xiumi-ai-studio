@@ -19,6 +19,7 @@ import { probeEfforts } from './aiModels'
 import { editPrompt, scopeEditResult } from './aiEdit'
 import { suggestionPrompt, readSuggestion, SUGGESTION_SYSTEM } from './aiSuggestion'
 import { isRoleId } from '../src/core/roles'
+import { restoredModelCards } from './modelRestore'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
 import { importFile } from './importer'
 import { collection, DATA, DIRS, ROOT, safeId } from './store'
@@ -257,7 +258,7 @@ export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayT
   
   // ---------- AI ----------
   app.get('/api/ai/status', h(async (req, res) => res.json(await aiStatus(req.query.profileId as string | undefined))))
-  app.get('/api/settings/ai', h(async (_req, res) => res.json(await publicAiSettings())))
+  app.get('/api/settings/ai', h(async (_req, res) => res.json({ ...await publicAiSettings(), modelCards: await restoredModelCards() })))
   app.put('/api/settings/ai', h(async (req, res) => res.json(await saveAiSettings(req.body))))
   /** 测试连接：让模型返回一个最小 JSON */
   app.post('/api/settings/ai/models', h(async (req, res) => {

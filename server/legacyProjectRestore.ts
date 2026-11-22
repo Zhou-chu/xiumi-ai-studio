@@ -6,6 +6,7 @@ import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
 import { withImageBudget } from './imageBudget'
+import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { Asset, ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
@@ -41,7 +42,7 @@ type HistoryStore = ReturnType<typeof projectHistoryRestore>
 type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
 type ComponentRecord = { path: string; id: string; raw: unknown }
 type DesignEntry = ComponentRecord & { kind: DesignCategory }
-type ProjectArchive = { components: ComponentRecord[]; projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[]; design: DesignEntry[] }
+type ProjectArchive = { modelCards?: ReturnType<typeof archivedModelCards>; components: ComponentRecord[]; projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[]; design: DesignEntry[] }
 
 async function readEntry(zip: ZipFile, entry: Entry, limit: number): Promise<Buffer> {
   if (entry.uncompressedSize > limit) throw tooLarge()
@@ -108,7 +109,7 @@ async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<stri
   return result.sort((a, b) => a.asset.id.localeCompare(b.asset.id, 'en'))
 }
 
-async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false, includeDesign = false, includeComponents = false): Promise<ProjectArchive> {
+async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false, includeDesign = false, includeComponents = false, includeModelCards = false): Promise<ProjectArchive> {
   const projects: Project[] = []
   const design: DesignEntry[] = []
   let designBytes = 0, componentBytes = 0
@@ -118,6 +119,7 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
   const seen = new Set<string>()
   const binaries = new Map<string, Entry>()
   let index: Entry | undefined
+  let modelCards: ProjectArchive['modelCards']
   let sawManifest = false
   let consumed = 0
   let historyBytes = 0
@@ -195,6 +197,12 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
           try { raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
           catch { /* Malformed design JSON is left unsupported. */ }
           design.push({ path: name, id: designMatch[2], kind: designMatch[1] as DesignCategory, raw })
+        } else if (includeModelCards && name === 'settings.json') {
+          if (entry.uncompressedSize <= 256 * 1024) {
+            try { modelCards = archivedModelCards(await readJsonEntry(zip, entry, 256 * 1024)) }
+            catch { /* Invalid settings are not imported. */ }
+          }
+          if (!modelCards?.length) otherLibraryEntries.push(name)
         } else if (OTHER_LIBRARY_ENTRY.test(name)) {
           otherLibraryEntries.push(name)
         }
@@ -205,6 +213,7 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
     return {
       projects: projects.sort((a, b) => a.id.localeCompare(b.id, 'en')),
       assets,
+      modelCards,
       history,
       components,
       design,
@@ -469,10 +478,10 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
-  const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components)
+  const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards)
   return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, options)
 }
 
@@ -481,7 +490,7 @@ export function stageLegacyDirectoryProjects(projects: Project[], store: Project
   return stageDecodedLegacyProjects({ projects, assets: [], history: [], design: [], components: [], otherLibraryEntries: [] }, store)
 }
 
-function stageDecodedLegacyProjects({ projects, assets, history, design, components, otherLibraryEntries }: ProjectArchive, store: ProjectStore,
+function stageDecodedLegacyProjects({ projects, assets, history, design, components, modelCards, otherLibraryEntries }: ProjectArchive, store: ProjectStore,
   historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const images = new Map(assets.map(asset => {
     const name = '/media/' + asset.asset.file
@@ -497,6 +506,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
     if (candidate) preparedComponents.push(candidate)
     else otherLibraryEntries.push(record.path)
   }
+  const modelStage = modelCards?.length ? stageModelCards(modelCards) : undefined
   const componentStage = options.components ? stageLegacyComponents(preparedComponents, options.components) : null
   const supported: ManagedProject[] = [], unsupported: string[] = []
   const selected = new Set<string>(), parents = new Map<string, Doc>()
@@ -584,7 +594,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
       for (const id of standalone) await planDependencies(new Set([id]))
       plan.skip = [...conflicts]
       for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
-      return { ...(components && { components }), ...(design && { design }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
+      return { ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []
@@ -669,7 +679,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         return { components, design }
       }
       const { components, design } = assetStore ? await assetStore.withApplyLock(run) : await run()
-      return { ...(components && { components }), ...(design && { design }), versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
+      return { ...(modelStage && { modelCards: await modelStage.apply() }), ...(components && { components }), ...(design && { design }), versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
     },
   }
 }

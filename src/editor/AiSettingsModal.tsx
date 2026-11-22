@@ -25,6 +25,7 @@ const blank = (): AiProfile => ({ id: '', name: '', provider: 'openai', baseUrl:
 export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const notify = useStore((s) => s.notify)
   const [profiles, setProfiles] = useState<AiProfile[]>([])
+  const [modelCards, setModelCards] = useState<Pick<AiProfile, 'id' | 'name' | 'model' | 'provider'>[]>([])
   const [activeId, setActiveId] = useState('')
   const [editing, setEditing] = useState<number>(-1)
   const [testing, setTesting] = useState('')
@@ -49,6 +50,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       .then((s) => {
         if (!alive) return
         setProfiles(s.profiles)
+        setModelCards(s.modelCards ?? [])
         setActiveId(s.activeId)
         if (!s.profiles.length) setEditing(-2)
         setLoaded(true)
@@ -226,6 +228,13 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           ))}
+          {!!modelCards.length && <section aria-label="已恢复的只读模型资料">
+            <h4>已恢复的只读模型资料</h4>
+            <p className="hint">这些资料不会连接服务。要使用其中的模型，请新建配置，手工填写可信服务地址和密钥。</p>
+            <ul>{modelCards.map(card => <li key={card.id}>
+              <b>{card.name}</b> <span>{card.model} · {card.provider} · 未配置密钥</span>
+            </li>)}</ul>
+          </section>}
           <select value="" disabled={!loaded} onChange={(e) => e.target.value && addFromPreset(e.target.value)} data-testid="ai-add-preset">
             <option value="">＋ 添加模型…</option>
             {AI_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
