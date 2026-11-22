@@ -10,3 +10,15 @@ reported as unsupported, not imported with silently lost behavior. For the
 positive round-trip, the test helper removes those two blocks from a disposable
 copy, leaving the original click, touch and discrete-visibility HTML strings
 unchanged. This does not establish parity for arbitrary SVG or markup.
+
+The offline hosted observation uses two inert, static HTML fixtures. The
+`upstream-native-svg-compiled.html` file comes from upstream `compileDoc`
+wrapped in a test-only CSP. SHA-256:
+`96d0f3aac7dc6785ea0fed9b020f2f0bfcd43e391915759efb01c638763ca5a1`.
+`synthetic-svg-detached.html` keeps the three independent fixtures, reconstructs
+the bounded two-fragment case with deterministic inner IDs and embeds it in an
+opaque sandbox under default-deny CSP, with a same-ID outer decoy.
+SHA-256: `799d2ceed32f6cd6def661a6acacd60e1d9954cfe025455fbf3f31025f6f8f19`.
+Both are reference evidence only: no application path accepts these cross-root
+manuscripts. Cross-root timing and explicit href are observed separately, not
+assumed to work in Chromium.
