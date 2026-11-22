@@ -28,9 +28,14 @@ function addImageBlocks(blocks: unknown, add: AddFile) {
   if (Array.isArray(blocks)) for (const block of blocks) add(imageBlock(block))
 }
 
+function addProjectMedia(project: Record<string, unknown>, add: AddFile) {
+  add(imageFile(project.cover))
+  addImageBlocks(project.blocks, add)
+}
+
 function addVersionMedia({ raw, id, projectId }: Candidates['history'][number], add: AddFile) {
   if (object(raw) && raw.id === id && raw.projectId === projectId && object(raw.doc) && raw.doc.id === projectId) {
-    addImageBlocks(raw.doc.blocks, add)
+    addProjectMedia(raw.doc, add)
   }
 }
 
@@ -55,7 +60,7 @@ export function selectArchiveMediaFiles(candidates: Candidates, projectImages: b
   const files = new Set<string>()
   const add: AddFile = (file) => { if (file && hasBinary(file)) files.add(file) }
   if (projectImages) {
-    for (const project of candidates.projects) addImageBlocks(project.blocks, add)
+    for (const project of candidates.projects) addProjectMedia(project, add)
     for (const version of candidates.history) addVersionMedia(version, add)
     for (const design of candidates.design) addTemplateMedia(design, add)
   }
