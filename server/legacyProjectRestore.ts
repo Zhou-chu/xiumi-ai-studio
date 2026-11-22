@@ -1,3 +1,4 @@
+import { parseCrossSvgPreview, type CrossSvgPreview } from '../src/core/crossSvgPreview'
 import { crc32 } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
@@ -466,7 +467,7 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; crossSvgPreview?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards)
@@ -589,13 +590,22 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   }
   const designs = designStore ? stageLegacyDesign(designRecords, designStore) : null
   const fallbackTime = Date.now()
+  let crossSvgPreview: CrossSvgPreview | null = null
   for (const source of projects) {
     const candidate = managedProject(source, fallbackTime, projectImages)
-    if (!candidate) { unsupported.push(source.id); continue }
+    if (!candidate) {
+      unsupported.push(source.id)
+      if (options.crossSvgPreview && !crossSvgPreview && Array.isArray(source.blocks) && [2, 5].includes(source.blocks.length)) {
+        const html = source.blocks.flatMap(block => block?.type === 'html' && typeof block.props?.html === 'string' ? [block.props.html] : [])
+        crossSvgPreview = parseCrossSvgPreview(html)
+      }
+      continue
+    }
     supported.push(candidate)
     parents.set(candidate.doc.id, candidate.doc)
     for (const id of candidate.dependencies) selected.add(id)
   }
+  const crossPreviewPlan = crossSvgPreview ? { crossSvgPreview } : {}
   for (const candidate of preparedComponents) if (!candidate.missing) for (const id of candidate.dependencies) selected.add(id)
   const versions: ManagedVersion[] = []
   for (const entry of history) {
@@ -650,7 +660,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
       for (const id of standalone) await planDependencies(new Set([id]))
       plan.skip = [...conflicts]
       for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
-      return { ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: targetVersions.plan, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
+      return { ...crossPreviewPlan, ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: targetVersions.plan, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []

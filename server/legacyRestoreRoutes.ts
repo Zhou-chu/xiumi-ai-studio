@@ -68,7 +68,7 @@ export function registerLegacyRestoreRoutes(
       const standaloneImages = req.query.standaloneImages === '1'
       const components = req.query.components === '1' ? (await import('./components')).componentRestoreStore : undefined
       stage = await stageLegacyTextProjects(archive.path, projects, history, projectImages || standaloneImages || components ? assetRestoreStore : undefined,
-        req.query.design === '1' ? design : undefined, { components, projectImages, standaloneImages, modelCards: req.query.modelCards === '1' })
+        req.query.design === '1' ? design : undefined, { components, projectImages, standaloneImages, modelCards: req.query.modelCards === '1', crossSvgPreview: req.query.crossSvgPreview === '1' })
     } finally {
       await archive.dispose()
     }
@@ -88,6 +88,15 @@ export function registerLegacyRestoreRoutes(
     res.cookie(COOKIE, owner, { httpOnly: true, sameSite: 'strict', path: route, maxAge: ttl, secure: req.secure })
     res.json({ token, plan })
   }))
+  app.post(route + '/:token/cancel', localOnly, (req, res) => {
+    if (!pending || pending.token !== req.params.token || pending.owner !== ownerCookie(req)) {
+      res.status(404).json({ error: '恢复会话已过期，请重新选择备份文件' })
+      return
+    }
+    clear()
+    res.clearCookie(COOKIE, { sameSite: 'strict', httpOnly: true, path: route, secure: req.secure })
+    res.status(204).end()
+  })
   app.post(route + '/:token/apply', localOnly, async (req, res, next) => {
     if (!pending || pending.token !== req.params.token || pending.owner !== ownerCookie(req)) {
       res.status(404).json({ error: '恢复会话已过期，请重新选择备份文件' })

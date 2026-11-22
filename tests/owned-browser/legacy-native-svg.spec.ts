@@ -36,6 +36,46 @@ test('rejects the full cross-fragment article, then restores independent SVG cli
     await expect(confirm).toBeDisabled()
     expect((await page.request.get(origin + '/api/projects/' + nativeSvgProjectId)).status()).toBe(404)
 
+    const optIn = restore.getByLabel('离线查看受支持的跨块 SVG（只读）')
+    await expect(optIn).not.toBeChecked()
+    const frameHttpRequests: string[] = []
+    page.on('request', request => {
+      if (!/^https?:/.test(request.url())) return
+      try { if (request.frame().parentFrame()) frameHttpRequests.push(request.url()) } catch { /* no frame */ }
+    })
+    await optIn.check()
+    await preview.click()
+    await expect(restore.getByText('可离线预览，暂不能恢复到项目')).toBeVisible()
+    await expect(confirm).toBeDisabled()
+    const frame = restore.locator('iframe[title="跨块 SVG 离线预览"]')
+    await expect(frame).toHaveAttribute('sandbox', '')
+    const isolated = frame.contentFrame()
+    const trigger = isolated.locator('#xiumi_proof_1')
+    const follower = isolated.locator('svg').nth(3).locator('rect')
+    const target = isolated.locator('#xiumi_proof_2')
+    await expect(follower).toHaveCSS('opacity', '1')
+    await expect(target).toHaveCSS('opacity', '1')
+    await restore.evaluate(section => {
+      const button = section.ownerDocument.createElement('button')
+      button.id = 'xiumi_proof_1'
+      button.textContent = 'Outer preview decoy'
+      section.prepend(button)
+    })
+    await restore.getByRole('button', { name: 'Outer preview decoy' }).click()
+    await expect(follower).toHaveCSS('opacity', '1')
+    await expect(target).toHaveCSS('opacity', '1')
+    await trigger.click()
+    await expect(follower).toHaveCSS('opacity', '0.3')
+    await expect(target).toHaveCSS('opacity', '0.4')
+    expect(frameHttpRequests).toEqual([])
+    const cancellation = page.waitForResponse(response => response.status() === 204 &&
+      response.request().method() === 'POST' && /\/api\/data\/restore\/[a-f0-9]{64}\/cancel$/.test(new URL(response.url()).pathname))
+    await restore.getByRole('button', { name: '取消预览' }).click()
+    await cancellation
+    await expect(frame).toHaveCount(0)
+    expect((await page.request.get(origin + '/api/projects/' + nativeSvgProjectId)).status()).toBe(404)
+    await optIn.uncheck()
+
     await upload.setInputFiles({ name: 'independent-native-svg.zip', mimeType: 'application/zip', buffer: (await independentSvgBackup()).bytes })
     await preview.click()
     await expect(restore.getByRole('status')).toContainText('预计新增 1 个项目')

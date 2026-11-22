@@ -1,3 +1,4 @@
+import { decodeCrossSvgPreview, type CrossSvgPreview } from '../core/crossSvgPreview'
 import type { ArticleImageResult } from '../../server/articleImages'
 import type { ComponentDraft, LibraryComponent } from '../core/components'
 import type { RoleId } from '../core/roles'
@@ -122,6 +123,7 @@ const designPlanFields = ['add', 'conflicts', 'alreadyPresent'] as const
 const designResultFields = ['restored', 'conflicts', 'alreadyPresent', 'failed'] as const
 
 export interface LegacyRestorePlan {
+  crossSvgPreview?: CrossSvgPreview
   modelCards?: Record<typeof designPlanFields[number], string[]>
   projects: { add: string[]; skip: string[]; unsupported: string[] }
   versions?: { add: string[]; skip: string[]; reasons?: Record<string, RestoreHistoryReason> }
@@ -188,7 +190,9 @@ function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
   const modelCards = plan.modelCards === undefined ? undefined : designFields(plan.modelCards, designPlanFields, '模型资料')
   const design = decodeDesign(plan.design, designPlanFields)
   const components = plan.components === undefined ? undefined : designFields(plan.components, [...designPlanFields, 'unresolved'], '组件')
-  return { token: body.token, plan: { ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
+  const crossSvgPreview = decodeCrossSvgPreview(plan.crossSvgPreview)
+  if (plan.crossSvgPreview !== undefined && !crossSvgPreview) throw new Error('无法读取跨块 SVG 预览')
+  return { token: body.token, plan: { ...(crossSvgPreview && { crossSvgPreview }), ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
 }
 function decodeResult(v: unknown): LegacyRestoreResult {
   const body = jsonObject(v), projects = jsonObject(body?.projects), versions = jsonObject(body?.versions)
@@ -225,7 +229,7 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
-  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false, includeModelCards = false) {
+  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false, includeModelCards = false, crossSvgPreview = false) {
     const payload = new FormData()
     payload.append('file', file)
     const options = new URLSearchParams()
@@ -234,11 +238,17 @@ export const api = {
     if (includeComponents) options.set('components', '1')
     if (standaloneImages) options.set('standaloneImages', '1')
     if (includeModelCards) options.set('modelCards', '1')
+    if (crossSvgPreview) options.set('crossSvgPreview', '1')
     return decodePlan(await req<unknown>('POST', options.size ? restoreEndpoint + '?' + options : restoreEndpoint, payload, signal))
   },
   async applyLegacyRestore(token: string, signal?: AbortSignal) {
     if (!restoreToken.test(token)) throw new Error('恢复会话无效')
     return decodeResult(await req<unknown>('POST', `${restoreEndpoint}/${token}/apply`, { confirm: true }, signal))
+  },
+  async cancelLegacyRestore(token: string, signal?: AbortSignal) {
+    if (!restoreToken.test(token)) throw new Error('恢复会话无效')
+    const response = await fetch(`${restoreEndpoint}/${token}/cancel`, { method: 'POST', signal })
+    if (response.status !== 204) throw new ApiError('未能取消恢复会话，请重新预览。', response.status)
   },
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
   project: async (id: string) => req<Doc>('GET', `/api/projects/${resourceId(id)}`),

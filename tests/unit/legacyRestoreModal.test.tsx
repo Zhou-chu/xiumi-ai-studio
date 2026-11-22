@@ -253,3 +253,31 @@ it('fails closed if an unrecognized history reason is returned', () => modal(asy
   expect(document.body.textContent).toContain('无法读取历史版本恢复原因')
   expect(button('确认添加项目')).toBeUndefined()
 }))
+
+it('shows only a sandboxed opt-in SVG preview and cancels it without applying', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json({ ...previewBody, plan: {
+    projects: { add: [], skip: [], unsupported: ['cross-svg'] }, unsupported: [], crossSvgPreview: {
+      timing: 3, target: 4, context: false,
+      sourceBox: { width: 100, height: 55, viewBox: [0, 0, 100, 55] },
+      followerBox: { width: 100, height: 55, viewBox: [0, 0, 100, 55] },
+      sourceRect: { width: 100, height: 55, x: 0, y: 0, fill: 'navy' },
+      targetRect: { width: 25, height: 25, x: 75, y: 30, fill: 'orange' },
+      followerRect: { width: 100, height: 55, x: 0, y: 0, fill: 'purple' },
+    },
+  } })).mockResolvedValueOnce(new Response(null, { status: 204 }))
+  pick('synthetic.zip')
+  const optIn = Array.from(document.querySelectorAll<HTMLInputElement>('input[type=checkbox]'))
+    .find(input => input.parentElement?.textContent?.includes('跨块 SVG'))!
+  expect(optIn?.checked).toBe(false)
+  act(() => optIn.click())
+  await act(async () => button('预览恢复')!.click())
+  expect(requests.mock.calls[0][0]).toBe('/api/data/restore?crossSvgPreview=1')
+  expect(document.body.textContent).toContain('可离线预览，暂不能恢复到项目')
+  expect(button('确认添加项目')?.disabled).toBe(true)
+  const frame = document.querySelector('iframe')
+  expect(frame?.getAttribute('sandbox')).toBe('')
+  expect(frame?.getAttribute('srcdoc')).toContain('xiumi_proof_1.click')
+  await act(async () => button('取消预览')!.click())
+  expect(requests.mock.calls[1][0]).toBe(`/api/data/restore/${previewBody.token}/cancel`)
+  expect(document.querySelector('iframe')).toBeNull()
+}))

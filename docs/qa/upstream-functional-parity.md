@@ -104,3 +104,16 @@ The opt-in independent-image mode applies only to the owner-configured, same-ori
 ### Owner-local directory: scoped themes, templates and components
 
 The separate owner-local design option shares the ZIP validator and add-only dependency-aware stores for supported themes, templates and reusable components. Missing or differing themes prevent writing dependent templates, not unrelated components. Shared qualified indexed media is added once only when needed. Exact reviewed source records and eligible raster bytes must still match on confirmation; existing destination records are not overwritten. This does not imply support for arbitrary legacy layouts or their external resources, and never imports credentials or settings.
+
+### Read-only cross-fragment SVG preview
+
+The ZIP restore dialog has a separate unchecked opt-in for a local, read-only
+cross-fragment SVG preview. For at most one manuscript that matches the small
+native rectangle-pair pattern (optionally surrounded by the three reviewed
+independent fragments), the browser receives only validated rectangle geometry,
+colors, and opacity values. It reconstructs the interaction in an empty-sandbox document
+with a default-deny resource policy. Incoming SVG names and markup are not
+sent to the UI. Cancel releases the same loopback owner-and-token stage, and the
+manuscript remains listed as unsupported for project restoration. This does not
+enable cross-fragment SVG recovery, normal editor output, clipboard export, or
+publishing.

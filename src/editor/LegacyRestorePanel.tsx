@@ -1,3 +1,4 @@
+import { renderCrossSvgPreview } from '../core/crossSvgPreview'
 import { useEffect, useRef, useState } from 'react'
 import type { RestoreHistoryReason } from '../core/restoreHistoryReasons'
 import { api, type LegacyRestorePlan, type LegacyRestoreResult } from './api'
@@ -82,16 +83,17 @@ export function LegacyRestorePanel() {
   const [standaloneImages, setStandaloneImages] = useState(false)
   const [includeDesign, setIncludeDesign] = useState(false)
   const [includeModelCards, setIncludeModelCards] = useState(false)
+  const [crossSvgOptIn, setCrossSvgOptIn] = useState(false)
   const [includeComponents, setIncludeComponents] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [result, setResult] = useState<LegacyRestoreResult | null>(null)
-  const [busy, setBusy] = useState<'preview' | 'apply' | null>(null)
+  const [busy, setBusy] = useState<'preview' | 'apply' | 'cancel' | null>(null)
   const [error, setError] = useState('')
   const active = useRef<AbortController | null>(null)
   useEffect(() => () => active.current?.abort(), [])
 
-  const run = async (stage: 'preview' | 'apply') => {
-    if (active.current || !file || (stage === 'apply' && !hasAdditions(preview?.plan))) return
+  const run = async (stage: 'preview' | 'apply' | 'cancel') => {
+    if (active.current || !file || (stage === 'apply' && !hasAdditions(preview?.plan)) || (stage === 'cancel' && !preview)) return
     const controller = new AbortController()
     active.current = controller
     setBusy(stage)
@@ -100,8 +102,10 @@ export function LegacyRestorePanel() {
     setPreview(null)
     try {
       if (stage === 'preview') {
-        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages, includeModelCards)
+        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages, includeModelCards, crossSvgOptIn)
         if (!controller.signal.aborted) setPreview(response)
+      } else if (stage === 'cancel' && preview) {
+        await api.cancelLegacyRestore(preview.token, controller.signal)
       } else if (preview) {
         const response = await api.applyLegacyRestore(preview.token, controller.signal)
         if (response.design?.themes.restored.length) await loadCustomThemes()
@@ -122,6 +126,8 @@ export function LegacyRestorePanel() {
       }
     }
   }
+
+  const svgPreview = crossSvgOptIn && preview?.plan.crossSvgPreview ? renderCrossSvgPreview(preview.plan.crossSvgPreview) : null
 
   return <section aria-label="从整库 ZIP 恢复部分项目">
     <h4>从整库 ZIP 恢复部分项目</h4>
@@ -188,10 +194,25 @@ export function LegacyRestorePanel() {
       }} />
       恢复只读模型资料（不导入服务地址或密钥，也不会启用）
     </label>
+    <label className="row gap">
+      <input type="checkbox" checked={crossSvgOptIn} disabled={!!busy} onChange={event => {
+        setCrossSvgOptIn(event.currentTarget.checked)
+        setPreview(null)
+        setResult(null)
+        setError('')
+      }} />
+      离线查看受支持的跨块 SVG（只读）
+    </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>
       {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components || preview.plan.modelCards || standaloneImages || (!preview.plan.projects.add.length && preview.plan.versions?.add.length)) ? '确认添加所选数据' : '确认添加项目'}</button>}
     </div>
+    {svgPreview && <section aria-label="跨块 SVG 离线预览">
+      <p>可离线预览，暂不能恢复到项目</p>
+      <iframe title="跨块 SVG 离线预览" width="320" height="375" sandbox="" srcDoc={svgPreview} />
+      <button type="button" disabled={!!busy} onClick={() => void run('cancel')}>取消预览</button>
+    </section>}
+    {crossSvgOptIn && preview && !svgPreview && <p className="hint">这份备份没有符合本机预览范围的跨块 SVG 稿件。</p>}
     {busy === 'apply' && <p role="status">正在添加所选数据。关闭窗口不会撤销已经添加的数据。</p>}
     {error && <p role="alert" className="warn">{error}</p>}
     {preview && <div className="report" aria-label="恢复预览">
