@@ -216,7 +216,7 @@ function imageDependencies(projects: ProjectCandidate[], maxEntries: number) {
       if (ids.size > maxEntries) throw tooLarge()
     }
   }
-  return [...ids].sort()
+  return [...ids].sort((a, b) => a.localeCompare(b, 'en'))
 }
 
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')

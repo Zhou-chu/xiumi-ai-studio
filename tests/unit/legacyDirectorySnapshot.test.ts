@@ -6,21 +6,47 @@ import JSZip from 'jszip'
 import { expect, it, vi } from 'vitest'
 import { createLegacyDirectoryPreview } from '../../server/legacyDirectoryMigration'
 
-const directoryWitness = vi.hoisted(() => ({ watch: '', active: 0 }))
+const snapshotWitness = vi.hoisted(() => ({
+  projectDirectory: '', projectFile: '', openDirectories: 0, openFiles: 0,
+  afterScan: undefined as (() => void) | undefined,
+  afterRead: undefined as (() => void) | undefined,
+}))
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
-  return { ...actual, async opendir(...args: Parameters<typeof actual.opendir>) {
-    const directory = await actual.opendir(...args)
-    if (args[0] === directoryWitness.watch) {
-      const iterate = directory[Symbol.asyncIterator].bind(directory)
-      directory[Symbol.asyncIterator] = async function *() {
-        directoryWitness.active++
-        try { return yield* iterate() }
-        finally { directoryWitness.active-- }
+  return {
+    ...actual,
+    async open(...args: Parameters<typeof actual.open>) {
+      const handle = await actual.open(...args)
+      if (args[0] === snapshotWitness.projectFile) {
+        snapshotWitness.openFiles++
+        const close = handle.close.bind(handle)
+        let released = false
+        handle.close = async () => {
+          await close()
+          if (released) return
+          released = true
+          snapshotWitness.openFiles--
+          snapshotWitness.afterRead?.()
+        }
       }
-    }
-    return directory
-  } }
+      return handle
+    },
+    async opendir(...args: Parameters<typeof actual.opendir>) {
+      const directory = await actual.opendir(...args)
+      if (args[0] === snapshotWitness.projectDirectory) {
+        const iterate = directory[Symbol.asyncIterator].bind(directory)
+        directory[Symbol.asyncIterator] = async function *() {
+          snapshotWitness.openDirectories++
+          try { return yield* iterate() }
+          finally {
+            snapshotWitness.openDirectories--
+            snapshotWitness.afterScan?.()
+          }
+        }
+      }
+      return directory
+    },
+  }
 })
 
 const fixtureZip = new URL('../fixtures/legacy-backup/upstream-library.zip', import.meta.url)
@@ -109,28 +135,31 @@ it('returns an empty projection for a recognizable library containing only templ
     expect(await readdir(target)).toEqual([])
   }))
 
-it.each([2, 6])('aborts on direct root replacement during the snapshot (checkpoint %i)', checkpoint =>
+it.each(['afterScan', 'afterRead'] as const)('aborts on direct root replacement during the snapshot (%s)', checkpoint =>
   inFixture(async (root, _source, data, target) => {
-    await writeFile(join(data, 'projects', 'one.json'), '{"id":"one","blocks":[]}')
-    const signal = new AbortController().signal
-    const throwIfAborted = signal.throwIfAborted.bind(signal)
-    let checkpoints = 0
-    let openAtReplacement: number | undefined
-    directoryWitness.watch = join(await realpath(data), 'projects')
+    const payload = '{"id":"one","blocks":[]}'
+    await writeFile(join(data, 'projects', 'one.json'), payload)
+    snapshotWitness.projectDirectory = join(await realpath(data), 'projects')
+    snapshotWitness.projectFile = join(snapshotWitness.projectDirectory, 'one.json')
     const original = join(root, 'moved')
-    vi.spyOn(signal, 'throwIfAborted').mockImplementation(() => {
-      if (++checkpoints === checkpoint) {
-        openAtReplacement = directoryWitness.active
-        renameSync(data, original)
-        mkdirSync(join(data, 'projects'), { recursive: true })
-      }
-      throwIfAborted()
-    })
-    await expect(createLegacyDirectoryPreview({ configuredSource: data, target }).snapshotProjects(signal))
-      .rejects.toMatchObject({ status: 409 })
-    // A real directory handle, not just a mock timing assumption. Windows
-    // can reject ancestor rename while the child enumeration is still open.
-    expect(openAtReplacement).toBe(0)
-    expect(await readFile(join(original, 'projects', 'one.json'), 'utf8')).toBe('{"id":"one","blocks":[]}')
-    expect(await readdir(target)).toEqual([])
+    let openAtReplacement: number[] | undefined
+    snapshotWitness[checkpoint] = () => {
+      openAtReplacement = [snapshotWitness.openDirectories, snapshotWitness.openFiles]
+      // Trigger immediately after the real handles close. Windows may deny
+      // a directory rename while either its scan or a child file remains open.
+      renameSync(data, original)
+      mkdirSync(join(data, 'projects'), { recursive: true })
+    }
+    try {
+      await expect(createLegacyDirectoryPreview({ configuredSource: data, target }).snapshotProjects(new AbortController().signal))
+        .rejects.toMatchObject({ status: 409 })
+      expect(openAtReplacement).toEqual([0, 0])
+      expect(await readFile(join(original, 'projects', 'one.json'), 'utf8')).toBe(payload)
+      expect(await readdir(join(data, 'projects'))).toEqual([])
+      expect(await readdir(target)).toEqual([])
+    } finally {
+      snapshotWitness[checkpoint] = undefined
+      snapshotWitness.projectDirectory = ''
+      snapshotWitness.projectFile = ''
+    }
   }))
