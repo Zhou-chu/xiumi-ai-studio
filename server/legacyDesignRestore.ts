@@ -48,7 +48,7 @@ function validTheme(theme: Record<string, unknown>): boolean {
 }
 
 const overrideRanges = new Map(Object.entries(themeNumericRanges))
-function validOverrides(value: unknown): boolean {
+export function validOverrides(value: unknown): boolean {
   if (!isObject(value)) return false
   return Object.entries(value).every(([key, token]) => {
     if (key === 'colors') return isObject(token) && onlyKeys(token, themeColorTokens) &&
@@ -177,7 +177,20 @@ export function stageLegacyDesign(design: DesignData, store: DesignCollections) 
   const archivedThemes = new Map([...design.themes].sort(byDesignId).map(theme => [theme.id, theme]))
   const archivedTemplates = [...design.templates].sort(byDesignId)
   let used = false
+  async function publishThemes() {
+    const themes = { restored: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[], failed: [] as string[] }
+    for (const theme of archivedThemes.values()) {
+      try {
+        const result = await store.themes.withRestoreEntry(theme, restore => restore())
+        themes[result === 'conflict' ? 'conflicts' : result].push(theme.id)
+      } catch { themes.failed.push(theme.id) }
+    }
+    return themes
+  }
+  let publishedThemes: ReturnType<typeof publishThemes> | undefined
+  const prepareThemes = () => publishedThemes ??= publishThemes()
   return {
+    prepareThemes,
     async preview(assets?: (id: string, existing: boolean) => Promise<boolean>) {
       const statuses = new Map<string, RestoreStatus>()
       const themes = { add: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[] }
@@ -207,16 +220,9 @@ export function stageLegacyDesign(design: DesignData, store: DesignCollections) 
     async apply(assets?: (id: string, existing: boolean) => Promise<'ready' | 'failed' | 'unresolved'>) {
       if (used) throw new Error('恢复计划已使用')
       used = true
-      const themes = { restored: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[], failed: [] as string[] }
+      const themes = await prepareThemes()
       const templates = { restored: [] as string[], alreadyPresent: [] as string[], conflicts: [] as string[], unresolved: [] as string[], failed: [] as string[] }
-      const accepted = new Set<string>()
-      for (const theme of archivedThemes.values()) {
-        try {
-          const result = await store.themes.withRestoreEntry(theme, restore => restore())
-          themes[result === 'conflict' ? 'conflicts' : result].push(theme.id)
-          if (result !== 'conflict') accepted.add(theme.id)
-        } catch { themes.failed.push(theme.id) }
-      }
+      const accepted = new Set([...themes.restored, ...themes.alreadyPresent])
       for (const template of archivedTemplates) {
         const dependency = templateTheme(template)
         if (dependency && !accepted.has(dependency)) {

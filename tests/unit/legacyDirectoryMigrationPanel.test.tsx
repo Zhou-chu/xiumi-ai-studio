@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
+import { loadCustomThemes } from '../../src/editor/store'
 import { LegacyDirectoryMigrationPanel } from '../../src/editor/LegacyDirectoryMigrationPanel'
 
 vi.mock('../../src/editor/store', () => ({ loadCustomThemes: vi.fn().mockResolvedValue(undefined) }))
@@ -166,4 +167,24 @@ it('requires explicit design consent and confirms zero-project theme, template a
   expect(host.querySelector('[role=status]')?.textContent).toContain('组件预计新增 1')
   await click(host, '确认迁移所选数据')
   for (const group of ['主题', '模板', '组件']) expect(host.querySelector('[role=status]')?.textContent).toContain(group + '已新增 1')
+}))
+
+it('refreshes a matching local theme before announcing migrated projects', () => mounted(async (request, host) => {
+  const done = { restored: 0, conflicts: 0, alreadyPresent: 0, unresolved: 0, failed: 0 }
+  request.mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json({
+    restored: 1, skipped: 0, failed: 0, unsupported: 0, invalid: 0, ignored: 0,
+    design: { themes: { ...done, alreadyPresent: 1 }, templates: done, components: done },
+  }))
+  const order: string[] = []
+  vi.mocked(loadCustomThemes).mockImplementationOnce(async () => { await Promise.resolve(); order.push('theme') })
+  const changed = () => { order.push('projects') }
+  window.addEventListener('projects-changed', changed)
+  try {
+    await click(host, '检测已配置旧目录')
+    await click(host, '确认迁移项目')
+    expect(order).toEqual(['theme', 'projects'])
+  } finally {
+    vi.mocked(loadCustomThemes).mockReset().mockResolvedValue(undefined)
+    window.removeEventListener('projects-changed', changed)
+  }
 }))

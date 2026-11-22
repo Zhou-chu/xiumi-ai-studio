@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
+import { loadCustomThemes } from '../../src/editor/store'
 import ProjectBackupModal from '../../src/editor/ProjectBackupModal'
 
 vi.mock('../../src/editor/store', () => ({
@@ -295,4 +296,32 @@ it('keeps persisted linked SVG restoration opt-in and separate from read-only pr
   await act(async () => button('预览恢复')!.click())
   expect(requests.mock.calls[0][0]).toBe('/api/data/restore?crossSvgRestore=1')
   expect(button('确认添加项目')?.disabled).toBe(false)
+}))
+
+it('refreshes matching custom styles before announcing restored projects', () => modal(async requests => {
+  const plan = { add: [], alreadyPresent: ['custom-fixture'], conflicts: [] }
+  requests.mockResolvedValueOnce(json({ ...previewBody, plan: {
+    ...previewBody.plan, design: { themes: plan, templates: { ...plan, alreadyPresent: [], unresolved: [] } },
+  }})).mockResolvedValueOnce(json({
+    projects: { restored: ['example'], skipped: [], failed: [], unsupported: [] }, unsupported: [],
+    design: {
+      themes: { restored: [], alreadyPresent: ['custom-fixture'], conflicts: [], failed: [] },
+      templates: { restored: [], alreadyPresent: [], conflicts: [], failed: [], unresolved: [] },
+    },
+  }))
+  const order: string[] = []
+  vi.mocked(loadCustomThemes).mockImplementationOnce(async () => { await Promise.resolve(); order.push('theme') })
+  const changed = () => { order.push('projects') }
+  window.addEventListener('projects-changed', changed)
+  try {
+    pick('matching-design.zip')
+    const option = [...document.querySelectorAll('label')].find(label => label.textContent?.includes('同时恢复简单模板和自定义主题'))
+    act(() => option?.querySelector('input')?.click())
+    await act(async () => button('预览恢复')!.click())
+    await act(async () => button('确认添加所选数据')!.click())
+    expect(order).toEqual(['theme', 'projects'])
+  } finally {
+    vi.mocked(loadCustomThemes).mockReset().mockResolvedValue(undefined)
+    window.removeEventListener('projects-changed', changed)
+  }
 }))

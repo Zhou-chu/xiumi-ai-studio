@@ -83,7 +83,8 @@ function previewRequest(standaloneImages: boolean, designRecords: boolean, signa
 }
 
 async function notifyMigration(result: Result) {
-  if (result.design?.themes.restored) await loadCustomThemes()
+  const themes = result.design?.themes
+  if (themes && (themes.restored || themes.alreadyPresent)) await loadCustomThemes()
   if (result.restored) window.dispatchEvent(new Event('projects-changed'))
   if (result.assets?.restored || result.design?.templates.restored || result.design?.components.restored) window.dispatchEvent(new Event('assets-changed'))
   if (result.design?.templates.restored) window.dispatchEvent(new Event('templates-changed'))
@@ -145,7 +146,7 @@ export function LegacyDirectoryMigrationPanel() {
   return <section aria-label="从本机旧目录迁移项目">
     <h4>从本机旧目录迁移项目</h4>
     <p className="hint">只读取桌面程序所有者在启动前指定的旧仓库或 data 文件夹。迁移不改动源文件，也不覆盖现有项目。</p>
-    <p className="hint">支持普通文字项目，以及新增项目或内容完全匹配的本地项目缺少的历史版本。可迁移文稿和版本引用的已索引 PNG/JPEG。不迁移复杂排版和设置，不读取 .env 内容。</p>
+    <p className="hint">支持普通文字项目及符合条件的时间轴、数据表与留白分隔线，以及新增项目或内容完全匹配的本地项目缺少的历史版本。可迁移文稿和版本引用的已索引 PNG/JPEG。选中主题迁移可为项目恢复同一份旧目录中匹配的自定义主题。不迁移复杂排版和设置，不读取 .env 内容。</p>
     <label><input type="checkbox" checked={standaloneImages} disabled={busy || !!preview}
       onChange={event => { setStandaloneImages(event.currentTarget.checked); setResult(null); setError('') }} />
       独立迁移旧素材库中已索引的 PNG/JPEG

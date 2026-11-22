@@ -15,7 +15,7 @@ import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from
 import type { projectCollection } from './projectStore'
 import { acceptsLegacyDataBlock, type LegacyDataBlockBudget } from './legacyDataBlocks'
 import { COMPONENT_ENTRY, qualifyLegacyComponent, stageLegacyComponents, type ComponentCollection, type ComponentCandidate } from './legacyComponentRestore'
-import { DESIGN_ENTRY, qualifyLegacyDesign, stageLegacyDesign, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
+import { DESIGN_ENTRY, qualifyLegacyDesign, stageLegacyDesign, validOverrides, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
 import { VERSION_RETENTION_LIMIT, type projectHistoryRestore, type VersionSnapshot } from './projectHistoryRestore'
 
 const PROJECT = /^projects\/([\w-]{1,64})\.json$/
@@ -334,7 +334,7 @@ const routeBudget = { ...DEFAULT_BUDGET, maxEntries: 5000, maxNameBytes: 1024 * 
 const idPattern = /^[\w-]{1,64}$/
 const boundedText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max
 
-const projectKeys = new Set(['id', 'title', 'author', 'digest', 'themeId', 'blocks', 'createdAt', 'updatedAt', 'revision'])
+const projectKeys = new Set(['id', 'title', 'author', 'digest', 'themeId', 'themeOverrides', 'blocks', 'createdAt', 'updatedAt', 'revision'])
 const blockKeys = new Set(['id', 'type', 'props'])
 const headingKeys = new Set(['variant', 'index', 'title', 'subtitle'])
 const quoteKeys = new Set(['variant', 'text', 'source'])
@@ -424,7 +424,15 @@ function linkedSvgProject(doc: Project): Project | null {
   return { ...doc, blocks: [...doc.blocks.slice(0, at), paired, ...doc.blocks.slice(at + 2)] }
 }
 
-function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>, linkedSvg = false) {
+type ArchivedThemes = Map<string, DesignData['themes'][number]>
+type ProjectQualification = { linkedSvg?: boolean; themes: ArchivedThemes }
+function validProjectStyle(doc: Project, themes: ArchivedThemes) {
+  const id = doc.themeId
+  if (id !== undefined && (typeof id !== 'string' || (!coreThemeIds.has(id) && !themes.has(id)))) return false
+  return doc.themeOverrides === undefined || validOverrides(doc.themeOverrides)
+}
+
+function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>, options: ProjectQualification) {
   // Accept only a finite, shallow schema. Extra or nested application data
   // is explicitly deferred instead of being silently pruned or restored.
   if (!knownKeys(doc, projectKeys) || !boundedText(doc.title, 2000) ||
@@ -432,14 +440,14 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
       (doc.author !== undefined && !boundedText(doc.author, 2000)) ||
       (doc.digest !== undefined && !boundedText(doc.digest, 2000)) ||
       (doc.revision !== undefined && !boundedText(doc.revision, 200)) ||
-      (doc.themeId !== undefined && (typeof doc.themeId !== 'string' || !coreThemeIds.has(doc.themeId)))) return false
+      !validProjectStyle(doc, options.themes)) return false
   for (const value of [doc.createdAt, doc.updatedAt]) {
     if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) return false
   }
   const budget = { nodes: 0, characters: 0 }
   const dataBudget = { characters: 0 }
   return doc.blocks.every(block => textBlock(block, budget, dataBudget) || acceptedImageBlock(block, images) ||
-    acceptedLocalSvgBlock(block) || (linkedSvg && acceptedLinkedSvgBlock(block))) &&
+    acceptedLocalSvgBlock(block) || (options.linkedSvg && acceptedLinkedSvgBlock(block))) &&
     new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length
 }
 
@@ -463,6 +471,7 @@ function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<st
     author: doc.author ?? '',
     digest: doc.digest ?? '',
     themeId: doc.themeId ?? THEMES[0].id,
+    ...(doc.themeOverrides !== undefined && { themeOverrides: doc.themeOverrides }),
     // Validation excluded every unsupported field before normalization.
     // Persist the editor's canonical property order so opening does not
     // perform a phantom repair/write of unchanged restored content.
@@ -475,9 +484,9 @@ function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<st
 const historyKeys = new Set(['id', 'projectId', 'label', 'createdAt', 'doc'])
 type ManagedVersion = { version: VersionSnapshot; dependencies: Set<string> }
 
-function managedProject(source: Project, fallbackTime: number, images: Map<string, RestoreImage>, linkedSvg = false): ManagedProject | null {
-  const candidate = (linkedSvg && linkedSvgProject(source)) || source
-  if (!independentlyRestorable(candidate, images, linkedSvg)) return null
+function managedProject(source: Project, fallbackTime: number, images: Map<string, RestoreImage>, options: ProjectQualification): ManagedProject | null {
+  const candidate = (options.linkedSvg && linkedSvgProject(source)) || source
+  if (!independentlyRestorable(candidate, images, options)) return null
   const doc = canonicalTextProject(candidate, fallbackTime, images)
   const dependencies = new Set(doc.blocks.flatMap(block =>
     block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
@@ -489,13 +498,13 @@ function managedProject(source: Project, fallbackTime: number, images: Map<strin
 }
 
 function acceptedSnapshot(candidate: HistoryCandidate, parents: Map<string, Doc>, fallbackTime: number,
-  images: Map<string, RestoreImage>, linkedSvg: boolean): ManagedVersion | null {
+  images: Map<string, RestoreImage>, options: ProjectQualification): ManagedVersion | null {
   const { id, projectId, raw } = candidate
   if (!isObject(raw) || !knownKeys(raw, historyKeys) || raw.id !== id || raw.projectId !== projectId ||
       !parents.has(projectId) || !boundedText(raw.label, 2000) ||
       typeof raw.createdAt !== 'number' || !Number.isSafeInteger(raw.createdAt) || raw.createdAt < 0 ||
       !isObject(raw.doc) || raw.doc.id !== projectId) return null
-  const restored = managedProject({ ...raw.doc, id: projectId }, fallbackTime, images, linkedSvg)
+  const restored = managedProject({ ...raw.doc, id: projectId }, fallbackTime, images, options)
   if (!restored) return null
   return { version: { id, projectId, label: raw.label, createdAt: raw.createdAt, doc: restored.doc }, dependencies: restored.dependencies }
 }
@@ -553,12 +562,13 @@ function reserveVersion(parent: Awaited<ReturnType<InspectExisting>>, id: string
   return { revision: parent.revision }
 }
 
-async function planVersionWrites({ versions, retained, parents, inspect, eligible, planDependencies }: {
+async function planVersionWrites({ versions, retained, parents, inspect, eligible, planDependencies, planTheme }: {
   versions: ManagedVersion[]
   retained: Set<string>
   parents: Map<string, Doc>
   inspect?: InspectExisting
   eligible: Set<string>
+  planTheme: (id: string) => Promise<boolean>
   planDependencies: (dependencies: Set<string>) => Promise<boolean>
 }) {
   const add: string[] = [], skip: string[] = []
@@ -572,7 +582,8 @@ async function planVersionWrites({ versions, retained, parents, inspect, eligibl
     if (states?.has(pid)) {
       const state = states.get(pid) ?? null
       let choice: PlannedExisting = reserveVersion(state, version.id)
-      if ('revision' in choice && !await planDependencies(dependencies)) choice = { reason: 'dependency-unavailable' }
+      if ('revision' in choice && (!await planTheme(parents.get(pid)!.themeId) ||
+          !await planTheme(version.doc.themeId) || !await planDependencies(dependencies))) choice = { reason: 'dependency-unavailable' }
       if ('revision' in choice) {
         if (state && state.available !== undefined) state.available--
         add.push(key)
@@ -583,7 +594,7 @@ async function planVersionWrites({ versions, retained, parents, inspect, eligibl
       choices.set(key, choice)
     } else {
       const count = perProject.get(pid) ?? 0
-      if (eligible.has(pid) && count < VERSION_RETENTION_LIMIT && await planDependencies(dependencies)) {
+      if (eligible.has(pid) && count < VERSION_RETENTION_LIMIT && await planTheme(version.doc.themeId) && await planDependencies(dependencies)) {
         add.push(key)
         perProject.set(pid, count + 1)
       } else skip.push(key)
@@ -632,10 +643,12 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
     for (const id of dependencies) selected.add(id)
   }
   const designs = designStore ? stageLegacyDesign(designRecords, designStore) : null
+  const archivedThemes: ArchivedThemes = new Map(designStore ? designRecords.themes.map(theme => [theme.id, theme]) : [])
+  const projectQualification = { linkedSvg: options.crossSvgRestore, themes: archivedThemes }
   const fallbackTime = Date.now()
   let crossSvgPreview: CrossSvgPreview | null = null
   for (const source of projects) {
-    const candidate = managedProject(source, fallbackTime, projectImages, options.crossSvgRestore)
+    const candidate = managedProject(source, fallbackTime, projectImages, projectQualification)
     if (!candidate) {
       unsupported.push(source.id)
       if (options.crossSvgPreview && !crossSvgPreview && Array.isArray(source.blocks) && [2, 5].includes(source.blocks.length)) {
@@ -652,7 +665,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   for (const candidate of preparedComponents) if (!candidate.missing) for (const id of candidate.dependencies) selected.add(id)
   const versions: ManagedVersion[] = []
   for (const entry of history) {
-    const snapshot = acceptedSnapshot(entry, parents, fallbackTime, projectImages, !!options.crossSvgRestore)
+    const snapshot = acceptedSnapshot(entry, parents, fallbackTime, projectImages, projectQualification)
     if (!snapshot) { otherLibraryEntries.push(entry.path); continue }
     versions.push(snapshot)
     for (const id of snapshot.dependencies) selected.add(id)
@@ -669,6 +682,24 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   // not take a slot from eligible, older snapshots of the same project.
   versions.sort(({ version: a }, { version: b }) => archiveSort(a.projectId, b.projectId) || b.createdAt - a.createdAt || archiveSort(a.id, b.id))
   otherLibraryEntries.sort(archiveSort)
+
+  let skippedThemes = new Set<string>()
+  async function withTheme<T>(id: string, publish: () => Promise<T>): Promise<T | undefined> {
+    if (skippedThemes.has(id)) return undefined
+    const dependency = archivedThemes.get(id)
+    if (!dependency || !designStore) return publish()
+    return designStore.themes.withRestoreEntry(dependency, async (_restore, status) => {
+      if (await status() === 'alreadyPresent') return publish()
+      return undefined
+    })
+  }
+
+  function withVersionThemes<T>(parent: Doc, snapshot: Doc, publish: () => Promise<T>) {
+    const [first, second] = [parent.themeId, snapshot.themeId].sort()
+    if (first === second) return withTheme(first, publish)
+    // For two different custom styles, hold both in a stable order.
+    return withTheme(first, () => withTheme(second, publish))
+  }
 
   let reviewedExisting = new Map<string, PlannedExisting>()
   let retainedParents = new Set<string>()
@@ -688,15 +719,26 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         for (const id of dependencies) needed.add(id)
         return true
       }
+      const themes = new Map<string, boolean>()
+      skippedThemes = new Set<string>()
+      async function planTheme(id: string) {
+        const dependency = archivedThemes.get(id)
+        if (!dependency || !designStore) return true
+        if (themes.has(id)) return themes.get(id)!
+        const possible = await designStore.themes.restoreStatus(dependency) !== 'conflict'
+        themes.set(id, possible)
+        if (!possible) skippedThemes.add(id)
+        return possible
+      }
       const retained = new Set<string>()
       for (const { doc, dependencies } of supported) {
         if (await store.occupied(doc.id)) { retained.add(doc.id); skip.push(doc.id) }
-        else if (!(await planDependencies(dependencies))) skip.push(doc.id)
+        else if (!(await planTheme(doc.themeId)) || !(await planDependencies(dependencies))) skip.push(doc.id)
         else add.push(doc.id)
       }
       const components = await componentStage?.preview((candidate, existing) => planDependencies(candidate.dependencies, existing))
       const inspect = options.existingHistory ? historyStore?.inspectExisting : undefined
-      const targetVersions = await planVersionWrites({ versions, retained, parents, inspect, eligible: new Set(add), planDependencies })
+      const targetVersions = await planVersionWrites({ versions, retained, parents, inspect, eligible: new Set(add), planDependencies, planTheme })
       reviewedExisting = targetVersions.choices
       retainedParents = targetVersions.retainedParents
       const design = await designs?.preview((id, existing) => planDependencies(templateAssets.get(id)!, existing))
@@ -743,12 +785,15 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
           }
           return true
         }
+        if (supported.some(({ doc }) => archivedThemes.has(doc.themeId)) ||
+            versions.some(({ version }) => archivedThemes.has(version.doc.themeId))) await designs?.prepareThemes()
         for (const { doc, dependencies } of supported) {
           if (retainedParents.has(doc.id)) { skipped.push(doc.id); continue }
           try {
             // Asset queue → project queue. The callback never re-enters
             // either queue; ordinary project writers cannot win mid-restore.
-            const added = await store.restore(doc, dependencies.size ? () => publishDependencies(dependencies) : undefined)
+            const added = await withTheme(doc.themeId, () =>
+              store.restore(doc, dependencies.size ? () => publishDependencies(dependencies) : undefined))
             if (added) {
               restored.push(doc.id)
               fresh.set(doc.id, added.revision)
@@ -771,12 +816,12 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
           const sourceParent = parents.get(version.projectId)
           if (!historyStore || !parentRevision || !sourceParent || (!existing && fullParents.has(version.projectId))) { historyResult.skipped.push(key); continue }
           try {
-            const status = await historyStore.restore({ sourceParent, parentRevision, version },
-              dependencies.size ? () => publishDependencies(dependencies) : undefined)
+            const status = await withVersionThemes(sourceParent, version.doc, () => historyStore.restore({ sourceParent, parentRevision, version },
+              dependencies.size ? () => publishDependencies(dependencies) : undefined))
             if (status === 'restored') historyResult.restored.push(key)
             else if (status === 'dependency-unavailable' && hasStatus(dependencies, 'failed')) historyResult.failed.push(key)
             else historyResult.skipped.push(key)
-            if (existing && status !== 'restored') historyReasons[key] = status === 'parent-unavailable' ? 'parent-changed' : status
+            if (existing && status !== 'restored') historyReasons[key] = status === 'parent-unavailable' ? 'parent-changed' : status ?? 'dependency-unavailable'
             if (status === 'retention-limit' || status === 'parent-unavailable') fullParents.add(version.projectId)
           } catch {
             historyResult.failed.push(key)
