@@ -188,3 +188,36 @@ it('keeps component-only opt-in and confirmation separate, and refreshes only re
     expect(refresh).toHaveBeenCalledOnce()
   } finally { window.removeEventListener('components-changed', refresh) }
 }))
+
+it('opts in separately for an asset-only archive, then disables confirmation for identical repeats', () => modal(async requests => {
+  const asset = 'asset-only'
+  const assetPlan = (add: string[], alreadyPresent: string[]) => ({
+    token: previewBody.token,
+    plan: { projects: { add: [], skip: [], unsupported: [] }, assets: { add, skip: [], alreadyPresent }, unsupported: [] },
+  })
+  requests.mockResolvedValueOnce(json(assetPlan([asset], []))).mockResolvedValueOnce(json({
+    projects: { restored: [], skipped: [], failed: [], unsupported: [] },
+    assets: { restored: [asset], skipped: [], failed: [], alreadyPresent: [] }, unsupported: [],
+  })).mockResolvedValueOnce(json(assetPlan([], [asset])))
+  const event = vi.fn()
+  window.addEventListener('assets-changed', event)
+  try {
+    pick('actual-assets-only.zip')
+    const option = [...document.querySelectorAll('label')]
+      .find(label => label.textContent?.includes('独立恢复素材库'))!.querySelector<HTMLInputElement>('input')!
+    expect(option.checked).toBe(false)
+    await act(async () => option.click())
+    expect(requests).not.toHaveBeenCalled()
+    await act(async () => button('预览恢复')!.click())
+    expect(requests.mock.calls[0][0]).toBe('/api/data/restore?standaloneImages=1')
+    expect(button('确认添加所选数据')?.disabled).toBe(false)
+    await act(async () => button('确认添加所选数据')!.click())
+    expect(event).toHaveBeenCalledOnce()
+    expect(document.body.textContent).toContain('新增 1 张素材图片')
+    await act(async () => button('预览恢复')!.click())
+    expect(document.body.textContent).toContain('已有相同图片（1）')
+    expect(button('确认添加所选数据')?.disabled).toBe(true)
+    await act(async () => button('确认添加所选数据')!.click())
+    expect(requests).toHaveBeenCalledTimes(3)
+  } finally { window.removeEventListener('assets-changed', event) }
+}))

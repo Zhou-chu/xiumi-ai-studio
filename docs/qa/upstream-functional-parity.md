@@ -84,3 +84,11 @@ image options must be explicitly selected. Boxes containing pairs, wider
 photo layouts, HTML and arbitrary media remain outside this slice. The native
 fixture exercises ordered replacement and local embedded HTML; it does not
 cover ordinary one-slot blocks mislabeled with a two-slot role.
+
+
+Independent indexed asset restore is an explicit separate choice. It can add
+verified PNG/JPEG from an asset-only fork download, without restoring a referring
+project or template. Choosing both image options still imports each verified
+asset at most once. Same-ID different bytes are not overwritten; other assets
+can still be added. An unindexed file or unsupported referring record stays
+unsupported, and re-previewing an exact no-op disables confirmation.

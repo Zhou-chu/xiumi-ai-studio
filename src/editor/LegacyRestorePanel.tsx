@@ -50,13 +50,14 @@ function ComponentLists({ value }: { value: NonNullable<LegacyRestorePlan['compo
   </>
 }
 function hasAdditions(plan: LegacyRestorePlan | undefined): boolean {
-  return !!(plan?.projects.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length)
+  return !!(plan?.projects.add.length || plan?.assets?.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length)
 }
 const message = (failure: unknown) => failure instanceof Error ? failure.message : '请求未完成，请重试。'
 
 export function LegacyRestorePanel() {
   const [file, setFile] = useState<File | null>(null)
   const [indexedImages, setIndexedImages] = useState(false)
+  const [standaloneImages, setStandaloneImages] = useState(false)
   const [includeDesign, setIncludeDesign] = useState(false)
   const [includeComponents, setIncludeComponents] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -76,7 +77,7 @@ export function LegacyRestorePanel() {
     setPreview(null)
     try {
       if (stage === 'preview') {
-        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents)
+        const response = await api.previewLegacyRestore(file, controller.signal, indexedImages, includeDesign, includeComponents, standaloneImages)
         if (!controller.signal.aborted) setPreview(response)
       } else if (preview) {
         const response = await api.applyLegacyRestore(preview.token, controller.signal)
@@ -129,6 +130,15 @@ export function LegacyRestorePanel() {
       同时恢复项目、历史及已选择模板引用的已索引图片
     </label>
     <label className="row gap">
+      <input type="checkbox" checked={standaloneImages} disabled={!!busy} onChange={event => {
+        setStandaloneImages(event.currentTarget.checked)
+        setPreview(null)
+        setResult(null)
+        setError('')
+      }} />
+      独立恢复素材库中已索引的 PNG/JPEG（无需项目引用，不覆盖现有图片）
+    </label>
+    <label className="row gap">
       <input type="checkbox" checked={includeDesign} disabled={!!busy} onChange={event => {
         setIncludeDesign(event.currentTarget.checked)
         setPreview(null)
@@ -148,7 +158,7 @@ export function LegacyRestorePanel() {
     </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>
-      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components) ? '确认添加所选数据' : '确认添加项目'}</button>}
+      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components || standaloneImages) ? '确认添加所选数据' : '确认添加项目'}</button>}
     </div>
     {busy === 'apply' && <p role="status">正在添加所选数据。关闭窗口不会撤销已经添加的数据。</p>}
     {error && <p role="alert" className="warn">{error}</p>}
@@ -159,7 +169,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="不支持的项目" entries={preview.plan.projects.unsupported} />
       <RestoreList label="可添加的历史版本" entries={preview.plan.versions?.add ?? []} />
       <RestoreList label="将跳过的历史版本" entries={preview.plan.versions?.skip ?? []} />
-      <RestoreList label="可添加的引用图片" entries={preview.plan.assets?.add ?? []} />
+      <RestoreList label={standaloneImages ? '可添加的素材库图片' : '可添加的引用图片'} entries={preview.plan.assets?.add ?? []} />
       <RestoreList label="已有相同图片" entries={preview.plan.assets?.alreadyPresent ?? []} />
       <RestoreList label="冲突图片，不覆盖" entries={preview.plan.assets?.skip ?? []} />
       {preview.plan.components && <ComponentLists value={preview.plan.components} />}
@@ -167,7 +177,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="不恢复的其他档案" entries={preview.plan.unsupported} />
     </div>}
     {result && <div className="report" aria-label="本次恢复结果">
-      <p role="status">{result.projects.restored.length ? `新增 ${result.projects.restored.length} 个项目。` : '没有新增项目。'}</p>
+      <p role="status">{standaloneImages && `新增 ${result.assets?.restored.length ?? 0} 张素材图片。 `}{result.projects.restored.length ? `新增 ${result.projects.restored.length} 个项目。` : '没有新增项目。'}</p>
       <RestoreList label="新增项目" entries={result.projects.restored} />
       <RestoreList label="已跳过，不覆盖" entries={result.projects.skipped} />
       <RestoreList label="写入失败" entries={result.projects.failed} />

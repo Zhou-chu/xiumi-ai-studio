@@ -65,9 +65,10 @@ export function registerLegacyRestoreRoutes(
     let stage: Stage
     try {
       const projectImages = req.query.indexedImages === '1'
+      const standaloneImages = req.query.standaloneImages === '1'
       const components = req.query.components === '1' ? (await import('./components')).componentRestoreStore : undefined
-      stage = await stageLegacyTextProjects(archive.path, projects, history, projectImages || components ? assetRestoreStore : undefined,
-        req.query.design === '1' ? design : undefined, { components, projectImages })
+      stage = await stageLegacyTextProjects(archive.path, projects, history, projectImages || standaloneImages || components ? assetRestoreStore : undefined,
+        req.query.design === '1' ? design : undefined, { components, projectImages, standaloneImages })
     } finally {
       await archive.dispose()
     }

@@ -206,13 +206,14 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
-  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false) {
+  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false) {
     const payload = new FormData()
     payload.append('file', file)
     const options = new URLSearchParams()
     if (indexedImages) options.set('indexedImages', '1')
     if (includeDesign) options.set('design', '1')
     if (includeComponents) options.set('components', '1')
+    if (standaloneImages) options.set('standaloneImages', '1')
     return decodePlan(await req<unknown>('POST', options.size ? restoreEndpoint + '?' + options : restoreEndpoint, payload, signal))
   },
   async applyLegacyRestore(token: string, signal?: AbortSignal) {

@@ -469,7 +469,7 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components)
@@ -536,6 +536,10 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
     versions.push(snapshot)
     for (const id of snapshot.dependencies) selected.add(id)
   }
+  // This separate opt-in uses only independently checked archive index/bytes.
+  // Invalid referring records stay unsupported even when their asset is valid.
+  const standalone = options.standaloneImages && assetStore ? [...images.keys()] : []
+  for (const id of standalone) selected.add(id)
   if (assetStore) {
     if (!selected.size && assets.length) otherLibraryEntries.push(ASSET_INDEX)
     for (const { asset } of assets) if (!selected.has(asset.id)) otherLibraryEntries.push('assets/' + asset.file)
@@ -577,6 +581,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         } else planned.skip.push(versionKey(version))
       }
       const design = await designs?.preview((id, existing) => planDependencies(templateAssets.get(id)!, existing))
+      for (const id of standalone) await planDependencies(new Set([id]))
       plan.skip = [...conflicts]
       for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
       return { ...(components && { components }), ...(design && { design }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
@@ -658,6 +663,9 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
           if (await publishDependencies(dependencies, existing)) return 'ready'
           return hasStatus(dependencies, 'failed') ? 'failed' : 'unresolved'
         })
+        // Each independently eligible image can succeed despite a collision
+        // elsewhere; the same applied map dedupes referenced dependencies.
+        for (const id of standalone) await publishDependencies(new Set([id]))
         return { components, design }
       }
       const { components, design } = assetStore ? await assetStore.withApplyLock(run) : await run()
