@@ -343,6 +343,8 @@ const paragraphKeys = new Set(['content', 'align'])
 const cardKeys = new Set(['content', 'title', 'variant'])
 const coverTextKeys = new Set(['titleAlign', 'kicker', 'title', 'subtitle', 'meta', 'variant'])
 const endingTextKeys = new Set(['text', 'author', 'note'])
+const profileTextKeys = new Set(['name', 'role', 'bio'])
+const columnsTextKeys = new Set(['title', 'content', 'imagePosition'])
 const legacyCoverAlignments = new Set<unknown>(['auto', 'left', 'center', 'right'])
 const legacyCoverVariants = new Set<unknown>(['auto', 'hero', 'band', 'minimal'])
 const knownKeys = (value: Record<string, unknown>, allowed: Set<string>) => Object.keys(value).every(key => allowed.has(key))
@@ -358,6 +360,16 @@ function acceptsTextEnding(props: Record<string, unknown>) {
     boundedText(props.author, 2000) && boundedText(props.note, 2000)
 }
 
+function acceptsTextProfile(props: Record<string, unknown>) {
+  return knownKeys(props, profileTextKeys) && boundedText(props.name, 2000) &&
+    boundedText(props.role, 2000) && boundedText(props.bio, 20_000)
+}
+
+function acceptsTextColumns(props: Record<string, unknown>, budget: RichTextBudget) {
+  return knownKeys(props, columnsTextKeys) && boundedText(props.title, 2000) &&
+    (props.imagePosition === 'left' || props.imagePosition === 'right') && acceptsLegacyRichText(props.content, budget)
+}
+
 function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget) {
   if (!isObject(value) || !knownKeys(value, blockKeys) || typeof value.id !== 'string' ||
       !idPattern.test(value.id) || !isObject(value.props)) return false
@@ -369,6 +381,8 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
   if (value.type === 'timeline' || value.type === 'table') return acceptsLegacyDataBlock(value.type, props, dataBudget)
   if (value.type === 'ending') return acceptsTextEnding(props)
   if (value.type === 'cover') return acceptsTextCover(props)
+  if (value.type === 'profile') return acceptsTextProfile(props)
+  if (value.type === 'imageText') return acceptsTextColumns(props, budget)
   if (typeof props.variant !== 'string') return false
   if (value.type === 'card') {
     return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&

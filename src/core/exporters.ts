@@ -49,7 +49,8 @@ export function docToMarkdown(doc: Doc): string {
         out.push(`> ${p.text}${p.source ? `\n>\n> —— ${p.source}` : ''}`)
         break
       case 'imageText':
-        out.push(img(p.image?.src), p.title && `**${p.title}**`, richToMarkdown(p.content))
+        out.push(img(b.props.image?.src), b.props.title && `**${markdownDataText(b.props.title)}**`,
+          richToMarkdown(b.props.content, markdownDataText))
         break
       case 'image':
         out.push(img(p.image?.src, p.caption), p.caption && `*${p.caption}*`)
@@ -65,7 +66,8 @@ export function docToMarkdown(doc: Doc): string {
         out.push(...markdownDataTable(b.props))
         break
       case 'profile':
-        out.push(img(p.image?.src, p.name), `**${p.name}** · ${p.role}`, p.bio)
+        out.push(img(b.props.image?.src, markdownDataText(b.props.name)),
+          `**${markdownDataText(b.props.name)}** · ${markdownDataText(b.props.role)}`, markdownDataText(b.props.bio))
         break
       case 'divider':
         out.push('---')
