@@ -42,6 +42,7 @@ function respondError(res: Response, error: unknown) {
 
 function guardedStage(snapshot: Snapshot, projects: Store, target: string, historyStore: History) {
   const { projects: candidates, assets, history, targetHistory, verifyDestination } = snapshot
+  const inspectExisting = historyStore.inspectExisting
   const verifyAssetDestination = async () => {
     await verifyDestination()
     const info = await lstat(join(target, 'assets', '_index.json')).catch(error => {
@@ -78,6 +79,11 @@ function guardedStage(snapshot: Snapshot, projects: Store, target: string, histo
       async asset => { await verifyAssetDestination(); return check(asset) },
     )),
   }, historyStore: targetHistory && {
+    inspectExisting: inspectExisting && (async (parent, ids) => {
+      await verifyDestination()
+      await targetHistory.guard(parent.id)
+      return inspectExisting(parent, ids)
+    }),
     restore: (request, publishDependencies) => historyStore.restore(request, publishDependencies, async created => {
       await verifyDestination()
       await targetHistory.guard(request.sourceParent.id, created)

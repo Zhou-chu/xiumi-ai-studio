@@ -329,3 +329,105 @@ it.each(['stable', 'version-changed', 'history-image-changed', 'history-root-mov
     await rm(root, { recursive: true, force: true })
   }
 })
+
+it.each(['matching', 'divergent', 'unreadable', 'late-edit', 'full', 'current-source-changed', 'historical-source-changed', 'historical-PNG-changed'] as const)(
+  'adds only reviewed missing directory history to an existing manuscript (%s)', async mode => {
+    const root = await mkdtemp(join(tmpdir(), 'xiumi-directory-existing-history-'))
+    const source = join(root, 'legacy')
+    const target = join(root, 'target')
+    const pid = 'visual-history'
+    const record = 'versions/' + pid + '/visual.json'
+    const bitmap = 'assets/history-only.png'
+    const manuscript = 'projects/' + pid + '.json'
+    let server: ReturnType<typeof createServer> | undefined
+    try {
+      const zip = await JSZip.loadAsync(await readFile(new URL('../fixtures/legacy-backup/upstream-image-history.zip', import.meta.url)))
+      for (const dir of ['projects', 'assets', 'versions/' + pid]) await mkdir(join(source, dir), { recursive: true })
+      const entry = (path: string) => zip.file(path)!.async('nodebuffer')
+      for (const name of [manuscript, 'assets/_index.json', 'assets/current-only.png', bitmap]) await writeFile(join(source, name), await entry(name))
+      vi.stubEnv('DATA_DIR', target)
+      vi.resetModules()
+      const { createApp } = await import('../../server/app')
+      server = createServer(createApp({ legacyMigrationSource: source })).listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      const address = server.address()
+      if (!address || typeof address === 'string') throw Error('missing loopback address')
+      const origin = 'http://127.0.0.1:' + address.port
+      const send = (suffix = '', cookie = '') => fetch(origin + '/api/data/migrate' + suffix, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Origin': origin, 'Sec-Fetch-Site': 'same-origin', ...(cookie && { Cookie: cookie }) },
+        body: suffix ? '{"confirm":true}' : '{}',
+      })
+      const preview = async () => {
+        const response = await send()
+        expect(response.status).toBe(200)
+        return { ...await response.json(), cookie: response.headers.get('set-cookie')!.split(';', 1)[0] }
+      }
+      const apply = ({ token, cookie }: { token: string; cookie: string }) => send('/' + token + '/apply', cookie)
+      const seed = await preview()
+      expect((await (await apply(seed)).json()).restored).toBe(1)
+      await mkdir(join(target, 'versions', pid))
+      const collision = 'versions/' + pid + '/text.json'
+      const local = Buffer.from(JSON.stringify({ id: 'text', label: 'Local unchanged collision', createdAt: 10, doc: { blocks: [] } }))
+      await writeFile(join(target, collision), local)
+      if (mode === 'full') for (let i = 0; i < 49; i++) await writeFile(join(target, 'versions', pid, 'extra-' + i + '.json'), local)
+      for (const name of [record, collision]) await writeFile(join(source, name), await entry(name))
+      const endpoint = origin + '/api/projects/' + pid
+      const edit = async () => {
+        const current = await (await fetch(endpoint)).json()
+        expect((await fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...current, title: 'A local edit' }) })).status).toBe(200)
+      }
+      if (mode === 'divergent') await edit()
+      if (mode === 'unreadable') await writeFile(join(target, manuscript), 'malformed retained local bytes')
+      const before = await readFile(join(target, manuscript))
+      if (mode !== 'unreadable') expect(JSON.parse(before.toString('utf8')).revision)
+        .not.toBe(JSON.parse((await entry(manuscript)).toString('utf8')).revision)
+      const beforeVersions = (await readdir(join(target, 'versions', pid))).sort()
+      const beforeAssets = (await readdir(join(target, 'assets'))).sort()
+      const review = await preview()
+      const eligible = mode !== 'divergent' && mode !== 'unreadable' && mode !== 'full'
+      expect(review.plan).toMatchObject({ add: 0, skip: 1, versions: { add: eligible ? 1 : 0, skip: eligible ? 1 : 2 } })
+      expect(await readFile(join(target, manuscript))).toEqual(before)
+      expect((await readdir(join(target, 'versions', pid))).sort()).toEqual(beforeVersions)
+      expect((await readdir(join(target, 'assets'))).sort()).toEqual(beforeAssets)
+      if (mode === 'late-edit') await edit()
+      const changedSource = mode === 'current-source-changed' ? manuscript : mode === 'historical-source-changed' ? record
+        : mode === 'historical-PNG-changed' ? bitmap : undefined
+      if (changedSource) {
+        const bytes = await entry(changedSource)
+        const changed = changedSource === bitmap ? await entry('assets/current-only.png') : Buffer.from(bytes.toString('utf8') + '\n')
+        if (changedSource === bitmap) expect(changed).toHaveLength(bytes.length)
+        expect(changed).not.toEqual(bytes)
+        await writeFile(join(source, changedSource), changed)
+      }
+      const active = await readFile(join(target, manuscript))
+      const response = await apply(review)
+      if (changedSource) expect(response.status).toBe(409)
+      else {
+        expect(response.status).toBe(200)
+        expect(await response.json()).toMatchObject({
+          restored: 0, skipped: 1, versions: { restored: mode === 'matching' ? 1 : 0, skipped: mode === 'matching' ? 1 : 2, failed: 0 },
+        })
+      }
+      expect(await readFile(join(target, manuscript))).toEqual(active)
+      expect(await readFile(join(target, collision))).toEqual(local)
+      for (const name of [manuscript, record, bitmap]) if (name !== changedSource) expect(await readFile(join(source, name))).toEqual(await entry(name))
+      if (mode === 'matching') {
+        const old = await (await fetch(endpoint + '/versions/visual')).json()
+        const image = await fetch(origin + old.doc.blocks[0].props.image.src)
+        expect(image.status).toBe(200)
+        expect(Buffer.from(await image.arrayBuffer())).toEqual(await entry(bitmap))
+      } else {
+        expect((await readdir(join(target, 'versions', pid))).sort()).toEqual(beforeVersions)
+        expect((await readdir(join(target, 'assets'))).sort()).toEqual(beforeAssets)
+      }
+    } finally {
+      if (server) {
+        server.closeAllConnections()
+        await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()))
+      }
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+    }
+  },
+)

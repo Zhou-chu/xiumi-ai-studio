@@ -107,3 +107,16 @@ it('distinguishes linked version counts from manuscript counts', () => mounted(a
   await click(host, '确认迁移项目')
   expect(host.querySelector('[role=status]')?.textContent).toContain('历史版本已新增 2，跳过 3，失败 1，不支持 1')
 }))
+
+it('allows a history-only directory confirmation without rewriting the retained project', () => mounted(async (request, host) => {
+  request.mockResolvedValueOnce(json({ ...preview, plan: {
+    ...preview.plan, add: 0, versions: { add: 1, skip: 0, unsupported: 0 },
+  } })).mockResolvedValueOnce(json({
+    restored: 0, skipped: 1, failed: 0, unsupported: 0, invalid: 0, ignored: 0,
+    versions: { restored: 1, skipped: 0, failed: 0, unsupported: 0 },
+  }))
+  await click(host, '检测已配置旧目录')
+  expect([...host.querySelectorAll('button')].find(btn => btn.textContent === '确认迁移历史版本')?.disabled).toBe(false)
+  await click(host, '确认迁移历史版本')
+  expect(host.querySelector('[role=status]')?.textContent).toContain('历史版本已新增 1')
+}))
