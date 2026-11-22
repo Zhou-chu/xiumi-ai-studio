@@ -28,7 +28,9 @@ test('sealed EXE reopens its default AppData library across fresh extractions wi
   const scratch = await mkdtemp(join(tmpdir(), 'xiumi-portable-continuity-'))
   const primary = join(scratch, 'synthetic profile first', 'Local')
   const other = join(scratch, 'synthetic profile second', 'Local')
-  const defaults = join(primary, 'XIUMI AI Studio')
+  // Pass the runner's original spelling to the EXE (it may be DOS 8.3),
+  // but check persistence through the canonical path to the same fixture.
+  const defaults = join(await realpath(scratch), 'synthetic profile first', 'Local', 'XIUMI AI Studio')
   const configured = join(scratch, 'explicit data')
   const oldData = join(root, 'app', 'data')
   const oldSentinel = join(oldData, 'leave-unchanged.txt')
@@ -84,19 +86,23 @@ test('sealed EXE refuses a relative default profile and a redirected application
   test.skip(!root, 'Only the extracted Windows package is tested here')
   if (!root) return
   const scratch = await mkdtemp(join(tmpdir(), 'xiumi-portable-profile-validation-'))
-  const launch = async (local: string) => {
+  const launch = async (local: string, stage: 'profile-path' | 'application-directory-preflight') => {
     const mustNotStart = async () => { throw new Error('Launcher unexpectedly used an invalid default path') }
     await expect(exercisePortable(root, undefined, mustNotStart, scratch, local))
-      .rejects.toThrow('Packaged EXE exited before ready')
+      .rejects.toThrow('Packaged EXE exited before ready (exit 1, AppData ' + stage + ')')
   }
   try {
-    await launch('relative-profile')
-    await launch(scratch[0] + ':drive-relative-profile')
+    await launch('relative-profile', 'profile-path')
+    await launch(scratch[0] + ':drive-relative-profile', 'profile-path')
+    await launch(scratch + '\\dot-subdir\\..\\profile', 'profile-path')
+    await launch(join(scratch, 'profile:stream'), 'profile-path')
+    await launch(join(scratch, 'profile.'), 'profile-path')
+    await launch(join(scratch, 'profile '), 'profile-path')
     const profile = join(scratch, 'local profile'), target = join(scratch, 'junction target')
     await mkdir(profile)
     await mkdir(target)
     await symlink(target, join(profile, 'XIUMI AI Studio'), 'junction')
-    await launch(profile)
+    await launch(profile, 'application-directory-preflight')
     await expect(lstat(join(target, 'projects'))).rejects.toMatchObject({ code: 'ENOENT' })
   } finally {
     await rm(scratch, { recursive: true, force: true, maxRetries: 3 })

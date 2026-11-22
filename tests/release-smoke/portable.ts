@@ -55,16 +55,27 @@ export async function exercisePortable(
     env.LOCALAPPDATA = localAppData
   }
   if (data !== undefined) env.DATA_DIR = resolve(data)
-  const child = spawn(executable, [], { cwd: launchCwd, env, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+  const child = spawn(executable, [], { cwd: launchCwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  const stderrLimit = 2048
+  let stderr = Buffer.alloc(0)
+  child.stderr.on('data', (chunk: Buffer) => {
+    const remaining = stderrLimit - stderr.length
+    if (remaining > 0) stderr = Buffer.concat([stderr, chunk.subarray(0, remaining)])
+  })
   try {
     await new Promise<void>((done, reject) => {
       const lines = createInterface({ input: child.stdout })
       const timeout = setTimeout(() => finish(new Error('Packaged EXE did not announce its loopback listener')), 12_000)
-      const onExit = () => finish(new Error('Packaged EXE exited before ready'))
+      const onClose = (code: number | null) => {
+        // Keep launcher failures legible without leaking arbitrary child stderr.
+        const category = /^XIUMI_PORTABLE_APPDATA:(profile-path|application-directory-preflight|application-directory-create|application-directory-verification)\r?$/m
+          .exec(stderr.toString('utf8'))?.[1]
+        finish(new Error(`Packaged EXE exited before ready (exit ${code ?? 'unknown'}${category ? ', AppData ' + category : ''})`))
+      }
       const onError = () => finish(new Error('Could not start the packaged EXE'))
       function finish(error?: Error) {
         clearTimeout(timeout)
-        child.off('exit', onExit).off('error', onError)
+        child.off('close', onClose).off('error', onError)
         lines.close()
         if (error) reject(error)
         else done()
@@ -72,7 +83,7 @@ export async function exercisePortable(
       lines.on('line', line => {
         if (line.startsWith(`XIUMI AI Studio API ${origin} `)) finish()
       })
-      child.once('exit', onExit).once('error', onError)
+      child.once('close', onClose).once('error', onError)
     })
     await provide(origin, join(unpacked, 'app', 'dist', 'index.html'))
   } finally {
