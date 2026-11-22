@@ -15,7 +15,7 @@ import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from
 import type { projectCollection } from './projectStore'
 import { acceptsLegacyDataBlock, type LegacyDataBlockBudget } from './legacyDataBlocks'
 import { COMPONENT_ENTRY, qualifyLegacyComponent, stageLegacyComponents, type ComponentCollection, type ComponentCandidate } from './legacyComponentRestore'
-import { DESIGN_ENTRY, qualifyLegacyDesign, stageLegacyDesign, validOverrides, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
+import { DESIGN_ENTRY, qualifyLegacyDesign, qualifyNativePhotoProps, stageLegacyDesign, validOverrides, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
 import { VERSION_RETENTION_LIMIT, type projectHistoryRestore, type VersionSnapshot } from './projectHistoryRestore'
 
 const PROJECT = /^projects\/([\w-]{1,64})\.json$/
@@ -442,11 +442,19 @@ function linkedSvgProject(doc: Project): Project | null {
 }
 
 type ArchivedThemes = Map<string, DesignData['themes'][number]>
-type ProjectQualification = { linkedSvg?: boolean; draftCover?: boolean; themes: ArchivedThemes }
+type ProjectQualification = { linkedSvg?: boolean; draftCover?: boolean; nativePhotos?: boolean; themes: ArchivedThemes }
 function validProjectStyle(doc: Project, themes: ArchivedThemes) {
   const id = doc.themeId
   if (id !== undefined && (typeof id !== 'string' || (!coreThemeIds.has(id) && !themes.has(id)))) return false
   return doc.themeOverrides === undefined || validOverrides(doc.themeOverrides)
+}
+
+function qualifyProjectPhotos(block: unknown, images: Map<string, RestoreImage>): Block<'photos'> | null {
+  if (!isObject(block) || !knownKeys(block, blockKeys) || block.type !== 'photos' ||
+      typeof block.id !== 'string' || !idPattern.test(block.id) || !isObject(block.props)) return null
+  const props = qualifyNativePhotoProps(block.props, image =>
+    acceptedImageRef(image, images) ? { ...image, src: images.get(image.assetId)!.qualifiedSrc } : null)
+  return props ? { id: block.id, type: 'photos', props } : null
 }
 
 function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>, options: ProjectQualification) {
@@ -465,7 +473,8 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
   const budget = { nodes: 0, characters: 0 }
   const dataBudget = { characters: 0 }
   return doc.blocks.every(block => textBlock(block, budget, dataBudget) || acceptedImageBlock(block, images) ||
-    acceptedLocalSvgBlock(block) || (options.linkedSvg && acceptedLinkedSvgBlock(block))) &&
+    acceptedLocalSvgBlock(block) || (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
+    (options.linkedSvg && acceptedLinkedSvgBlock(block))) &&
     new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length
 }
 
@@ -475,6 +484,18 @@ function canonicalImageBlock(block: Block<'image'>, images: Map<string, RestoreI
   if (!ref || !record) return block
   const image: ImageRef = { ...ref, src: record.qualifiedSrc }
   return { ...block, props: { ...block.props, image } }
+}
+
+function canonicalRestoredBlock(block: Block, images: Map<string, RestoreImage>): Block {
+  if (block.type === 'image') return canonicalImageBlock(block, images)
+  if (block.type === 'photos') return qualifyProjectPhotos(block, images)!
+  return block
+}
+
+function restoredBlockDependencies(block: Block): string[] {
+  if (block.type === 'image') return block.props.image?.assetId ? [block.props.image.assetId] : []
+  if (block.type === 'photos') return block.props.pics.flatMap(slot => slot.image?.assetId ? [slot.image.assetId] : [])
+  return []
 }
 
 function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<string, RestoreImage>): Doc {
@@ -496,7 +517,7 @@ function canonicalTextProject(doc: Project, fallbackTime: number, images: Map<st
     // Validation excluded every unsupported field before normalization.
     // Persist the editor's canonical property order so opening does not
     // perform a phantom repair/write of unchanged restored content.
-    blocks: normalizeBlocks(doc.blocks.map((block: Block) => block.type === 'image' ? canonicalImageBlock(block, images) : block)),
+    blocks: normalizeBlocks(doc.blocks.map((block: Block) => canonicalRestoredBlock(block, images))),
     createdAt,
     updatedAt,
   }
@@ -509,8 +530,7 @@ function managedProject(source: Project, fallbackTime: number, images: Map<strin
   const candidate = (options.linkedSvg && linkedSvgProject(source)) || source
   if (!independentlyRestorable(candidate, images, options)) return null
   const doc = canonicalTextProject(candidate, fallbackTime, images)
-  const dependencies = new Set(doc.blocks.flatMap(block =>
-    block.type === 'image' && block.props.image?.assetId ? [block.props.image.assetId] : []))
+  const dependencies = new Set(doc.blocks.flatMap(restoredBlockDependencies))
   if (doc.cover?.assetId) dependencies.add(doc.cover.assetId)
   const known = { ids: dependencies, files: new Set([...dependencies].map(id => images.get(id)!.asset.asset.file)) }
   // Already-qualified table/timeline fields are literal text, not references.
@@ -540,12 +560,12 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; draftCover?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; draftCover?: boolean; nativePhotos?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const references = assetStore && !options.standaloneImages ? { projectImages: options.projectImages !== false } : undefined
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards, references)
-  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true, draftCover: true })
+  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true, draftCover: true, nativePhotos: true })
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
@@ -666,7 +686,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   }
   const designs = designStore ? stageLegacyDesign(designRecords, designStore) : null
   const archivedThemes: ArchivedThemes = new Map(designStore ? designRecords.themes.map(theme => [theme.id, theme]) : [])
-  const projectQualification = { linkedSvg: options.crossSvgRestore, draftCover: options.draftCover, themes: archivedThemes }
+  const projectQualification = { linkedSvg: options.crossSvgRestore, draftCover: options.draftCover, nativePhotos: options.nativePhotos, themes: archivedThemes }
   const fallbackTime = Date.now()
   let crossSvgPreview: CrossSvgPreview | null = null
   for (const source of projects) {

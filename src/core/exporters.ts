@@ -24,7 +24,11 @@ function markdownDataTable({ headers, rows, caption }: Extract<Block, { type: 't
 export function docToMarkdown(doc: Doc): string {
   const out: string[] = []
   const img = (src?: string, alt = '') => (src ? `![${alt}](${src})` : '')
-  const pics = (list: { image?: { src: string }; caption: string }[]) => list.filter((x) => x.image).flatMap((x) => [img(x.image!.src, x.caption), x.caption && `*${x.caption}*`])
+  const pics = (list: { image?: { src: string }; caption: string }[], format: (text: string) => string = text => text) =>
+    list.filter(x => x.image).flatMap(x => {
+      const caption = format(x.caption)
+      return [img(x.image!.src, caption), caption && `*${caption}*`]
+    })
   const walk = (b: Block) => {
     const p: any = b.props
     switch (b.type) {
@@ -89,8 +93,10 @@ export function docToMarkdown(doc: Doc): string {
         p.children.forEach(walk)
         break
       case 'carousel':
+        out.push(...pics(b.props.pics))
+        break
       case 'photos':
-        out.push(...pics(b.type === 'photos' ? p.pics.slice(0, p.count) : p.pics))
+        out.push(...pics(b.props.pics.slice(0, b.props.count), markdownDataText))
         break
       case 'frame':
         out.push(img(p.image?.src, p.caption), p.caption && `*${p.caption}*`)

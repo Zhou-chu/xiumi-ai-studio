@@ -107,9 +107,9 @@ export function hasNativePhotoSlots(count: unknown, pics: unknown): pics is unkn
   return (count === 2 || count === 3 || count === 4) && Array.isArray(pics) && pics.length === count
 }
 
-function qualifyPhotos(block: TemplateBlock, imageRef?: QualifyPhotoImage): TemplateImage | null {
-  const { count, ratio, layout, pics } = block.props
-  if (!onlyKeys(block.props, ['count', 'ratio', 'layout', 'pics']) || !hasNativePhotoSlots(count, pics) ||
+export function qualifyNativePhotoProps(props: Record<string, unknown>, imageRef?: QualifyPhotoImage) {
+  const { count, ratio, layout, pics } = props
+  if (!onlyKeys(props, ['count', 'ratio', 'layout', 'pics']) || !hasNativePhotoSlots(count, pics) ||
       (ratio !== '4:3' && ratio !== '3:4' && ratio !== '1:1') ||
       (layout !== 'even' && layout !== 'feature')) return null
   const ordered: PicItem[] = []
@@ -123,7 +123,12 @@ function qualifyPhotos(block: TemplateBlock, imageRef?: QualifyPhotoImage): Temp
     if (!image) return null
     ordered.push({ image, caption: slot.caption })
   }
-  return { block: { ...block, props: { count, ratio, layout, pics: ordered } } }
+  return { count: count as 2 | 3 | 4, ratio, layout, pics: ordered } as const
+}
+
+function qualifyPhotos(block: TemplateBlock, imageRef?: QualifyPhotoImage): TemplateImage | null {
+  const props = qualifyNativePhotoProps(block.props, imageRef)
+  return props ? { block: { ...block, props } } : null
 }
 
 function qualifyTemplate(template: DesignRecord, imageBlock?: QualifyImage, photoImage?: QualifyPhotoImage): DesignRecord | null {

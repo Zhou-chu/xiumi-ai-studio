@@ -30,7 +30,7 @@ function addImageBlocks(blocks: unknown, add: AddFile) {
 
 function addProjectMedia(project: Record<string, unknown>, add: AddFile) {
   add(imageFile(project.cover))
-  addImageBlocks(project.blocks, add)
+  if (Array.isArray(project.blocks)) for (const block of project.blocks) addLeafMedia(block, add)
 }
 
 function addVersionMedia({ raw, id, projectId }: Candidates['history'][number], add: AddFile) {
@@ -39,13 +39,16 @@ function addVersionMedia({ raw, id, projectId }: Candidates['history'][number], 
   }
 }
 
-function addTemplateBlockMedia(block: unknown, add: AddFile) {
-  if (!object(block) || !object(block.props)) return
-  const props = block.props
-  if (block.type === 'box') addImageBlocks(props.children, add)
-  else if (block.type === 'photos' && hasNativePhotoSlots(props.count, props.pics)) {
-    for (const slot of props.pics) if (object(slot)) add(imageFile(slot.image))
+function addLeafMedia(block: unknown, add: AddFile) {
+  if (object(block) && block.type === 'photos' && object(block.props) &&
+      hasNativePhotoSlots(block.props.count, block.props.pics)) {
+    for (const slot of block.props.pics) if (object(slot)) add(imageFile(slot.image))
   } else add(imageBlock(block))
+}
+
+function addTemplateBlockMedia(block: unknown, add: AddFile) {
+  if (object(block) && block.type === 'box' && object(block.props)) addImageBlocks(block.props.children, add)
+  else addLeafMedia(block, add)
 }
 
 function addTemplateMedia({ kind, raw }: Candidates['design'][number], add: AddFile) {
