@@ -8,6 +8,7 @@ import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
 import { readAssetMetadata, validateArchivedRaster } from './legacyRaster'
+import { selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
 import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
@@ -71,16 +72,19 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<string, Entry>, budget: typeof DEFAULT_BUDGET) {
+async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<string, Entry>, budget: typeof DEFAULT_BUDGET,
+  selectedFiles?: ReadonlySet<string>) {
   const catalog = await readJsonEntry(zip, index, budget.entryBytes)
   if (!isObject(catalog)) throw invalid()
   const result: ArchivedAsset[] = []
+  let skipped = false
   let assetBytes = index.uncompressedSize
   if (assetBytes > budget.totalAssetBytes) throw tooLarge()
   for (const [id, value] of Object.entries(catalog)) {
     const asset = readAssetMetadata(id, value)
     const entry = binaries.get('assets/' + asset.file)
     if (!entry || asset.size !== entry.uncompressedSize) throw invalid()
+    if (selectedFiles && !selectedFiles.has(asset.file)) { skipped = true; continue }
     assetBytes += entry.uncompressedSize
     if (assetBytes > budget.totalAssetBytes) throw tooLarge()
     const bytes = await readEntry(zip, entry, budget.entryBytes)
@@ -88,10 +92,11 @@ async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<stri
     result.push({ asset, bytes })
     binaries.delete(entry.fileName)
   }
-  return result.sort((a, b) => a.asset.id.localeCompare(b.asset.id, 'en'))
+  return { assets: result.sort((a, b) => a.asset.id.localeCompare(b.asset.id, 'en')), unusedIndex: skipped && !result.length }
 }
 
-async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false, includeDesign = false, includeComponents = false, includeModelCards = false): Promise<ProjectArchive> {
+async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, includeAssets = false, requireLibraryManifest = false, includeHistory = false, includeDesign = false, includeComponents = false, includeModelCards = false,
+  references?: { projectImages: boolean }): Promise<ProjectArchive> {
   const projects: Project[] = []
   const design: DesignEntry[] = []
   let designBytes = 0, componentBytes = 0
@@ -191,10 +196,13 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
       }
     }
     if (!sawManifest) throw invalid()
-    const assets = index ? await readArchivedAssets(zip, index, binaries, budget) : []
+    const selectedFiles = references && index ? selectArchiveMediaFiles({ projects, history, design, components }, references.projectImages,
+      file => binaries.has('assets/' + file)) : undefined
+    const archived = index ? await readArchivedAssets(zip, index, binaries, budget, selectedFiles) : undefined
+    if (archived?.unusedIndex) otherLibraryEntries.push(ASSET_INDEX)
     return {
       projects: projects.sort((a, b) => a.id.localeCompare(b.id, 'en')),
-      assets,
+      assets: archived?.assets ?? [],
       modelCards,
       history,
       components,
@@ -504,7 +512,8 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
-  const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards)
+  const references = assetStore && !options.standaloneImages ? { projectImages: options.projectImages !== false } : undefined
+  const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards, references)
   return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true })
 }
 
