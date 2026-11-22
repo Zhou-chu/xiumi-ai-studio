@@ -226,3 +226,106 @@ it.each(['stable', 'raster-changed', 'index-changed', 'assets-moved', 'asset-col
     await rm(root, { recursive: true, force: true })
   }
 })
+
+it.each(['stable', 'version-changed', 'history-image-changed', 'history-root-moved', 'directory-conflict', 'source-history-arrives', 'preexisting-orphan'] as const)('keeps directory history tied to its reviewed project and bytes (%s)', async mode => {
+  const root = await mkdtemp(join(tmpdir(), 'xiumi-directory-history-'))
+  const source = join(root, 'legacy')
+  const target = join(root, 'target')
+  const pid = 'visual-history'
+  const path = 'versions/' + pid + '/visual.json'
+  const assetPath = 'assets/history-only.png'
+  const currentPath = 'projects/' + pid + '.json'
+  let server: ReturnType<typeof createServer> | undefined
+  try {
+    const zip = await JSZip.loadAsync(await readFile(new URL('../fixtures/legacy-backup/upstream-image-history.zip', import.meta.url)))
+    for (const dir of ['projects', 'assets', 'versions/' + pid]) await mkdir(join(source, dir), { recursive: true })
+    for (const name of [currentPath, path, 'versions/' + pid + '/text.json', 'assets/_index.json', 'assets/current-only.png', assetPath]) {
+      await writeFile(join(source, name), await zip.file(name)!.async('nodebuffer'))
+    }
+    const current = await readFile(join(source, currentPath))
+    const snapshot = await readFile(join(source, path))
+    const pixels = await readFile(join(source, assetPath))
+    vi.stubEnv('DATA_DIR', target)
+    vi.resetModules()
+    const { createApp } = await import('../../server/app')
+    server = createServer(createApp({ legacyMigrationSource: source })).listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (!address || typeof address === 'string') throw Error('missing loopback address')
+    const origin = 'http://127.0.0.1:' + address.port
+    const send = (suffix = '', cookie = '') => fetch(origin + '/api/data/migrate' + suffix, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Origin': origin, 'Sec-Fetch-Site': 'same-origin', ...(cookie && { Cookie: cookie }) },
+      body: suffix ? '{"confirm":true}' : '{}',
+    })
+    const incoming = origin + '/api/projects/' + pid
+    const apply = async (verifyPreview: boolean) => {
+      const response = await send()
+      expect(response.status).toBe(200)
+      const { token, plan } = await response.json()
+      if (verifyPreview) expect(plan).toMatchObject({ add: 1, versions: { add: 2, skip: 0 } })
+      return { token, cookie: response.headers.get('set-cookie')!.split(';', 1)[0] }
+    }
+    if (mode === 'source-history-arrives') await rename(join(source, 'versions', pid), join(source, 'not-yet-present'))
+    if (mode === 'preexisting-orphan') {
+      await mkdir(join(target, 'versions', pid))
+      await writeFile(join(target, path), 'sealed unrelated history')
+      const orphan = await apply(false)
+      expect(await (await send('/' + orphan.token + '/apply', orphan.cookie)).json()).toMatchObject({
+        restored: 0, skipped: 1, versions: { restored: 0, skipped: 2, failed: 0 },
+      })
+      expect(await readFile(join(target, path), 'utf8')).toBe('sealed unrelated history')
+      expect(await readdir(join(target, 'projects'))).toEqual([])
+      expect(await readdir(join(target, 'assets'))).toEqual([])
+      return
+    }
+    const first = await apply(mode === 'stable')
+    expect((await fetch(incoming)).status).toBe(404)
+    expect(await readdir(join(target, 'versions'))).toEqual([])
+    if (mode === 'version-changed') {
+      const entry = JSON.parse(snapshot.toString('utf8'))
+      await writeFile(join(source, path), JSON.stringify({ ...entry, label: entry.label + ' revised' }))
+    } else if (mode === 'history-image-changed') {
+      const alternate = await zip.file('assets/current-only.png')!.async('nodebuffer')
+      expect(alternate).toHaveLength(pixels.length)
+      expect(alternate).not.toEqual(pixels)
+      await writeFile(join(source, assetPath), alternate)
+    } else if (mode === 'history-root-moved') {
+      await rename(join(target, 'versions'), join(root, 'old-versions'))
+      await mkdir(join(target, 'versions'))
+    } else if (mode === 'source-history-arrives') {
+      await rename(join(source, 'not-yet-present'), join(source, 'versions', pid))
+    } else if (mode === 'directory-conflict') {
+      await mkdir(join(target, 'versions', pid))
+      await writeFile(join(target, path), 'existing unrelated history')
+    }
+    const result = await send('/' + first.token + '/apply', first.cookie)
+    expect(await readFile(join(source, currentPath))).toEqual(current)
+    if (mode !== 'stable') {
+      expect(result.status).toBe(409)
+      expect(await readdir(join(target, 'projects'))).toEqual([])
+      expect(await readdir(join(target, 'assets'))).toEqual([])
+      if (mode === 'directory-conflict') expect(await readFile(join(target, path), 'utf8')).toBe('existing unrelated history')
+      else expect(await readdir(join(target, 'versions'))).toEqual([])
+      return
+    }
+    expect(result.status).toBe(200)
+    expect(await result.json()).toMatchObject({ restored: 1, versions: { restored: 2, skipped: 0, failed: 0 } })
+    const draft = await (await fetch(incoming)).json()
+    expect(draft.blocks[0].props.image.src).toMatch(/^\/media\/current-only\.png\?gen=/)
+    const item = await (await fetch(incoming + '/versions/visual')).json()
+    expect(item.doc.blocks[0].props.image.src).toMatch(/^\/media\/history-only\.png\?gen=/)
+    const served = await fetch(origin + item.doc.blocks[0].props.image.src)
+    expect(served.status).toBe(200)
+    expect(Buffer.from(await served.arrayBuffer())).toEqual(pixels)
+    expect(await readFile(join(source, path))).toEqual(snapshot)
+    expect(await readFile(join(source, assetPath))).toEqual(pixels)
+    const replay = await apply(false)
+    expect(await (await send('/' + replay.token + '/apply', replay.cookie)).json()).toMatchObject({
+      restored: 0, skipped: 1, versions: { restored: 0, skipped: 2, failed: 0 },
+    })
+  } finally {
+    if (server) await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()))
+    vi.unstubAllEnvs()
+    await rm(root, { recursive: true, force: true })
+  }
+})

@@ -3,6 +3,7 @@ import { constants, type BigIntStats } from 'node:fs'
 import { lstat, open, opendir, realpath } from 'node:fs/promises'
 import { readAssetMetadata, isAssetCatalog, validateArchivedRaster } from './legacyRaster'
 import type { ArchivedAsset } from './assets'
+import type { HistoryCandidate } from './legacyProjectRestore'
 import { verifyHistoryDirectory } from './historyDirectory'
 import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path'
 
@@ -26,6 +27,8 @@ const tooLarge = () => new LocalMigrationError('目录条目超过迁移预览�
 const changed = () => new LocalMigrationError('旧版数据目录或项目已变化，请重新检测', 409)
 const MAX_PROJECT_BYTES = 4 * 1024 * 1024
 const MAX_TOTAL_PROJECT_BYTES = 32 * 1024 * 1024
+const MAX_HISTORY_BYTES = 4 * 1024 * 1024
+const MAX_TOTAL_HISTORY_BYTES = 32 * 1024 * 1024
 const MAX_INDEX_BYTES = 4 * 1024 * 1024
 const MAX_ASSET_BYTES = 32 * 1024 * 1024
 const MAX_TOTAL_ASSET_BYTES = 64 * 1024 * 1024
@@ -138,6 +141,8 @@ type SourceSnapshot = {
   sourceLayout: MigrationPreview['sourceLayout']
   projects: ProjectCandidate[]
   assets: ArchivedAsset[]
+  history?: HistoryCandidate[]
+  targetHistory?: ReturnType<typeof targetHistoryFolders>
   /** Server-only version of the exact source bytes and selected data/target identities. */
   sourceVersion: string
   verifyDestination: () => Promise<void>
@@ -205,7 +210,7 @@ function selectedImageId(block: unknown) {
   })) return assetId
 }
 
-function imageDependencies(projects: ProjectCandidate[], maxEntries: number) {
+function imageDependencies(projects: Pick<ProjectCandidate, 'blocks'>[], maxEntries: number) {
   const ids = new Set<string>()
   for (const project of projects) {
     if (project.blocks.length > 2000) continue
@@ -229,6 +234,98 @@ async function pinFolder(path: string) {
     identity: directory?.identity ?? 'absent',
     verify: directory?.verify ?? (async () => { if (await inspect(path)) throw changed() }),
   }
+}
+
+type PinnedFolder = Awaited<ReturnType<typeof pinFolder>>
+
+function targetHistoryFolders(folder: PinnedFolder) {
+  const parents = new Map<string, PinnedFolder>()
+  const blocked = new Set<string>()
+  return {
+    blocked,
+    async pin(id: string) {
+      await folder.verify()
+      const parent = await pinFolder(join(folder.path, id))
+      parents.set(id, parent)
+      if (parent.identity !== 'absent') blocked.add(id)
+      return parent.identity
+    },
+    async guard(id: string, created = false) {
+      await folder.verify()
+      const parent = parents.get(id)
+      if (!parent) return
+      if (created && parent.identity === 'absent') {
+        const pinned = await pinFolder(parent.path)
+        if (pinned.identity === 'absent') throw changed()
+        parents.set(id, pinned)
+      } else await parent.verify()
+    },
+  }
+}
+
+async function historyFiles(directory: PinnedFolder, visit: () => void) {
+  const files: string[] = []
+  const names = new Set<string>()
+  for await (const entry of await opendir(directory.path)) {
+    visit()
+    if (!entry.isFile() || !jsonFile.test(entry.name)) continue
+    const key = entry.name.toLowerCase()
+    if (names.has(key)) throw invalid()
+    names.add(key)
+    files.push(entry.name)
+  }
+  return files.sort((a, b) => a.localeCompare(b, 'en'))
+}
+
+function readHistoryDocument(bytes: Buffer) {
+  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown }
+  catch { return undefined }
+}
+
+function versionImages(raw: unknown, id: string, projectId: string): Pick<ProjectCandidate, 'blocks'> | undefined {
+  if (isAssetCatalog(raw) && raw.id === id && raw.projectId === projectId &&
+      isAssetCatalog(raw.doc) && raw.doc.id === projectId && Array.isArray(raw.doc.blocks)) return { blocks: raw.doc.blocks }
+}
+
+async function snapshotHistory(data: string, projects: ProjectCandidate[], target: ReturnType<typeof targetHistoryFolders>,
+  verify: Verify, budget: { visit: () => void; signal?: AbortSignal }) {
+  const candidates: HistoryCandidate[] = []
+  const images: Pick<ProjectCandidate, 'blocks'>[] = []
+  const fingerprints: string[] = []
+  const folder = await pinFolder(join(data, 'versions'))
+  fingerprints.push(folder.identity)
+  if (folder.identity === 'absent') { await folder.verify(); return { candidates, images, fingerprints } }
+  let total = 0
+  for (const project of projects) {
+    budget.visit()
+    await verify()
+    await folder.verify()
+    const parent = await pinFolder(join(folder.path, project.id))
+    if (parent.identity === 'absent') { await parent.verify(); continue }
+    if (comparable(parent.path) !== comparable(join(folder.path, project.id))) throw changed()
+    fingerprints.push(parent.identity, await target.pin(project.id))
+    const verifySource = async () => { await verify(); await folder.verify(); await parent.verify() }
+    for (const name of await historyFiles(parent, budget.visit)) {
+      await verifySource()
+      const leaf = join(parent.path, name)
+      const info = await lstat(leaf, { bigint: true })
+      if (!info.isFile() || info.nlink !== 1n) continue
+      const remaining = Math.min(MAX_HISTORY_BYTES, MAX_TOTAL_HISTORY_BYTES - total)
+      if (info.size > BigInt(remaining)) throw tooLarge()
+      const bytes = await readRegularFile(leaf, info, remaining, budget.signal).finally(verifySource)
+      total += bytes.length
+      const path = 'versions/' + project.id + '/' + name
+      fingerprints.push(path + ':' + digest(bytes))
+      const raw = readHistoryDocument(bytes)
+      const id = name.slice(0, -5)
+      candidates.push({ path, projectId: project.id, id, raw })
+      const body = versionImages(raw, id, project.id)
+      if (body) images.push(body)
+    }
+  }
+  await folder.verify()
+  await verify()
+  return { candidates, images, fingerprints }
 }
 
 async function snapshotReferencedAssets(data: string, ids: string[], verifyRoots: Verify, signal?: AbortSignal) {
@@ -355,15 +452,17 @@ export function createLegacyDirectoryPreview({
         const projects: ProjectCandidate[] = []
         const summaries = { candidates: 0, invalid: 0, ignored: 0 }
         const fingerprints: string[] = []
-        const version = (folder: string, assets: string[] = []) => createHash('sha256')
-          .update(JSON.stringify([identity, targetProjects.identity, targetAssets.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), assets, summaries])).digest('hex')
+        const version = (folder: string, assets: string[] = [], history: string[] = []) => createHash('sha256')
+          .update(JSON.stringify([identity, targetProjects.identity, targetAssets.identity, targetVersions.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), assets, history, summaries])).digest('hex')
         await verifyRoots()
         const targetProjects = await pinFolder(join(destination, 'projects'))
         const targetAssets = await pinFolder(join(destination, 'assets'))
+        const targetVersions = await pinFolder(join(destination, 'versions'))
         const verifyDestination = async () => {
           await verifyRoots()
           await targetProjects.verify()
           await targetAssets.verify()
+          await targetVersions.verify()
         }
         const requested = join(data, 'projects')
         if (!await inspect(requested)) {
@@ -410,8 +509,13 @@ export function createLegacyDirectoryPreview({
         await verify()
         summaries.candidates = projects.length
         projects.sort((a, b) => a.id.localeCompare(b.id, 'en'))
-        const archived = await snapshotReferencedAssets(data, imageDependencies(projects, maxEntries), verify, signal)
-        return { sourceLayout, projects, assets: archived.assets, summaries, sourceVersion: version(directory.identity, archived.fingerprints), verifyDestination }
+        const targetHistory = targetHistoryFolders(targetVersions)
+        let historyVisited = 0
+        const visit = () => { signal?.throwIfAborted(); if (++historyVisited > maxEntries) throw tooLarge() }
+        const history = await snapshotHistory(data, projects, targetHistory, verify, { visit, signal })
+        const archived = await snapshotReferencedAssets(data, imageDependencies([...projects, ...history.images], maxEntries), verify, signal)
+        return { sourceLayout, projects, assets: archived.assets, summaries, sourceVersion: version(directory.identity, archived.fingerprints, history.fingerprints),
+          verifyDestination, ...(history.candidates.length && { history: history.candidates, targetHistory }) }
       }, signal)
     },
   }

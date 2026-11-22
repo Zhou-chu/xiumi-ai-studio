@@ -115,8 +115,9 @@ export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayT
     }
   }))
 
-  if (legacyMigrationSource) registerLegacyDirectoryMigrationRoutes(app, projects, legacyMigrationSource, DATA)
-  registerLegacyRestoreRoutes(app, projects, restoreTempRoot, projectHistoryRestore(DIRS.versions, projects), { templates, themes })
+  const history = projectHistoryRestore(DIRS.versions, projects)
+  if (legacyMigrationSource) registerLegacyDirectoryMigrationRoutes(app, projects, legacyMigrationSource, DATA, history)
+  registerLegacyRestoreRoutes(app, projects, restoreTempRoot, history, { templates, themes })
 
   // ---------- 素材 ----------
   app.get('/media/:file', h(async (req, res) => {

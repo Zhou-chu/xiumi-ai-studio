@@ -37,7 +37,7 @@ type Project = Parameters<ProjectStore['restore']>[0]
 type AssetStore = typeof assetRestoreStore
 type AssetLockCallbacks = Parameters<Parameters<AssetStore['withApplyLock']>[0]>
 type HistoryStore = ReturnType<typeof projectHistoryRestore>
-type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
+export type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
 type ComponentRecord = { path: string; id: string; raw: unknown }
 type DesignEntry = ComponentRecord & { kind: DesignCategory }
 type ProjectArchive = { modelCards?: ReturnType<typeof archivedModelCards>; components: ComponentRecord[]; projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[]; design: DesignEntry[] }
@@ -464,9 +464,9 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
-export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, assets: ArchivedAsset[], assetStore: AssetStore) {
-  return stageDecodedLegacyProjects({ projects, assets, history: [], design: [], components: [], otherLibraryEntries: [] },
-    store, undefined, assets.length ? assetStore : undefined)
+export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, related: { assets: ArchivedAsset[]; assetStore: AssetStore; history?: HistoryCandidate[]; historyStore?: HistoryStore }) {
+  return stageDecodedLegacyProjects({ projects, assets: related.assets, history: related.history ?? [], design: [], components: [], otherLibraryEntries: [] },
+    store, related.historyStore, related.assets.length ? related.assetStore : undefined)
 }
 
 function stageDecodedLegacyProjects({ projects, assets, history, design, components, modelCards, otherLibraryEntries }: ProjectArchive, store: ProjectStore,

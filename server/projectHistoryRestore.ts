@@ -54,7 +54,7 @@ async function full(directory: string) {
 export function projectHistoryRestore<T extends ActiveParent>(directory: string, projects: ParentStore<T>) {
   const root = resolve(directory)
   return {
-    async restore(request: BoundHistory, publishDependencies?: () => Promise<boolean>): Promise<Result> {
+    async restore(request: BoundHistory, publishDependencies?: () => Promise<boolean>, guard?: (created?: boolean) => Promise<void>): Promise<Result> {
       const { sourceParent, parentRevision, version } = structuredClone(request)
       const pid = safeId(sourceParent.id), vid = safeId(version.id)
       if (pid !== version.projectId || pid !== version.doc.id || typeof parentRevision !== 'string' ||
@@ -63,10 +63,13 @@ export function projectHistoryRestore<T extends ActiveParent>(directory: string,
       const write = await projects.withRevision<Result>(pid, parentRevision, async current => {
         if (!sameProject(sourceParent, current)) return 'parent-unavailable'
         await requireDirectDirectory(root)
+        await guard?.()
         const parent = join(root, pid)
-        try { await mkdir(parent) }
+        let created = false
+        try { await mkdir(parent); created = true }
         catch (error) { if (status(error) !== 'EEXIST') throw error }
         await requireDirectDirectory(parent)
+        await guard?.(created)
         const target = join(parent, vid + '.json')
         if (await exists(target)) return 'occupied'
         if (await full(parent)) return 'retention-limit'
@@ -79,6 +82,7 @@ export function projectHistoryRestore<T extends ActiveParent>(directory: string,
           // dependency before revision, collision, retention and staging checks.
           if (publishDependencies && !(await publishDependencies())) return 'dependency-unavailable'
           await requireDirectDirectory(parent)
+          await guard?.()
           try { await link(completed, target) }
           catch (error) { if (status(error) === 'EEXIST') return 'occupied'; throw error }
           return 'restored'

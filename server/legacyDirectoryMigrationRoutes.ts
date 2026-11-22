@@ -11,9 +11,10 @@ const route = '/api/data/migrate'
 const cookieName = 'xiumi_migration_owner'
 const ttl = 10 * 60_000
 type Store = Parameters<typeof stageLegacyDirectoryProjects>[1]
+type History = NonNullable<Parameters<typeof stageLegacyDirectoryProjects>[2]['historyStore']>
 type Stage = ReturnType<typeof stageLegacyDirectoryProjects>
 type Snapshot = Awaited<ReturnType<ReturnType<typeof createLegacyDirectoryPreview>['snapshotProjects']>>
-type Pending = { owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
+type Pending = { hasHistory: boolean; owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
 
 const secret = () => randomBytes(32).toString('hex')
 const cookieOptions = { path: route, httpOnly: true, sameSite: 'strict' as const }
@@ -39,8 +40,53 @@ function respondError(res: Response, error: unknown) {
   }
 }
 
+function guardedStage(snapshot: Snapshot, projects: Store, target: string, historyStore: History) {
+  const { projects: candidates, assets, history, targetHistory, verifyDestination } = snapshot
+  const verifyAssetDestination = async () => {
+    await verifyDestination()
+    const info = await lstat(join(target, 'assets', '_index.json')).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    })
+    if (info && (!info.isFile() || info.nlink !== 1)) {
+      throw Object.assign(new Error('无法安全使用当前素材索引'), { status: 409 })
+    }
+  }
+  return stageLegacyDirectoryProjects(candidates, {
+    occupied: async id => {
+      await verifyDestination()
+      return targetHistory?.blocked.has(id) || projects.occupied(id)
+    },
+    // Shares the ordinary store queue and writes only after checking our
+    // pinned target again. No portable atomic OS directory handle claimed.
+    restore: (doc, prepare) => projects.restore(doc, async () => {
+      await verifyDestination()
+      await targetHistory?.guard(doc.id)
+      if (targetHistory?.blocked.has(doc.id)) return false
+      const ready = await prepare?.() ?? true
+      await verifyDestination()
+      await targetHistory?.guard(doc.id)
+      return ready
+    }),
+  }, { assets, history, assetStore: {
+    status: asset => assetRestoreStore.withApplyLock(async (_restore, check) => {
+      await verifyAssetDestination()
+      return check(asset)
+    }),
+    withApplyLock: apply => assetRestoreStore.withApplyLock((restore, check) => apply(
+      async asset => { await verifyAssetDestination(); return restore(asset) },
+      async asset => { await verifyAssetDestination(); return check(asset) },
+    )),
+  }, historyStore: targetHistory && {
+    restore: (request, publishDependencies) => historyStore.restore(request, publishDependencies, async created => {
+      await verifyDestination()
+      await targetHistory.guard(request.sourceParent.id, created)
+    }),
+  } })
+}
+
 /** The source is supplied only by the owner-controlled portable launch. */
-export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: Store, configuredSource: string, target: string) {
+export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: Store, configuredSource: string, target: string, historyStore: History) {
   const source = createLegacyDirectoryPreview({ configuredSource, target, maxEntries: 5000 })
   let pending: Pending | undefined
   let busy = false
@@ -62,48 +108,22 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
     const close = () => { if (!res.writableFinished) controller.abort() }
     res.once('close', close)
     try {
-      const { sourceLayout, sourceVersion, projects: candidates, assets, summaries, verifyDestination } = await source.snapshotProjects(controller.signal)
-      const verifyAssetDestination = async () => {
-        await verifyDestination()
-        const info = await lstat(join(target, 'assets', '_index.json')).catch(error => {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-          throw error
-        })
-        if (info && (!info.isFile() || info.nlink !== 1)) {
-          throw Object.assign(new Error('无法安全使用当前素材索引'), { status: 409 })
-        }
-      }
-      const stage = stageLegacyDirectoryProjects(candidates, {
-        occupied: async id => { await verifyDestination(); return projects.occupied(id) },
-        // Shares the ordinary store queue and writes only after checking our
-        // pinned target again. No portable atomic OS directory handle claimed.
-        restore: (doc, prepare) => projects.restore(doc, async () => {
-          await verifyDestination()
-          const ready = await prepare?.() ?? true
-          await verifyDestination()
-          return ready
-        }),
-      }, assets, {
-        status: asset => assetRestoreStore.withApplyLock(async (_restore, check) => {
-          await verifyAssetDestination()
-          return check(asset)
-        }),
-        withApplyLock: apply => assetRestoreStore.withApplyLock((restore, check) => apply(
-          async asset => { await verifyAssetDestination(); return restore(asset) },
-          async asset => { await verifyAssetDestination(); return check(asset) },
-        )),
-      })
-      const plan = (await stage.preview()).projects
+      const snapshot = await source.snapshotProjects(controller.signal)
+      const { sourceLayout, sourceVersion, history, summaries } = snapshot
+      const stage = guardedStage(snapshot, projects, target, historyStore)
+      const preview = await stage.preview()
+      const plan = preview.projects
       if (controller.signal.aborted) return
       discard()
       const token = secret()
       const owner = secret()
       const timeout = setTimeout(() => { if (pending?.token === token) discard() }, ttl)
       timeout.unref()
-      pending = { owner, token, stage, sourceVersion, summaries, timeout }
+      pending = { hasHistory: !!history, owner, token, stage, sourceVersion, summaries, timeout }
       res.cookie(cookieName, owner, { ...cookieOptions, maxAge: ttl })
       return res.json({ token, plan: {
         sourceLayout, add: plan.add.length, skip: plan.skip.length, unsupported: plan.unsupported.length, invalid: summaries.invalid, ignored: summaries.ignored,
+        ...(history && { versions: { add: preview.versions.add.length, skip: preview.versions.skip.length, unsupported: preview.unsupported.filter(path => path.startsWith('versions/')).length } }),
       } })
     } catch (error) {
       if (!controller.signal.aborted) respondError(res, error)
@@ -123,7 +143,7 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       return res.status(400).json({ error: '需要明确确认或取消迁移' })
     }
     if (busy) return res.status(429).json({ error: '另一个迁移操作正在运行' })
-    const { stage, sourceVersion, summaries } = pending
+    const { stage, sourceVersion, summaries, hasHistory } = pending
     discard()
     res.clearCookie(cookieName, cookieOptions)
     if (action === 'cancel') return res.status(204).end()
@@ -133,10 +153,15 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       try { currentVersion = (await source.snapshotProjects()).sourceVersion }
       catch { return res.status(409).json({ error: '旧版目录已更改或不可读，请重新检测' }) }
       if (currentVersion !== sourceVersion) return res.status(409).json({ error: '旧版目录已更改，请重新检测' })
-      const result = (await stage.apply()).projects
+      const applied = await stage.apply()
+      const result = applied.projects
       return res.json({
         restored: result.restored.length, skipped: result.skipped.length, failed: result.failed.length, unsupported: result.unsupported.length,
         invalid: summaries.invalid, ignored: summaries.ignored,
+        ...(hasHistory && { versions: {
+          restored: applied.versions.restored.length, skipped: applied.versions.skipped.length, failed: applied.versions.failed.length,
+          unsupported: applied.unsupported.filter(path => path.startsWith('versions/')).length,
+        } }),
       })
     } catch (error) {
       respondError(res, error)

@@ -95,3 +95,15 @@ it('discards a still-unused server session when the dialog is closed', async () 
   expect(calls).toHaveLength(2)
   expect(calls[1]).toEqual([endpoint + '/' + token + '/cancel', expect.objectContaining({ body: '{}', keepalive: true })])
 })
+
+it('distinguishes linked version counts from manuscript counts', () => mounted(async (request, host) => {
+  request.mockResolvedValueOnce(json({ ...preview, plan: { ...preview.plan, versions: { add: 4, skip: 2, unsupported: 1 } } }))
+    .mockResolvedValueOnce(json({
+      restored: 1, skipped: 0, failed: 0, unsupported: 0, invalid: 0, ignored: 0,
+      versions: { restored: 2, skipped: 3, failed: 1, unsupported: 1 },
+    }))
+  await click(host, '检测已配置旧目录')
+  expect(host.querySelector('[role=status]')?.textContent).toContain('历史版本预计新增 4，跳过 2，不支持 1')
+  await click(host, '确认迁移项目')
+  expect(host.querySelector('[role=status]')?.textContent).toContain('历史版本已新增 2，跳过 3，失败 1，不支持 1')
+}))

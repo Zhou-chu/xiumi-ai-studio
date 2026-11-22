@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 
 const endpoint = '/api/data/migrate'
 type SharedCounts = { skipped: number; unsupported: number; invalid: number; ignored: number }
-type Plan = SharedCounts & { added: number; sourceLayout: 'checkout' | 'data' }
-type Result = SharedCounts & { restored: number; failed: number }
+type Plan = SharedCounts & { added: number; sourceLayout: 'checkout' | 'data'; versions?: { added: number; skipped: number; unsupported: number } }
+type Result = SharedCounts & { restored: number; failed: number; versions?: { restored: number; skipped: number; failed: number; unsupported: number } }
 type Preview = { token: string; plan: Plan }
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -22,11 +22,17 @@ function decodePreview(input: unknown): Preview {
   if (typeof token !== 'string' || !/^[a-f\d]{64}$/.test(token) || !['checkout', 'data'].includes(String(sourceLayout))) {
     throw Error('迁移预览格式无效')
   }
-  return { token, plan: { added: count(plan, 'add'), ...counts(plan, 'skip'), sourceLayout: sourceLayout as Plan['sourceLayout'] } }
+  const versions = object(plan.versions)
+  return { token, plan: { added: count(plan, 'add'), ...counts(plan, 'skip'), sourceLayout: sourceLayout as Plan['sourceLayout'],
+    ...(plan.versions !== undefined && { versions: { added: count(versions, 'add'), skipped: count(versions, 'skip'), unsupported: count(versions, 'unsupported') } }),
+  } }
 }
 function decodeResult(input: unknown): Result {
   const data = object(input)
-  return { restored: count(data, 'restored'), failed: count(data, 'failed'), ...counts(data, 'skipped') }
+  const versions = object(data.versions)
+  return { restored: count(data, 'restored'), failed: count(data, 'failed'), ...counts(data, 'skipped'),
+    ...(data.versions !== undefined && { versions: { restored: count(versions, 'restored'), skipped: count(versions, 'skipped'), failed: count(versions, 'failed'), unsupported: count(versions, 'unsupported') } }),
+  }
 }
 function send(suffix: string, body: Record<string, boolean>, options: RequestInit = {}) {
   return fetch(endpoint + suffix, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...options })
@@ -93,14 +99,14 @@ export function LegacyDirectoryMigrationPanel() {
   return <section aria-label="从本机旧目录迁移项目">
     <h4>从本机旧目录迁移项目</h4>
     <p className="hint">只读取桌面程序所有者在启动前指定的旧仓库或 data 文件夹。迁移不改动源文件，也不覆盖现有项目。</p>
-    <p className="hint">支持普通文字项目及项目内由旧素材库索引的 PNG/JPEG。不迁移独立素材、复杂排版、历史版本、模板、组件、主题和设置，不读取 .env 内容。</p>
+    <p className="hint">支持普通文字项目、可归入新增项目的历史版本，以及两者引用的已索引 PNG/JPEG。不迁移独立素材、复杂排版、模板、组件、主题和设置，不读取 .env 内容。</p>
     {!preview && <button type="button" disabled={busy} onClick={() => void run('preview')}>检测已配置旧目录</button>}
     {preview && <>
-      <p role="status">尚未写入。预计新增 {preview.plan.added}，跳过 {preview.plan.skipped}，不支持 {preview.plan.unsupported}，无效 {preview.plan.invalid}，忽略 {preview.plan.ignored}。</p>
+      <p role="status">尚未写入。预计新增 {preview.plan.added}，跳过 {preview.plan.skipped}，不支持 {preview.plan.unsupported}，无效 {preview.plan.invalid}，忽略 {preview.plan.ignored}。{preview.plan.versions && <> 历史版本预计新增 {preview.plan.versions.added}，跳过 {preview.plan.versions.skipped}，不支持 {preview.plan.versions.unsupported}。</>}</p>
       <button type="button" disabled={busy} onClick={() => void run('cancel')}>取消目录迁移</button>
       <button type="button" disabled={busy || !preview.plan.added} onClick={() => void run('apply')}>确认迁移项目</button>
     </>}
-    {result && <p role="status">已新增 {result.restored}，跳过 {result.skipped}，失败 {result.failed}，不支持 {result.unsupported}，无效 {result.invalid}，忽略 {result.ignored}。</p>}
+    {result && <p role="status">已新增 {result.restored}，跳过 {result.skipped}，失败 {result.failed}，不支持 {result.unsupported}，无效 {result.invalid}，忽略 {result.ignored}。{result.versions && <> 历史版本已新增 {result.versions.restored}，跳过 {result.versions.skipped}，失败 {result.versions.failed}，不支持 {result.versions.unsupported}。</>}</p>}
     {error && <p role="alert" className="warn">{error}</p>}
   </section>
 }
