@@ -2,6 +2,7 @@ import type { ArticleImageResult } from '../../server/articleImages'
 import type { ComponentDraft, LibraryComponent } from '../core/components'
 import type { RoleId } from '../core/roles'
 import type { Block, Doc, ImageRef, Theme } from '../core/types'
+import { restoreHistoryReasons, type RestoreHistoryReason } from '../core/restoreHistoryReasons'
 import { validMediaGeneration } from '../core/managedMediaUrl'
 
 export interface Asset {
@@ -123,7 +124,7 @@ const designResultFields = ['restored', 'conflicts', 'alreadyPresent', 'failed']
 export interface LegacyRestorePlan {
   modelCards?: Record<typeof designPlanFields[number], string[]>
   projects: { add: string[]; skip: string[]; unsupported: string[] }
-  versions?: { add: string[]; skip: string[] }
+  versions?: { add: string[]; skip: string[]; reasons?: Record<string, RestoreHistoryReason> }
   assets?: { add: string[]; skip: string[]; alreadyPresent: string[] }
   design?: DesignCategories<typeof designPlanFields[number]>
   components?: Record<typeof designPlanFields[number] | 'unresolved', string[]>
@@ -132,7 +133,7 @@ export interface LegacyRestorePlan {
 export interface LegacyRestoreResult {
   modelCards?: Record<typeof designResultFields[number], string[]>
   projects: { restored: string[]; skipped: string[]; failed: string[]; unsupported: string[] }
-  versions?: { restored: string[]; skipped: string[]; failed: string[] }
+  versions?: { restored: string[]; skipped: string[]; failed: string[]; reasons?: Record<string, RestoreHistoryReason> }
   assets?: { restored: string[]; skipped: string[]; failed: string[]; alreadyPresent: string[] }
   design?: DesignCategories<typeof designResultFields[number]>
   components?: Record<typeof designResultFields[number] | 'unresolved', string[]>
@@ -159,13 +160,26 @@ function decodeDesign<K extends string>(raw: unknown, keys: readonly K[]): Desig
   const value = jsonObject(raw)
   return { themes: designFields(value?.themes, keys), templates: designFields(value?.templates, [...keys, 'unresolved']) }
 }
+function historyReasons(raw: unknown, reported: string[]): { reasons?: Record<string, RestoreHistoryReason> } {
+  if (raw === undefined) return {}
+  const payload = jsonObject(raw)
+  if (!payload) throw new Error('无法读取历史版本恢复原因')
+  const keys = new Set(reported)
+  const entries: [string, RestoreHistoryReason][] = []
+  for (const [id, value] of Object.entries(payload)) {
+    const known = restoreHistoryReasons.find(reason => reason === value)
+    if (!keys.has(id) || !known) throw new Error('无法读取历史版本恢复原因')
+    entries.push([id, known])
+  }
+  return { reasons: Object.fromEntries(entries) }
+}
 function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
   const body = jsonObject(v), plan = jsonObject(body?.plan), projects = jsonObject(plan?.projects), versions = jsonObject(plan?.versions)
   if (typeof body?.token !== 'string' || !restoreToken.test(body.token) ||
       !projects || !stringList(projects.add) || !stringList(projects.skip) ||
       !stringList(projects.unsupported) || !stringList(plan?.unsupported)) throw new Error('无法读取恢复预览')
   const history = versions && stringList(versions.add) && stringList(versions.skip)
-    ? { add: versions.add, skip: versions.skip } : undefined
+    ? { add: versions.add, skip: versions.skip, ...historyReasons(versions.reasons, versions.skip) } : undefined
   if (plan.versions !== undefined && !history) throw new Error('无法读取恢复预览')
   const raw = jsonObject(plan.assets)
   const assets = raw && stringList(raw.add) && stringList(raw.skip) && stringList(raw.alreadyPresent)
@@ -183,7 +197,7 @@ function decodeResult(v: unknown): LegacyRestoreResult {
     throw new Error('无法读取恢复结果')
   }
   const history = versions && stringList(versions.restored) && stringList(versions.skipped) && stringList(versions.failed)
-    ? { restored: versions.restored, skipped: versions.skipped, failed: versions.failed } : undefined
+    ? { restored: versions.restored, skipped: versions.skipped, failed: versions.failed, ...historyReasons(versions.reasons, [...versions.skipped, ...versions.failed]) } : undefined
   if (body.versions !== undefined && !history) throw new Error('无法读取恢复结果')
   const raw = jsonObject(body.assets)
   const assets = raw && stringList(raw.restored) && stringList(raw.skipped) && stringList(raw.failed) && stringList(raw.alreadyPresent)

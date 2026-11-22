@@ -1,5 +1,7 @@
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
+import JSZip from 'jszip'
 
 const backup = fileURLToPath(new URL('../fixtures/legacy-backup/upstream-history.zip', import.meta.url))
 const project = '/api/projects/history-project'
@@ -91,4 +93,49 @@ test('restores a historical-only indexed image and undoes back to the current im
   await expect(page.getByTestId('save-status')).toHaveText('已保存')
   const active = await (await page.request.get('/api/projects/visual-history')).json()
   expect(active.blocks[0].props.image.src).toMatch(/^\/media\/current-only\.png\?gen=[0-9a-f]{64}$/)
+})
+
+test('confirms a history-only ZIP plan without replacing the saved manuscript', async ({ page }) => {
+  const upstream = await JSZip.loadAsync(await readFile(backup))
+  const parent = JSON.parse(await upstream.file('projects/history-project.json')!.async('string'))
+  const snapshot = JSON.parse(await upstream.file('versions/history-project/100-fixture.json')!.async('string'))
+  const pid = 'retained-history'
+  const endpoint = '/api/projects/' + pid
+  const archive = new JSZip()
+  archive.file('xiumi-backup.json', await upstream.file('xiumi-backup.json')!.async('string'))
+  archive.file('projects/' + pid + '.json', JSON.stringify({ ...parent, id: pid, title: 'Retained local manuscript' }))
+  const seed = await archive.generateAsync({ type: 'nodebuffer' })
+  archive.file('versions/' + pid + '/100-fixture.json', JSON.stringify({ ...snapshot, projectId: pid, doc: { ...snapshot.doc, id: pid } }))
+  const full = await archive.generateAsync({ type: 'nodebuffer' })
+  await page.goto('/')
+  await page.getByTestId('tab-projects').click()
+  const menu = page.getByTestId('toolbar-more')
+  const backupButton = page.getByRole('button', { name: '项目和素材备份', exact: true })
+  if (!(await backupButton.isVisible())) await menu.click()
+  await backupButton.click()
+  const data = page.getByRole('dialog', { name: '项目和素材备份', exact: true })
+  const restore = data.getByRole('region', { name: '从整库 ZIP 恢复部分项目' })
+  const ZIP = restore.getByLabel('选择整库 ZIP')
+  await ZIP.setInputFiles({ name: 'seed.zip', mimeType: 'application/zip', buffer: seed })
+  await restore.getByRole('button', { name: '预览恢复' }).click()
+  await restore.getByRole('button', { name: '确认添加项目' }).click()
+  await expect(restore.getByText('新增项目（1）', { exact: true })).toBeVisible()
+  const before = await (await page.request.get(endpoint)).json()
+  await ZIP.setInputFiles({ name: 'retained-history.zip', mimeType: 'application/zip', buffer: full })
+  await restore.getByRole('button', { name: '预览恢复' }).click()
+  await expect(restore.getByText('现有项目，不覆盖（1）', { exact: true })).toBeVisible()
+  await expect(restore.getByText('可添加的历史版本（1）', { exact: true })).toBeVisible()
+  await restore.getByRole('button', { name: '确认添加所选数据' }).click()
+  await expect(restore.getByText('新增历史版本（1）', { exact: true })).toBeVisible()
+  expect(await (await page.request.get(endpoint)).json()).toEqual(before)
+  await data.getByRole('button', { name: '关闭', exact: true }).last().click()
+  await page.getByRole('button', { name: /Retained local manuscript/ }).click()
+  const title = page.getByRole('textbox', { name: '文章标题' })
+  await expect(title).toHaveValue('Retained local manuscript')
+  const historyButton = page.getByRole('button', { name: '历史版本', exact: true })
+  if (!(await historyButton.isVisible())) await menu.click()
+  await historyButton.click()
+  await page.getByRole('dialog', { name: '历史版本', exact: true }).locator('.list-row')
+    .filter({ hasText: snapshotLabel }).getByRole('button', { name: '恢复', exact: true }).click()
+  await expect(title).toHaveValue('Original manuscript')
 })

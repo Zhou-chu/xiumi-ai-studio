@@ -1,6 +1,7 @@
 import { crc32 } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
+import type { RestoreHistoryReason } from '../src/core/restoreHistoryReasons'
 import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
@@ -36,7 +37,7 @@ type ProjectStore = Pick<ReturnType<typeof projectCollection>, 'occupied' | 'res
 type Project = Parameters<ProjectStore['restore']>[0]
 type AssetStore = typeof assetRestoreStore
 type AssetLockCallbacks = Parameters<Parameters<AssetStore['withApplyLock']>[0]>
-type HistoryStore = ReturnType<typeof projectHistoryRestore>
+type HistoryStore = Pick<ReturnType<typeof projectHistoryRestore>, 'restore'> & Partial<Pick<ReturnType<typeof projectHistoryRestore>, 'inspectExisting'>>
 export type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
 type ComponentRecord = { path: string; id: string; raw: unknown }
 type DesignEntry = ComponentRecord & { kind: DesignCategory }
@@ -456,17 +457,80 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards)
-  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, options)
+  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true })
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
 export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, related: { assets: ArchivedAsset[]; assetStore: AssetStore; history?: HistoryCandidate[]; historyStore?: HistoryStore }) {
   return stageDecodedLegacyProjects({ projects, assets: related.assets, history: related.history ?? [], design: [], components: [], otherLibraryEntries: [] },
     store, related.historyStore, related.assets.length ? related.assetStore : undefined)
+}
+
+type InspectExisting = NonNullable<HistoryStore['inspectExisting']>
+type PlannedExisting = { revision: string } | { reason: RestoreHistoryReason }
+
+async function existingHistoryPlan(versions: ManagedVersion[], retained: Set<string>, parents: Map<string, Doc>, inspectExisting: InspectExisting) {
+  const groups = new Map<string, string[]>()
+  for (const { version } of versions) {
+    if (!retained.has(version.projectId)) continue
+    const ids = groups.get(version.projectId) ?? []
+    ids.push(version.id)
+    groups.set(version.projectId, ids)
+  }
+  const states = new Map<string, Awaited<ReturnType<InspectExisting>>>()
+  for (const [id, ids] of groups) states.set(id, await inspectExisting(parents.get(id)!, ids))
+  return states
+}
+
+function reserveVersion(parent: Awaited<ReturnType<InspectExisting>>, id: string) {
+  if (!parent) return { reason: 'parent-mismatch' as const }
+  if (parent.reason) return { reason: parent.reason }
+  if (parent.occupied.has(id)) return { reason: 'occupied' as const }
+  if (!parent.available) return { reason: 'retention-limit' as const }
+  return { revision: parent.revision }
+}
+
+async function planVersionWrites({ versions, retained, parents, inspect, eligible, planDependencies }: {
+  versions: ManagedVersion[]
+  retained: Set<string>
+  parents: Map<string, Doc>
+  inspect?: InspectExisting
+  eligible: Set<string>
+  planDependencies: (dependencies: Set<string>) => Promise<boolean>
+}) {
+  const add: string[] = [], skip: string[] = []
+  const reasons: Record<string, RestoreHistoryReason> = {}
+  const choices = new Map<string, PlannedExisting>()
+  const states = inspect ? await existingHistoryPlan(versions, retained, parents, inspect) : undefined
+  const perProject = new Map<string, number>()
+  for (const { version, dependencies } of versions) {
+    const key = versionKey(version)
+    const pid = version.projectId
+    if (states?.has(pid)) {
+      const state = states.get(pid) ?? null
+      let choice: PlannedExisting = reserveVersion(state, version.id)
+      if ('revision' in choice && !await planDependencies(dependencies)) choice = { reason: 'dependency-unavailable' }
+      if ('revision' in choice) {
+        if (state && state.available !== undefined) state.available--
+        add.push(key)
+      } else {
+        reasons[key] = choice.reason
+        skip.push(key)
+      }
+      choices.set(key, choice)
+    } else {
+      const count = perProject.get(pid) ?? 0
+      if (eligible.has(pid) && count < VERSION_RETENTION_LIMIT && await planDependencies(dependencies)) {
+        add.push(key)
+        perProject.set(pid, count + 1)
+      } else skip.push(key)
+    }
+  }
+  return { plan: { add, skip, ...(Object.keys(reasons).length && { reasons }) }, choices, retainedParents: new Set(states?.keys()) }
 }
 
 function stageDecodedLegacyProjects({ projects, assets, history, design, components, modelCards, otherLibraryEntries }: ProjectArchive, store: ProjectStore,
@@ -538,6 +602,8 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   versions.sort(({ version: a }, { version: b }) => archiveSort(a.projectId, b.projectId) || b.createdAt - a.createdAt || archiveSort(a.id, b.id))
   otherLibraryEntries.sort(archiveSort)
 
+  let reviewedExisting = new Map<string, PlannedExisting>()
+  let retainedParents = new Set<string>()
   return {
     async preview() {
       const add: string[] = [], skip: string[] = []
@@ -554,31 +620,28 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         for (const id of dependencies) needed.add(id)
         return true
       }
+      const retained = new Set<string>()
       for (const { doc, dependencies } of supported) {
-        if (await store.occupied(doc.id) || !(await planDependencies(dependencies))) skip.push(doc.id)
+        if (await store.occupied(doc.id)) { retained.add(doc.id); skip.push(doc.id) }
+        else if (!(await planDependencies(dependencies))) skip.push(doc.id)
         else add.push(doc.id)
       }
       const components = await componentStage?.preview((candidate, existing) => planDependencies(candidate.dependencies, existing))
-      const eligible = new Set(add)
-      const planned = { add: [] as string[], skip: [] as string[] }
-      const perProject = new Map<string, number>()
-      for (const { version, dependencies } of versions) {
-        const count = perProject.get(version.projectId) ?? 0
-        if (eligible.has(version.projectId) && count < VERSION_RETENTION_LIMIT && await planDependencies(dependencies)) {
-          planned.add.push(versionKey(version))
-          perProject.set(version.projectId, count + 1)
-        } else planned.skip.push(versionKey(version))
-      }
+      const inspect = options.existingHistory ? historyStore?.inspectExisting : undefined
+      const targetVersions = await planVersionWrites({ versions, retained, parents, inspect, eligible: new Set(add), planDependencies })
+      reviewedExisting = targetVersions.choices
+      retainedParents = targetVersions.retainedParents
       const design = await designs?.preview((id, existing) => planDependencies(templateAssets.get(id)!, existing))
       for (const id of standalone) await planDependencies(new Set([id]))
       plan.skip = [...conflicts]
       for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
-      return { ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: planned, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
+      return { ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: targetVersions.plan, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []
       const result = initAssetResult(), fresh = new Map<string, string>()
       const historyResult = { restored: [] as string[], skipped: [] as string[], failed: [] as string[] }
+      const historyReasons: Record<string, RestoreHistoryReason> = {}
       const run = async (restoreAsset?: AssetLockCallbacks[0], checkAsset?: AssetLockCallbacks[1]) => {
         const applied = new Map<string, 'restored' | 'alreadyPresent' | 'conflict' | 'failed'>()
         const hasStatus = (dependencies: Set<string>, status: 'conflict' | 'failed') =>
@@ -613,6 +676,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
           return true
         }
         for (const { doc, dependencies } of supported) {
+          if (retainedParents.has(doc.id)) { skipped.push(doc.id); continue }
           try {
             // Asset queue → project queue. The callback never re-enters
             // either queue; ordinary project writers cannot win mid-restore.
@@ -633,15 +697,18 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         const fullParents = new Set<string>()
         for (const { version, dependencies } of versions) {
           const key = versionKey(version)
-          const parentRevision = fresh.get(version.projectId)
+          const existing = reviewedExisting.get(key)
+          if (existing && 'reason' in existing) { historyReasons[key] = existing.reason; historyResult.skipped.push(key); continue }
+          const parentRevision = existing?.revision ?? fresh.get(version.projectId)
           const sourceParent = parents.get(version.projectId)
-          if (!historyStore || !parentRevision || !sourceParent || fullParents.has(version.projectId)) { historyResult.skipped.push(key); continue }
+          if (!historyStore || !parentRevision || !sourceParent || (!existing && fullParents.has(version.projectId))) { historyResult.skipped.push(key); continue }
           try {
             const status = await historyStore.restore({ sourceParent, parentRevision, version },
               dependencies.size ? () => publishDependencies(dependencies) : undefined)
             if (status === 'restored') historyResult.restored.push(key)
             else if (status === 'dependency-unavailable' && hasStatus(dependencies, 'failed')) historyResult.failed.push(key)
             else historyResult.skipped.push(key)
+            if (existing && status !== 'restored') historyReasons[key] = status === 'parent-unavailable' ? 'parent-changed' : status
             if (status === 'retention-limit' || status === 'parent-unavailable') fullParents.add(version.projectId)
           } catch {
             historyResult.failed.push(key)
@@ -658,7 +725,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         return { components, design }
       }
       const { components, design } = assetStore ? await assetStore.withApplyLock(run) : await run()
-      return { ...(modelStage && { modelCards: await modelStage.apply() }), ...(components && { components }), ...(design && { design }), versions: historyResult, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
+      return { ...(modelStage && { modelCards: await modelStage.apply() }), ...(components && { components }), ...(design && { design }), versions: { ...historyResult, ...(Object.keys(historyReasons).length && { reasons: historyReasons }) }, projects: { restored, skipped, failed, unsupported: [...unsupported] }, ...(assetStore && { assets: result }), unsupported: [...otherLibraryEntries] }
     },
   }
 }

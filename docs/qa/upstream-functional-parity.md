@@ -92,3 +92,7 @@ project or template. Choosing both image options still imports each verified
 asset at most once. Same-ID different bytes are not overwritten; other assets
 can still be added. An unindexed file or unsupported referring record stays
 unsupported, and re-previewing an exact no-op disables confirmation.
+
+### Existing local manuscript: adding missing ZIP history
+
+ZIP preview can plan unoccupied versions independently when the canonical local current manuscript matches the backup (all fields except its local revision). Confirming neither rewrites that manuscript nor overwrites existing history, and preserves the history-retention cap. For that retained manuscript, confirmation can add only history approved by the preview, and the original local revision and matching content must still hold inside the write queue. If the manuscript changed, the dependent version and a PNG used only there are not added. Divergence, occupied version, retention limit, unavailable destination, and unavailable asset are reported separately. This does not imply support for path-based merging of a divergent manuscript or for adding versions to an existing manuscript via the owner-local directory migration.

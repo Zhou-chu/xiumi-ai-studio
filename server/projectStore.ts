@@ -54,6 +54,21 @@ export function projectCollection<T extends Project = Project>(dir: string) {
     serializeDependent<R>(id: string, action: () => Promise<R>) {
       return serialize(key(target(id)), action)
     },
+    /** Read a current local revision under the same queue without touching its bytes. */
+    withCurrentRevision<R>(id: string, action: (current: T & { revision: string }) => Promise<R>) {
+      const file = target(id)
+      return serialize(key(file), async () => {
+        try {
+          const info = await lstat(file)
+          if (!info.isFile() || info.nlink !== 1) return null
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+          throw error
+        }
+        const current = await base.get(id)
+        return current?.id === id ? action(versioned(current)) : null
+      })
+    },
     /** Lock an exact live parent for dependent data writes. The callback must not re-enter this project collection. */
     withRevision<R>(id: string, revision: string, action: (current: T) => Promise<R>) {
       return serialize(key(target(id)), async () => {

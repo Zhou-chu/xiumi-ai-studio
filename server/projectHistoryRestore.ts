@@ -9,7 +9,7 @@ import { verifyHistoryDirectory } from './historyDirectory'
 export type VersionSnapshot = { id: string; projectId: string; label: string; createdAt: number; doc: Doc }
 type BoundHistory = { sourceParent: Doc; parentRevision: string; version: VersionSnapshot }
 type ActiveParent = { id: string; revision?: string }
-type ParentStore<T extends ActiveParent> = Pick<ReturnType<typeof projectCollection<T>>, 'withRevision'>
+type ParentStore<T extends ActiveParent> = Pick<ReturnType<typeof projectCollection<T>>, 'withRevision' | 'withCurrentRevision'>
 type Result = 'restored' | 'occupied' | 'parent-unavailable' | 'retention-limit' | 'dependency-unavailable'
 export const VERSION_RETENTION_LIMIT = 50
 const MAX_SCAN = 10_000
@@ -32,14 +32,14 @@ function sameProject(source: Doc, active: ActiveParent) {
   return isDeepStrictEqual(expected, actual)
 }
 
-async function full(directory: string) {
+async function availableSlots(directory: string) {
   let scanned = 0, candidates = 0
   for await (const entry of await opendir(directory)) {
-    if (++scanned > MAX_SCAN) return true
+    if (++scanned > MAX_SCAN) return 0
     // Conservatively count unreadable and interrupted existing history too.
-    if (entry.name.toLowerCase().endsWith('.json') && ++candidates >= VERSION_RETENTION_LIMIT) return true
+    if (entry.name.toLowerCase().endsWith('.json') && ++candidates >= VERSION_RETENTION_LIMIT) return 0
   }
-  return false
+  return VERSION_RETENTION_LIMIT - candidates
 }
 
 /**
@@ -54,6 +54,23 @@ async function full(directory: string) {
 export function projectHistoryRestore<T extends ActiveParent>(directory: string, projects: ParentStore<T>) {
   const root = resolve(directory)
   return {
+    async inspectExisting(sourceParent: Doc, versionIds: readonly string[]) {
+      const pid = safeId(sourceParent.id)
+      return projects.withCurrentRevision(pid, async current => {
+        if (!sameProject(sourceParent, current)) return { reason: 'parent-mismatch' as const }
+        const parent = join(root, pid)
+        try {
+          await requireDirectDirectory(root)
+          if (!await exists(parent)) return { revision: current.revision, available: VERSION_RETENTION_LIMIT, occupied: new Set<string>() }
+          await requireDirectDirectory(parent)
+          const occupied = new Set<string>()
+          for (const id of versionIds) if (await exists(join(parent, safeId(id) + '.json'))) occupied.add(id)
+          return { revision: current.revision, available: await availableSlots(parent), occupied }
+        } catch {
+          return { reason: 'target-unavailable' as const }
+        }
+      })
+    },
     async restore(request: BoundHistory, publishDependencies?: () => Promise<boolean>, guard?: (created?: boolean) => Promise<void>): Promise<Result> {
       const { sourceParent, parentRevision, version } = structuredClone(request)
       const pid = safeId(sourceParent.id), vid = safeId(version.id)
@@ -72,7 +89,7 @@ export function projectHistoryRestore<T extends ActiveParent>(directory: string,
         await guard?.(created)
         const target = join(parent, vid + '.json')
         if (await exists(target)) return 'occupied'
-        if (await full(parent)) return 'retention-limit'
+        if (await availableSlots(parent) === 0) return 'retention-limit'
         const stage = await mkdtemp(join(root, '.version-restore-'))
         try {
           const completed = join(stage, 'version.json')

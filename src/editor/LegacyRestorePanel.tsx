@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RestoreHistoryReason } from '../core/restoreHistoryReasons'
 import { api, type LegacyRestorePlan, type LegacyRestoreResult } from './api'
 import { loadCustomThemes } from './store'
 
@@ -10,6 +11,17 @@ function RestoreList({ label, entries }: { label: string; entries: string[] }) {
     <summary>{label}（{entries.length}）</summary>
     <ul>{entries.map((entry, index) => <li key={index}>{entry}</li>)}</ul>
   </details>
+}
+const historyReasonLabels: Record<RestoreHistoryReason, string> = {
+  'parent-mismatch': '本地稿件与备份中的稿件不同',
+  'parent-changed': '确认前本地稿件已改变',
+  'retention-limit': '已达历史保留上限',
+  'occupied': '已有同名版本，未覆盖',
+  'target-unavailable': '本地历史目录不可用',
+  'dependency-unavailable': '引用的图片不可用',
+}
+function historyLabels(keys: string[] = [], reasons: Record<string, RestoreHistoryReason> = {}) {
+  return keys.map(key => Object.hasOwn(reasons, key) ? key + '：' + historyReasonLabels[reasons[key]] : key)
 }
 type ItemGroup = { themes: string[]; templates: string[] }
 function designGroup(value: LegacyRestorePlan['design'] | LegacyRestoreResult['design'], key: 'conflicts' | 'alreadyPresent'): ItemGroup {
@@ -60,7 +72,7 @@ function ModelCardLists({ value }: { value: NonNullable<LegacyRestorePlan['model
   </>
 }
 function hasAdditions(plan: LegacyRestorePlan | undefined): boolean {
-  return !!(plan?.projects.add.length || plan?.assets?.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length || plan?.modelCards?.add.length)
+  return !!(plan?.projects.add.length || plan?.versions?.add.length || plan?.assets?.add.length || plan?.design?.themes.add.length || plan?.design?.templates.add.length || plan?.components?.add.length || plan?.modelCards?.add.length)
 }
 const message = (failure: unknown) => failure instanceof Error ? failure.message : '请求未完成，请重试。'
 
@@ -178,7 +190,7 @@ export function LegacyRestorePanel() {
     </label>
     <div className="row gap wrap">
       <button type="button" disabled={!file || !!busy} onClick={() => void run('preview')}>{busy === 'preview' ? '正在预览…' : '预览恢复'}</button>
-      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components || preview.plan.modelCards || standaloneImages) ? '确认添加所选数据' : '确认添加项目'}</button>}
+      {preview && <button type="button" disabled={!hasAdditions(preview.plan) || !!busy} onClick={() => void run('apply')}>{(preview.plan.design || preview.plan.components || preview.plan.modelCards || standaloneImages || (!preview.plan.projects.add.length && preview.plan.versions?.add.length)) ? '确认添加所选数据' : '确认添加项目'}</button>}
     </div>
     {busy === 'apply' && <p role="status">正在添加所选数据。关闭窗口不会撤销已经添加的数据。</p>}
     {error && <p role="alert" className="warn">{error}</p>}
@@ -188,7 +200,7 @@ export function LegacyRestorePanel() {
       <RestoreList label="现有项目，不覆盖" entries={preview.plan.projects.skip} />
       <RestoreList label="不支持的项目" entries={preview.plan.projects.unsupported} />
       <RestoreList label="可添加的历史版本" entries={preview.plan.versions?.add ?? []} />
-      <RestoreList label="将跳过的历史版本" entries={preview.plan.versions?.skip ?? []} />
+      <RestoreList label="将跳过的历史版本" entries={historyLabels(preview.plan.versions?.skip, preview.plan.versions?.reasons)} />
       <RestoreList label={standaloneImages ? '可添加的素材库图片' : '可添加的引用图片'} entries={preview.plan.assets?.add ?? []} />
       <RestoreList label="已有相同图片" entries={preview.plan.assets?.alreadyPresent ?? []} />
       <RestoreList label="冲突图片，不覆盖" entries={preview.plan.assets?.skip ?? []} />
@@ -204,8 +216,8 @@ export function LegacyRestorePanel() {
       <RestoreList label="写入失败" entries={result.projects.failed} />
       <RestoreList label="不支持的项目" entries={result.projects.unsupported} />
       <RestoreList label="新增历史版本" entries={result.versions?.restored ?? []} />
-      <RestoreList label="已跳过的历史版本" entries={result.versions?.skipped ?? []} />
-      <RestoreList label="写入失败的历史版本" entries={result.versions?.failed ?? []} />
+      <RestoreList label="已跳过的历史版本" entries={historyLabels(result.versions?.skipped, result.versions?.reasons)} />
+      <RestoreList label="写入失败的历史版本" entries={historyLabels(result.versions?.failed, result.versions?.reasons)} />
       <RestoreList label="新增图片" entries={result.assets?.restored ?? []} />
       <RestoreList label="已有相同图片" entries={result.assets?.alreadyPresent ?? []} />
       <RestoreList label="已跳过的冲突图片" entries={result.assets?.skipped ?? []} />

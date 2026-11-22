@@ -221,3 +221,35 @@ it('opts in separately for an asset-only archive, then disables confirmation for
     expect(requests).toHaveBeenCalledTimes(3)
   } finally { window.removeEventListener('assets-changed', event) }
 }))
+
+it('allows a version-only confirmation and explains why reviewed history was skipped', () => modal(async requests => {
+  const skipped = 'existing/collided', missing = 'existing/older'
+  requests.mockResolvedValueOnce(json({
+    ...previewBody,
+    plan: {
+      ...previewBody.plan, projects: { add: [], skip: ['existing'], unsupported: [] },
+      versions: { add: [missing], skip: [skipped], reasons: { [skipped]: 'occupied' } },
+    },
+  })).mockResolvedValueOnce(json({
+    projects: { restored: [], skipped: ['existing'], failed: [], unsupported: [] }, unsupported: [],
+    versions: { restored: [], skipped: [missing, skipped], failed: [], reasons: { [missing]: 'parent-changed', [skipped]: 'occupied' } },
+  }))
+  pick('local-history.zip')
+  await act(async () => button('预览恢复')!.click())
+  expect(button('确认添加所选数据')?.disabled).toBe(false)
+  expect(document.body.textContent).toContain('existing/collided：已有同名版本，未覆盖')
+  await act(async () => button('确认添加所选数据')!.click())
+  expect(document.body.textContent).toContain('existing/older：确认前本地稿件已改变')
+  expect(document.body.textContent).toContain('没有新增项目')
+}))
+
+it('fails closed if an unrecognized history reason is returned', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json({
+    ...previewBody,
+    plan: { ...previewBody.plan, versions: { add: [], skip: ['a/b'], reasons: { 'a/b': 'unexpected' } } },
+  }))
+  pick('unknown-reason.zip')
+  await act(async () => button('预览恢复')!.click())
+  expect(document.body.textContent).toContain('无法读取历史版本恢复原因')
+  expect(button('确认添加项目')).toBeUndefined()
+}))

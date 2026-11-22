@@ -119,3 +119,102 @@ it.each(['valid', 'image-conflict', 'late-image-conflict', 'text-history-conflic
     }
   },
 )
+
+it.each(['matching', 'divergent', 'edited-after-preview', 'retention-limit'] as const)(
+  'adds history independently without replacing a retained manuscript (%s)', async mode => {
+    const sandbox = await mkdtemp(join(tmpdir(), 'xiumi-existing-image-history-'))
+    const data = join(sandbox, 'data')
+    vi.stubEnv('DATA_DIR', data)
+    vi.resetModules()
+    const { createApp } = await import('../../server/app')
+    const server = createServer(createApp({ restoreTempRoot: sandbox })).listen(0, '127.0.0.1')
+    try {
+      await once(server, 'listening')
+      const listen = server.address()
+      if (typeof listen !== 'object' || !listen) throw new Error('No loopback test port')
+      const base = 'http://127.0.0.1:' + listen.port
+      const zipBytes = await readFile(archived)
+      const seed = await JSZip.loadAsync(zipBytes)
+      seed.remove('projects/' + textParent + '.json')
+      seed.remove('versions')
+      // The seed uses the same upstream photo fixture and normal ZIP restore,
+      // but without its old snapshots. The resulting revision belongs here.
+      const original = await JSZip.loadAsync(zipBytes)
+      original.remove('projects/' + textParent + '.json')
+      original.remove('versions/' + textParent)
+      const archivePath = base + '/api/data/restore'
+      const previewArchive = async (bytes: Uint8Array<ArrayBuffer>) => {
+        const form = new FormData()
+        form.append('file', new Blob([bytes]), 'upstream-image-history.zip')
+        const reply = await fetch(archivePath + '?indexedImages=1', { method: 'POST', body: form })
+        expect(reply.status).toBe(200)
+        return { ...await reply.json(), cookie: reply.headers.get('set-cookie')!.split(';', 1)[0] }
+      }
+      const confirm = async ({ token, cookie }: { token: string; cookie: string }) => {
+        const reply = await fetch(archivePath + '/' + token + '/apply', { method: 'POST',
+          headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: '{"confirm":true}' })
+        expect(reply.status).toBe(200)
+        return reply.json()
+      }
+      const initial = await previewArchive(new Uint8Array(await seed.generateAsync({ type: 'uint8array' })))
+      expect((await confirm(initial)).projects.restored).toEqual([project])
+      const parentFile = join(data, 'projects', project + '.json')
+      const parentEndpoint = base + '/api/projects/' + project
+      const parentHistory = join(data, 'versions', project)
+      await mkdir(parentHistory)
+      const localVersionFile = join(parentHistory, 'text.json')
+      const localVersion = Buffer.from(JSON.stringify({ id: 'text', projectId: project, label: 'Unrelated local version in occupied slot', createdAt: 10, doc: { blocks: [] } }))
+      await writeFile(localVersionFile, localVersion)
+      if (mode === 'retention-limit') {
+        for (let i = 0; i < 49; i++) await writeFile(join(parentHistory, 'local-' + i + '.json'), localVersion)
+      }
+      const edit = async () => {
+        const current = await (await fetch(parentEndpoint)).json()
+        const reply = await fetch(parentEndpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...current, title: 'New local manuscript edit' }) })
+        expect(reply.status).toBe(200)
+      }
+      if (mode === 'divergent') await edit()
+      const before = await readFile(parentFile)
+      const revision = JSON.parse(before.toString('utf8')).revision
+      const archivedParent = JSON.parse(await original.file('projects/' + project + '.json')!.async('string'))
+      expect(revision).not.toBe(archivedParent.revision)
+      const baseHistory = (await readdir(parentHistory)).sort()
+      const historicPath = join(data, 'assets', historicFile)
+      const incoming = await previewArchive(new Uint8Array(await original.generateAsync({ type: 'uint8array' })))
+      expect(incoming.plan.projects).toMatchObject({ add: [], skip: [project] })
+      const ready = mode === 'matching' || mode === 'edited-after-preview'
+      expect(incoming.plan.versions).toMatchObject(ready
+        ? { add: [visual], skip: [text], reasons: { [text]: 'occupied' } }
+        : { add: [], skip: [visual, text], reasons: { [visual]: mode === 'divergent' ? 'parent-mismatch' : 'retention-limit' } })
+      expect(await readFile(parentFile)).toEqual(before)
+      expect((await readdir(parentHistory)).sort()).toEqual(baseHistory)
+      await expect(readFile(historicPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      if (mode === 'edited-after-preview') await edit()
+      const beforeApply = await readFile(parentFile)
+      const restored = await confirm(incoming)
+      expect(restored.projects).toMatchObject({ restored: [], skipped: [project] })
+      expect(await readFile(parentFile)).toEqual(beforeApply)
+      expect(await readFile(localVersionFile)).toEqual(localVersion)
+      if (mode === 'matching') {
+        expect(restored.versions).toMatchObject({ restored: [visual], skipped: [text], reasons: { [text]: 'occupied' } })
+        expect(JSON.parse((await readFile(parentFile)).toString('utf8')).revision).toBe(revision)
+        const record = await (await fetch(parentEndpoint + '/versions/visual')).json()
+        const raw = await fetch(base + record.doc.blocks[0].props.image.src + '&w=2400')
+        expect(raw.status).toBe(200)
+        expect(Buffer.from(await raw.arrayBuffer())).toEqual(await original.file('assets/' + historicFile)!.async('nodebuffer'))
+      } else {
+        const reason = mode === 'divergent' ? 'parent-mismatch' : mode === 'edited-after-preview' ? 'parent-changed' : 'retention-limit'
+        expect(restored.versions).toMatchObject({ restored: [], skipped: [visual, text], reasons: { [visual]: reason } })
+        expect((await readdir(parentHistory)).sort()).toEqual(baseHistory)
+        await expect(readFile(historicPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+      expect(await readFile(archived)).toEqual(zipBytes)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+      vi.unstubAllEnvs()
+      await rm(sandbox, { recursive: true, force: true })
+    }
+  },
+)
