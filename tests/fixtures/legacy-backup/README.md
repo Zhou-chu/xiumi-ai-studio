@@ -37,3 +37,11 @@ timeline, and table). All four restored with identical project data except for
 fresh revisions; no settings, files, media, or original user inputs were used.
 Archive SHA-256:
 `ac894629f031cfcad749fbab97f3270500ce843471c1edddb3e56e4b2cb3a3b1`.
+
+`upstream-native-photo-slots.zip` was produced and independently restored by
+the same pinned upstream writer/reader. It has an ordered two-photo control,
+three- and four-slot mixed layouts with deliberately absent image fields, and
+an all-empty four-slot layout. It contains four tiny, independently colored
+synthetic PNG assets, no projects or credentials. Each new mixed layout uses
+one exclusive image dependency. SHA-256:
+`7dc1d1c7a594cf8d7a582887483aa6d3d2e71ee7a512822b3db544ea4c0a8946`.

@@ -1,11 +1,11 @@
 import { isRoleId } from '../src/core/roles'
 import { THEMES } from '../src/core/themes'
-import type { ImageRef } from '../src/core/types'
+import type { ImageRef, PicItem } from '../src/core/types'
 import type { collection, RestoreStatus } from './store'
 
 type TemplateImage = { block: unknown }
 type QualifyImage = (block: unknown) => TemplateImage | null
-type QualifyPairImage = (image: unknown) => ImageRef | null
+type QualifyPhotoImage = (image: unknown) => ImageRef | null
 type DesignRecord = { id: string; [field: string]: unknown }
 export type DesignCategory = 'themes' | 'templates'
 export type DesignData = Record<DesignCategory, DesignRecord[]>
@@ -103,22 +103,30 @@ function qualifyBox(block: TemplateBlock, ids: Set<string>, imageBlock?: Qualify
   return { block: { ...block, props: { ...block.props, children: ordered } } }
 }
 
-function qualifyPhotoPair(block: TemplateBlock, imageRef?: QualifyPairImage): TemplateImage | null {
+export function hasNativePhotoSlots(count: unknown, pics: unknown): pics is unknown[] {
+  return (count === 2 || count === 3 || count === 4) && Array.isArray(pics) && pics.length === count
+}
+
+function qualifyPhotos(block: TemplateBlock, imageRef?: QualifyPhotoImage): TemplateImage | null {
   const { count, ratio, layout, pics } = block.props
-  if (!imageRef || !onlyKeys(block.props, ['count', 'ratio', 'layout', 'pics']) || count !== 2 ||
+  if (!onlyKeys(block.props, ['count', 'ratio', 'layout', 'pics']) || !hasNativePhotoSlots(count, pics) ||
       (ratio !== '4:3' && ratio !== '3:4' && ratio !== '1:1') ||
-      (layout !== 'even' && layout !== 'feature') || !Array.isArray(pics) || pics.length !== count) return null
-  const ordered: { image: ImageRef; caption: string }[] = []
+      (layout !== 'even' && layout !== 'feature')) return null
+  const ordered: PicItem[] = []
   for (const slot of pics) {
     if (!isObject(slot) || !onlyKeys(slot, ['image', 'caption']) || !boundedText(slot.caption, 2000)) return null
-    const image = imageRef(slot.image)
+    if (!Object.hasOwn(slot, 'image')) {
+      ordered.push({ caption: slot.caption })
+      continue
+    }
+    const image = imageRef?.(slot.image)
     if (!image) return null
     ordered.push({ image, caption: slot.caption })
   }
   return { block: { ...block, props: { count, ratio, layout, pics: ordered } } }
 }
 
-function qualifyTemplate(template: DesignRecord, imageBlock?: QualifyImage, pairImage?: QualifyPairImage): DesignRecord | null {
+function qualifyTemplate(template: DesignRecord, imageBlock?: QualifyImage, photoImage?: QualifyPhotoImage): DesignRecord | null {
   const { blocks, roles } = template
   if (!validTemplateHeader(template) || !Array.isArray(blocks) || blocks.length > MAX_TEMPLATE_BLOCKS) return null
   const ids = new Set<string>()
@@ -126,7 +134,7 @@ function qualifyTemplate(template: DesignRecord, imageBlock?: QualifyImage, pair
   const canonical: unknown[] = []
   for (const block of blocks) {
     if (!takeBlockId(block, ids)) return null
-    const qualified = block.type === 'photos' ? qualifyPhotoPair(block, pairImage)
+    const qualified = block.type === 'photos' ? qualifyPhotos(block, photoImage)
       : block.type === 'box' ? qualifyBox(block, ids, imageBlock) : qualifyLeaf(block, imageBlock)
     if (!qualified) return null
     canonical.push(qualified.block)
@@ -154,10 +162,10 @@ function validTemplateBlock(type: unknown, props: Record<string, unknown>): bool
 }
 
 const builtinDesignThemes = new Set(THEMES.map(({ id }) => id))
-export function qualifyLegacyDesign(kind: DesignCategory, id: string, value: unknown, imageBlock?: QualifyImage, pairImage?: QualifyPairImage): DesignRecord | null {
+export function qualifyLegacyDesign(kind: DesignCategory, id: string, value: unknown, imageBlock?: QualifyImage, photoImage?: QualifyPhotoImage): DesignRecord | null {
   if (!isObject(value) || value.id !== id) return null
   const record = { ...value, id }
-  return kind === 'themes' ? validTheme(record) ? record : null : qualifyTemplate(record, imageBlock, pairImage)
+  return kind === 'themes' ? validTheme(record) ? record : null : qualifyTemplate(record, imageBlock, photoImage)
 }
 function templateTheme(template: DesignRecord): string | null {
   return typeof template.themeId === 'string' && !builtinDesignThemes.has(template.themeId) ? template.themeId : null

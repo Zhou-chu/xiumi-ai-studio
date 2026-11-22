@@ -1,4 +1,5 @@
 import { discoverLegacyComponentMedia } from './legacyComponentRestore'
+import { hasNativePhotoSlots } from './legacyDesignRestore'
 
 const INDEXED_IMAGE = /^\/media\/([\w-]{1,64})\.(png|jpg)(?:\?gen=[a-f0-9]{64})?$/
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -37,7 +38,7 @@ function addTemplateBlockMedia(block: unknown, add: AddFile) {
   if (!object(block) || !object(block.props)) return
   const props = block.props
   if (block.type === 'box') addImageBlocks(props.children, add)
-  else if (block.type === 'photos' && props.count === 2 && Array.isArray(props.pics) && props.pics.length === 2) {
+  else if (block.type === 'photos' && hasNativePhotoSlots(props.count, props.pics)) {
     for (const slot of props.pics) if (object(slot)) add(imageFile(slot.image))
   } else add(imageBlock(block))
 }

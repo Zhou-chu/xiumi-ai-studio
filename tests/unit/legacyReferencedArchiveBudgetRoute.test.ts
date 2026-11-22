@@ -113,7 +113,7 @@ it('restores one referenced photo without spending the binary budget on ten unre
     const apply = await respond(session, 'apply')
     expect(apply.status).toBe(200)
     expect(await apply.json()).toMatchObject({ projects: { restored: ['referenced'] }, assets: { restored: [reference] } })
-    expect(await readdir(join(data, 'assets'))).toEqual(['_index.json', reference + '.png'])
+    expect((await readdir(join(data, 'assets'))).sort()).toEqual(['_index.json', reference + '.png'])
     expect((await readFile(join(data, 'assets', reference + '.png'))).equals(png)).toBe(true)
     expect(await readFile(join(source, 'projects/referenced.json'), 'utf8')).toBe(manuscript)
   } finally {
