@@ -97,7 +97,7 @@ it.each(['clean', 'conflict', 'late-conflict', 'independent-only', 'combined', '
         const offering = await preview(enabled
           ? '?standaloneImages=1' + (mode === 'combined' ? '&indexedImages=1' : '')
           : '?indexedImages=1')
-        expect(await readdir(join(data, 'assets'))).toEqual(mode === 'conflict' ? ['_index.json', first.file].sort() : [])
+        expect((await readdir(join(data, 'assets'))).sort()).toEqual(mode === 'conflict' ? ['_index.json', first.file].sort() : [])
         expect(offering.plan.projects.add).toEqual(mode === 'combined' ? ['linked'] : [])
         if (!enabled) {
           expect(offering.plan.assets.add).toEqual([])
