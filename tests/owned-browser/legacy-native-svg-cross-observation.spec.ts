@@ -1,11 +1,15 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import { expect, test, type Locator } from '@playwright/test'
 
-// Two static, inert fixture pages. This is a reference observation, not a
-// claim that the application accepts cross-fragment archives or exports them.
+// One offline fixture matrix and an independent compiled upstream control.
+const original = ['art_trigger', 'art_explicit_target'] as const
+const rewritten = ['xiumi-proof-1', 'xiumi-proof-2'] as const
 const fixtures = [
-  { source: 'upstream', file: 'upstream-native-svg-compiled.html', ids: ['art_trigger', 'art_explicit_target'] },
-  { source: 'detached', file: 'synthetic-svg-detached.html', ids: ['xiumi-proof-1', 'xiumi-proof-2'] },
+  { source: 'upstream', file: 'upstream-native-svg-compiled.html', ids: original, detached: false },
+  { source: 'top-original', file: 'synthetic-svg-top-original.html', ids: original, detached: false },
+  { source: 'top-rewritten', file: 'synthetic-svg-top-rewritten.html', ids: rewritten, detached: false },
+  { source: 'detached-original', file: 'synthetic-svg-detached-original.html', ids: original, detached: true },
+  { source: 'detached-rewritten', file: 'synthetic-svg-detached.html', ids: rewritten, detached: true },
 ] as const
 
 test.use({ hasTouch: true, offline: true })
@@ -48,9 +52,9 @@ test('observes upstream and detached SVG timing and href separately in offline C
   const network: string[] = []
   page.on('request', request => { if (/^https?:/.test(request.url())) network.push(request.url()) })
   const observations = []
-  for (const { source, file, ids } of fixtures) {
+  for (const { source, file, ids, detached } of fixtures) {
     await page.goto(new URL('../fixtures/legacy-backup/' + file, import.meta.url).href)
-    const doc = source === 'detached' ? page.frameLocator('iframe[sandbox=""]') : page
+    const doc = detached ? page.frameLocator('iframe[sandbox=""]') : page
     const svg = doc.locator('svg')
     await expect(svg).toHaveCount(5)
     const trigger = doc.locator('#' + ids[0])
@@ -62,7 +66,7 @@ test('observes upstream and detached SVG timing and href separately in offline C
     await expect(touch).toHaveCSS('opacity', '1')
     await expect(follower).toHaveCSS('opacity', '1')
     await expect(explicitTarget).toHaveCSS('opacity', '1')
-    if (source === 'detached') {
+    if (detached) {
       await page.getByRole('button', { name: 'Outer decoy' }).click()
       await expect(follower).toHaveCSS('opacity', '1')
       await expect(explicitTarget).toHaveCSS('opacity', '1')
@@ -73,13 +77,23 @@ test('observes upstream and detached SVG timing and href separately in offline C
     await expect(touch).toHaveCSS('opacity', '1')
     await touch.tap()
     await expect(touch).toHaveCSS('opacity', '0.2')
+    await trigger.scrollIntoViewIfNeeded()
+    const documentContext = await trigger.evaluate(element => {
+      const bounds = element.getBoundingClientRect()
+      const doc = element.ownerDocument
+      const hit = doc.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+      return { centerHit: hit === element, protocol: new URL(doc.URL).protocol,
+        baseProtocol: new URL(doc.baseURI).protocol, origin: doc.defaultView!.origin,
+        viewport: [doc.documentElement.clientWidth, doc.documentElement.clientHeight] }
+    }, undefined, { timeout: 500 })
+    expect(documentContext.centerHit, source + ' trigger center is hit-testable').toBe(true)
     await trigger.click()
     // Cross-root timing/href remain observations, not release requirements.
     const observed = await observe(follower, explicitTarget)
     await page.reload()
     await expect(follower).toHaveCSS('opacity', '1')
     await expect(explicitTarget).toHaveCSS('opacity', '1')
-    observations.push({ source, ...observed, reset: 'verified-opacity-1' })
+    observations.push({ source, documentContext, ...observed, reset: 'verified-opacity-1' })
   }
   const report = JSON.stringify({ chromium: page.context().browser()?.version(), observations, network })
   console.log('native-svg-cross-observation: ' + report)

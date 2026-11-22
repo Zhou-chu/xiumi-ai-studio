@@ -22,3 +22,10 @@ SHA-256: `799d2ceed32f6cd6def661a6acacd60e1d9954cfe025455fbf3f31025f6f8f19`.
 Both are reference evidence only: no application path accepts these cross-root
 manuscripts. Cross-root timing and explicit href are observed separately, not
 assumed to work in Chromium.
+
+The controlled matrix pairs each sandboxed `srcdoc` payload with its exact
+decoded standalone bytes: `synthetic-svg-top-rewritten.html` with
+`synthetic-svg-detached.html`, and `synthetic-svg-top-original.html` with
+`synthetic-svg-detached-original.html`. The original-ID variant differs only
+in the two IDs, corresponding event and target references, and same-ID outer
+decoy. All cases use the same no-network policy and actual hit-tested input.
