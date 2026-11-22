@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises'
 import { expect, test, type Locator } from '@playwright/test'
 
 // Two static, inert fixture pages. This is a reference observation, not a
@@ -9,7 +10,39 @@ const fixtures = [
 
 test.use({ hasTouch: true, offline: true })
 
-const css = (l: Locator, property: string) => l.evaluate((element, key) => getComputedStyle(element).getPropertyValue(key), property)
+const opacity = (locator: Locator) => locator.evaluate(element => getComputedStyle(element).opacity, undefined, { timeout: 150 })
+
+async function sample(locator: Locator): Promise<string | null> {
+  // The browser evaluates synchronously, but the host also bounds the protocol
+  // response. No dependency on timers/rAF inside a suspended opaque frame.
+  const controller = new AbortController()
+  try {
+    return await Promise.race([
+      opacity(locator).catch(() => null),
+      delay(200, null, { signal: controller.signal }),
+    ])
+  } finally {
+    controller.abort()
+  }
+}
+
+async function observe(follower: Locator, target: Locator) {
+  const started = performance.now()
+  const deadline = started + 650
+  const samples: Array<{ elapsedMs: number; timing: string | null; explicitHref: string | null }> = []
+  while (performance.now() < deadline) {
+    const elapsedMs = Math.round(performance.now() - started)
+    const [timing, explicitHref] = await Promise.all([sample(follower), sample(target)])
+    samples.push({ elapsedMs, timing, explicitHref })
+    await delay(35)
+  }
+  const summarize = (key: 'timing' | 'explicitHref', expected: string) => {
+    const values = [...new Set(samples.flatMap(item => item[key] ?? []))]
+    return { status: values.includes(expected) ? 'observed' : values.length ? 'not-observed' : 'unevaluable',
+      values, unreadableSamples: samples.filter(item => item[key] === null).length }
+  }
+  return { timing: summarize('timing', '0.3'), explicitHref: summarize('explicitHref', '0.4'), samples }
+}
 
 test('observes upstream and detached SVG timing and href separately in offline Chromium', async ({ page }) => {
   const network: string[] = []
@@ -41,19 +74,12 @@ test('observes upstream and detached SVG timing and href separately in offline C
     await touch.tap()
     await expect(touch).toHaveCSS('opacity', '0.2')
     await trigger.click()
-    // Give native SMIL scheduled frames a bounded window. Upstream support for
-    // either cross-root effect is an observation, not a release requirement.
-    const observed = []
-    for (let i = 0; i < 8; i++) {
-      await follower.evaluate(element => new Promise<void>(resolve => element.ownerDocument.defaultView!.requestAnimationFrame(() => resolve())))
-      observed.push([await css(follower, 'opacity'), await css(explicitTarget, 'opacity')])
-    }
+    // Cross-root timing/href remain observations, not release requirements.
+    const observed = await observe(follower, explicitTarget)
     await page.reload()
     await expect(follower).toHaveCSS('opacity', '1')
     await expect(explicitTarget).toHaveCSS('opacity', '1')
-    observations.push({ source, timing: [...new Set(observed.map(item => item[0]))],
-      explicitHref: [...new Set(observed.map(item => item[1]))],
-      reset: [await css(follower, 'opacity'), await css(explicitTarget, 'opacity')] })
+    observations.push({ source, ...observed, reset: 'verified-opacity-1' })
   }
   const report = JSON.stringify({ chromium: page.context().browser()?.version(), observations, network })
   console.log('native-svg-cross-observation: ' + report)
