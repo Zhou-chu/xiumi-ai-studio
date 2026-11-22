@@ -104,7 +104,7 @@ it('returns an empty projection for a recognizable library containing only templ
     await rm(join(data, 'projects'), { recursive: true })
     await mkdir(join(data, 'templates'))
     await expect(createLegacyDirectoryPreview({ configuredSource: data, target }).snapshotProjects()).resolves.toEqual({
-      sourceLayout: 'data', projects: [], sourceVersion: expect.stringMatching(/^[0-9a-f]{64}$/), verifyDestination: expect.any(Function), summaries: { candidates: 0, invalid: 0, ignored: 0 },
+      sourceLayout: 'data', projects: [], assets: [], sourceVersion: expect.stringMatching(/^[0-9a-f]{64}$/), verifyDestination: expect.any(Function), summaries: { candidates: 0, invalid: 0, ignored: 0 },
     })
     expect(await readdir(target)).toEqual([])
   }))

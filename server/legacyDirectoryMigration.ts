@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import { constants, type BigIntStats } from 'node:fs'
 import { lstat, open, opendir, realpath } from 'node:fs/promises'
+import { readAssetMetadata, isAssetCatalog, validateArchivedRaster } from './legacyRaster'
+import type { ArchivedAsset } from './assets'
 import { verifyHistoryDirectory } from './historyDirectory'
 import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path'
 
@@ -24,6 +26,9 @@ const tooLarge = () => new LocalMigrationError('目录条目超过迁移预览�
 const changed = () => new LocalMigrationError('旧版数据目录或项目已变化，请重新检测', 409)
 const MAX_PROJECT_BYTES = 4 * 1024 * 1024
 const MAX_TOTAL_PROJECT_BYTES = 32 * 1024 * 1024
+const MAX_INDEX_BYTES = 4 * 1024 * 1024
+const MAX_ASSET_BYTES = 32 * 1024 * 1024
+const MAX_TOTAL_ASSET_BYTES = 64 * 1024 * 1024
 const id = /^[\w-]{1,64}$/
 const jsonFile = /^[\w-]{1,64}\.json$/
 const revision = /^[\w-]{1,80}\.json$/
@@ -132,6 +137,7 @@ type ProjectCandidate = Record<string, unknown> & { id: string; blocks: unknown[
 type SourceSnapshot = {
   sourceLayout: MigrationPreview['sourceLayout']
   projects: ProjectCandidate[]
+  assets: ArchivedAsset[]
   /** Server-only version of the exact source bytes and selected data/target identities. */
   sourceVersion: string
   verifyDestination: () => Promise<void>
@@ -156,11 +162,12 @@ function unchanged(before: BigIntStats, after: BigIntStats) {
     before.size === after.size && before.mtimeNs === after.mtimeNs && before.ctimeNs === after.ctimeNs
 }
 
-async function readProject(path: string, before: BigIntStats, limit: number, signal?: AbortSignal) {
+async function readRegularFile(path: string, before: BigIntStats, limit: number, signal?: AbortSignal) {
   if (comparable(await realpath(path)) !== comparable(path)) throw changed()
   const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0))
   try {
     if (!unchanged(before, await handle.stat({ bigint: true }))) throw changed()
+    signal?.throwIfAborted()
     const chunks: Buffer[] = []
     let length = 0
     for await (const chunk of handle.createReadStream({ autoClose: false, highWaterMark: 64 * 1024, signal })) {
@@ -182,6 +189,96 @@ function projectCandidate(bytes: Buffer, id: string): ProjectCandidate | undefin
     if (raw && typeof raw === 'object' && !Array.isArray(raw) && 'id' in raw && raw.id === id &&
         'blocks' in raw && Array.isArray(raw.blocks)) return raw as ProjectCandidate
   } catch { /* Invalid source JSON is counted without reflecting any bytes. */ }
+}
+
+// This is a discovery hint only; the ZIP stage still validates the entire
+// image block, source URL (including generation), and document schema.
+function selectedImageId(block: unknown) {
+  if (!isAssetCatalog(block) || block.type !== 'image' || !isAssetCatalog(block.props)) return
+  const ref = block.props.image
+  if (!isAssetCatalog(ref)) return
+  const { assetId, src } = ref
+  if (typeof assetId !== 'string' || !id.test(assetId) || typeof src !== 'string') return
+  if (['jpg', 'png'].some(ext => {
+    const path = '/media/' + assetId + '.' + ext
+    return src === path || src.startsWith(path + '?gen=')
+  })) return assetId
+}
+
+function imageDependencies(projects: ProjectCandidate[], maxEntries: number) {
+  const ids = new Set<string>()
+  for (const project of projects) {
+    if (project.blocks.length > 2000) continue
+    for (const block of project.blocks) {
+      const selected = selectedImageId(block)
+      if (!selected) continue
+      ids.add(selected)
+      if (ids.size > maxEntries) throw tooLarge()
+    }
+  }
+  return [...ids].sort()
+}
+
+const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
+type Verify = () => Promise<void>
+
+async function pinFolder(path: string) {
+  const directory = await inspect(path) ? await canonicalDirectory(path) : undefined
+  return {
+    path: directory?.path ?? path,
+    identity: directory?.identity ?? 'absent',
+    verify: directory?.verify ?? (async () => { if (await inspect(path)) throw changed() }),
+  }
+}
+
+async function snapshotReferencedAssets(data: string, ids: string[], verifyRoots: Verify, signal?: AbortSignal) {
+  const assets: ArchivedAsset[] = []
+  const fingerprints: string[] = []
+  if (!ids.length) return { assets, fingerprints }
+  const folder = await pinFolder(join(data, 'assets'))
+  const verify = async () => { await verifyRoots(); await folder.verify() }
+  fingerprints.push(folder.identity)
+  let total = 0
+  async function read(name: string, limit: number) {
+    await verify()
+    const path = join(folder.path, name)
+    const info = await lstat(path, { bigint: true }).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    })
+    if (!info?.isFile() || info.nlink !== 1n) {
+      fingerprints.push(name + ':unavailable')
+      return
+    }
+    const remaining = Math.min(limit, MAX_TOTAL_ASSET_BYTES - total)
+    if (info.size > BigInt(remaining)) throw tooLarge()
+    try {
+      const bytes = await readRegularFile(path, info, remaining, signal)
+      total += bytes.length
+      fingerprints.push(name + ':' + digest(bytes))
+      return bytes
+    } finally { await verify() }
+  }
+  const index = folder.identity === 'absent' ? undefined : await read('_index.json', MAX_INDEX_BYTES)
+  let catalog: unknown
+  if (index) {
+    try { catalog = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(index)) }
+    catch { /* A malformed index cannot qualify any image. */ }
+  }
+  if (isAssetCatalog(catalog)) for (const key of ids) {
+    signal?.throwIfAborted()
+    if (!Object.hasOwn(catalog, key)) continue
+    let asset: ArchivedAsset['asset']
+    try { asset = readAssetMetadata(key, catalog[key]) }
+    catch { continue }
+    const bytes = await read(asset.file, MAX_ASSET_BYTES)
+    if (!bytes) continue
+    try { await validateArchivedRaster(asset, bytes) }
+    catch { continue }
+    assets.push({ asset, bytes })
+  }
+  await verify()
+  return { assets, fingerprints }
 }
 
 /**
@@ -258,21 +355,21 @@ export function createLegacyDirectoryPreview({
         const projects: ProjectCandidate[] = []
         const summaries = { candidates: 0, invalid: 0, ignored: 0 }
         const fingerprints: string[] = []
-        const version = (folder: string) => createHash('sha256')
-          .update(JSON.stringify([identity, targetProjects?.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), summaries])).digest('hex')
+        const version = (folder: string, assets: string[] = []) => createHash('sha256')
+          .update(JSON.stringify([identity, targetProjects.identity, targetAssets.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), assets, summaries])).digest('hex')
         await verifyRoots()
-        const targetFolder = join(destination, 'projects')
-        const targetProjects = await inspect(targetFolder) ? await canonicalDirectory(targetFolder) : undefined
+        const targetProjects = await pinFolder(join(destination, 'projects'))
+        const targetAssets = await pinFolder(join(destination, 'assets'))
         const verifyDestination = async () => {
           await verifyRoots()
-          if (targetProjects) await targetProjects.verify()
-          else if (await inspect(targetFolder)) throw changed()
+          await targetProjects.verify()
+          await targetAssets.verify()
         }
         const requested = join(data, 'projects')
         if (!await inspect(requested)) {
           await verifyDestination()
           if (await inspect(requested)) throw changed()
-          return { sourceLayout, projects, summaries, sourceVersion: version('absent'), verifyDestination }
+          return { sourceLayout, projects, assets: [], summaries, sourceVersion: version('absent'), verifyDestination }
         }
         const directory = await canonicalDirectory(requested)
         const verify = async () => {
@@ -303,10 +400,9 @@ export function createLegacyDirectoryPreview({
           if (!info.isFile() || info.nlink !== 1n) { summaries.ignored++; continue }
           const remaining = Math.min(maxProjectBytes, maxTotalProjectBytes - total)
           if (info.size > BigInt(remaining)) throw tooLarge()
-          const bytes = await readProject(path, info, remaining, signal)
+          const bytes = await readRegularFile(path, info, remaining, signal).finally(verify)
           total += bytes.length
-          fingerprints.push(name + ':' + createHash('sha256').update(bytes).digest('hex'))
-          await verify()
+          fingerprints.push(name + ':' + digest(bytes))
           const candidate = projectCandidate(bytes, name.slice(0, -5))
           if (candidate) projects.push(candidate)
           else summaries.invalid++
@@ -314,7 +410,8 @@ export function createLegacyDirectoryPreview({
         await verify()
         summaries.candidates = projects.length
         projects.sort((a, b) => a.id.localeCompare(b.id, 'en'))
-        return { sourceLayout, projects, summaries, sourceVersion: version(directory.identity), verifyDestination }
+        const archived = await snapshotReferencedAssets(data, imageDependencies(projects, maxEntries), verify, signal)
+        return { sourceLayout, projects, assets: archived.assets, summaries, sourceVersion: version(directory.identity, archived.fingerprints), verifyDestination }
       }, signal)
     },
   }

@@ -1,5 +1,8 @@
 import { randomBytes } from 'node:crypto'
+import { lstat } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Express, Request, RequestHandler, Response } from 'express'
+import { assetRestoreStore } from './assets'
 import { isOwnedDesktopRequest } from './desktopActions'
 import { createLegacyDirectoryPreview } from './legacyDirectoryMigration'
 import { stageLegacyDirectoryProjects } from './legacyProjectRestore'
@@ -59,12 +62,36 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
     const close = () => { if (!res.writableFinished) controller.abort() }
     res.once('close', close)
     try {
-      const { sourceLayout, sourceVersion, projects: candidates, summaries, verifyDestination } = await source.snapshotProjects(controller.signal)
+      const { sourceLayout, sourceVersion, projects: candidates, assets, summaries, verifyDestination } = await source.snapshotProjects(controller.signal)
+      const verifyAssetDestination = async () => {
+        await verifyDestination()
+        const info = await lstat(join(target, 'assets', '_index.json')).catch(error => {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+          throw error
+        })
+        if (info && (!info.isFile() || info.nlink !== 1)) {
+          throw Object.assign(new Error('无法安全使用当前素材索引'), { status: 409 })
+        }
+      }
       const stage = stageLegacyDirectoryProjects(candidates, {
-        occupied: projects.occupied,
+        occupied: async id => { await verifyDestination(); return projects.occupied(id) },
         // Shares the ordinary store queue and writes only after checking our
         // pinned target again. No portable atomic OS directory handle claimed.
-        restore: doc => projects.restore(doc, async () => { await verifyDestination(); return true }),
+        restore: (doc, prepare) => projects.restore(doc, async () => {
+          await verifyDestination()
+          const ready = await prepare?.() ?? true
+          await verifyDestination()
+          return ready
+        }),
+      }, assets, {
+        status: asset => assetRestoreStore.withApplyLock(async (_restore, check) => {
+          await verifyAssetDestination()
+          return check(asset)
+        }),
+        withApplyLock: apply => assetRestoreStore.withApplyLock((restore, check) => apply(
+          async asset => { await verifyAssetDestination(); return restore(asset) },
+          async asset => { await verifyAssetDestination(); return check(asset) },
+        )),
       })
       const plan = (await stage.preview()).projects
       if (controller.signal.aborted) return

@@ -90,15 +90,15 @@ export function LegacyDirectoryMigrationPanel() {
     }
   }
 
-  return <section aria-label="从本机旧目录迁移文字项目">
-    <h4>从本机旧目录迁移文字项目</h4>
+  return <section aria-label="从本机旧目录迁移项目">
+    <h4>从本机旧目录迁移项目</h4>
     <p className="hint">只读取桌面程序所有者在启动前指定的旧仓库或 data 文件夹。迁移不改动源文件，也不覆盖现有项目。</p>
-    <p className="hint">当前不迁移图片、复杂排版、历史版本、模板、组件、主题和设置，不读取 .env 内容。</p>
+    <p className="hint">支持普通文字项目及项目内由旧素材库索引的 PNG/JPEG。不迁移独立素材、复杂排版、历史版本、模板、组件、主题和设置，不读取 .env 内容。</p>
     {!preview && <button type="button" disabled={busy} onClick={() => void run('preview')}>检测已配置旧目录</button>}
     {preview && <>
-      <p role="status">尚未写入。预计新增 {preview.plan.added}，已有 {preview.plan.skipped}，不支持 {preview.plan.unsupported}，无效 {preview.plan.invalid}，忽略 {preview.plan.ignored}。</p>
+      <p role="status">尚未写入。预计新增 {preview.plan.added}，跳过 {preview.plan.skipped}，不支持 {preview.plan.unsupported}，无效 {preview.plan.invalid}，忽略 {preview.plan.ignored}。</p>
       <button type="button" disabled={busy} onClick={() => void run('cancel')}>取消目录迁移</button>
-      <button type="button" disabled={busy || !preview.plan.added} onClick={() => void run('apply')}>确认迁移文字项目</button>
+      <button type="button" disabled={busy || !preview.plan.added} onClick={() => void run('apply')}>确认迁移项目</button>
     </>}
     {result && <p role="status">已新增 {result.restored}，跳过 {result.skipped}，失败 {result.failed}，不支持 {result.unsupported}，无效 {result.invalid}，忽略 {result.ignored}。</p>}
     {error && <p role="alert" className="warn">{error}</p>}

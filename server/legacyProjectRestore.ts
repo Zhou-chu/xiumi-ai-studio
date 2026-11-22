@@ -1,13 +1,12 @@
 import { crc32 } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
-import sharp from 'sharp'
 import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
-import { withImageBudget } from './imageBudget'
+import { readAssetMetadata, validateArchivedRaster } from './legacyRaster'
 import { archivedModelCards, stageModelCards } from './modelRestore'
-import type { Asset, ArchivedAsset, assetRestoreStore } from './assets'
+import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
 import { COMPONENT_ENTRY, qualifyLegacyComponent, stageLegacyComponents, type ComponentCollection, type ComponentCandidate } from './legacyComponentRestore'
@@ -20,7 +19,6 @@ const VERSION_PATH = /^versions\/([\w-]{1,64})\/([\w-]{1,64})\.json$/
 const MANIFEST = 'xiumi-backup.json'
 const ASSET_INDEX = 'assets/_index.json'
 const ASSET_FILE = /^assets\/[\w-]{1,64}\.(?:jpg|png)$/
-const MAX_ARCHIVED_IMAGE_PIXELS = 2400 * 2400
 // These bounds cover only the in-memory project stage, not the upload size of
 // a full library ZIP. Assets have a separate in-memory staging limit.
 const DEFAULT_BUDGET = {
@@ -69,19 +67,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function readAssetMetadata(id: string, value: unknown): Asset {
-  if (!/^[\w-]{1,64}$/.test(id) || !isObject(value)) throw invalid()
-  const { file, name, width, height, size, createdAt } = value
-  if (value.id !== id || !(file === id + '.jpg' || file === id + '.png') ||
-      typeof name !== 'string' || typeof width !== 'number' || typeof height !== 'number' ||
-      typeof size !== 'number' || typeof createdAt !== 'number' ||
-      [width, height, size].some(item => !Number.isSafeInteger(item) || item < 1) ||
-      !Number.isFinite(createdAt) || width > 2400 || height > 2400) throw invalid()
-  // Preserve only local display metadata; legacy source URL/key fields are
-  // not used to fetch content or trusted as a new external-cache identity.
-  return { id, file, name, width, height, size, createdAt }
-}
-
 async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<string, Entry>, budget: typeof DEFAULT_BUDGET) {
   const catalog = await readJsonEntry(zip, index, budget.entryBytes)
   if (!isObject(catalog)) throw invalid()
@@ -95,14 +80,7 @@ async function readArchivedAssets(zip: ZipFile, index: Entry, binaries: Map<stri
     assetBytes += entry.uncompressedSize
     if (assetBytes > budget.totalAssetBytes) throw tooLarge()
     const bytes = await readEntry(zip, entry, budget.entryBytes)
-    await withImageBudget(async () => {
-      const img = sharp(bytes, { limitInputPixels: MAX_ARCHIVED_IMAGE_PIXELS, failOn: 'warning' })
-      const actual = await img.metadata()
-      if (actual.format !== (asset.file.endsWith('.png') ? 'png' : 'jpeg') ||
-          actual.width !== asset.width || actual.height !== asset.height ||
-          (actual.pages ?? 1) !== 1) throw invalid()
-      await img.raw().toBuffer()
-    })
+    await validateArchivedRaster(asset, bytes)
     result.push({ asset, bytes })
     binaries.delete(entry.fileName)
   }
@@ -485,9 +463,10 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
   return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, options)
 }
 
-/** Ordinary text candidates from a separately secured owner-local directory. */
-export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore) {
-  return stageDecodedLegacyProjects({ projects, assets: [], history: [], design: [], components: [], otherLibraryEntries: [] }, store)
+/** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
+export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, assets: ArchivedAsset[], assetStore: AssetStore) {
+  return stageDecodedLegacyProjects({ projects, assets, history: [], design: [], components: [], otherLibraryEntries: [] },
+    store, undefined, assets.length ? assetStore : undefined)
 }
 
 function stageDecodedLegacyProjects({ projects, assets, history, design, components, modelCards, otherLibraryEntries }: ProjectArchive, store: ProjectStore,
