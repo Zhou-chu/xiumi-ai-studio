@@ -29,3 +29,10 @@ decoded standalone bytes: `synthetic-svg-top-rewritten.html` with
 `synthetic-svg-detached-original.html`. The original-ID variant differs only
 in the two IDs, corresponding event and target references, and same-ID outer
 decoy. All cases use the same no-network policy and actual hit-tested input.
+
+The generated-name positive witness `synthetic-svg-detached-underscore.html`
+changes only the separators in the two synthetic IDs, including their timing,
+target, and outer-decoy occurrences, relative to the hyphenated sandbox fixture.
+The test requires actual timing and target opacity changes separately, without
+any change to the sandbox or application.
+SHA-256: `48bf2912664950d665caf7573a3c6186e5187f770b882d793a0567efca876cda`.

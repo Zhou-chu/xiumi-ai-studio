@@ -4,12 +4,14 @@ import { expect, test, type Locator } from '@playwright/test'
 // One offline fixture matrix and an independent compiled upstream control.
 const original = ['art_trigger', 'art_explicit_target'] as const
 const rewritten = ['xiumi-proof-1', 'xiumi-proof-2'] as const
+const generated = ['xiumi_proof_1', 'xiumi_proof_2'] as const
 const fixtures = [
   { source: 'upstream', file: 'upstream-native-svg-compiled.html', ids: original, detached: false },
   { source: 'top-original', file: 'synthetic-svg-top-original.html', ids: original, detached: false },
   { source: 'top-rewritten', file: 'synthetic-svg-top-rewritten.html', ids: rewritten, detached: false },
   { source: 'detached-original', file: 'synthetic-svg-detached-original.html', ids: original, detached: true },
   { source: 'detached-rewritten', file: 'synthetic-svg-detached.html', ids: rewritten, detached: true },
+  { source: 'detached-underscore', file: 'synthetic-svg-detached-underscore.html', ids: generated, detached: true },
 ] as const
 
 test.use({ hasTouch: true, offline: true })
@@ -99,4 +101,9 @@ test('observes upstream and detached SVG timing and href separately in offline C
   console.log('native-svg-cross-observation: ' + report)
   await test.info().attach('native-svg-cross-observation', { body: report, contentType: 'application/json' })
   expect(network).toEqual([])
+  // This positive witness is only for the static fixture with generated names.
+  // The existing hyphenated cases remain diagnostic, not a release contract.
+  const generatedWitness = observations.find(item => item.source === 'detached-underscore')
+  expect(generatedWitness?.timing.status, 'generated-name cross-fragment timing').toBe('observed')
+  expect(generatedWitness?.explicitHref.status, 'generated-name explicit target').toBe('observed')
 })
