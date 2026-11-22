@@ -52,9 +52,11 @@ export function docToMarkdown(doc: Doc): string {
         out.push(img(b.props.image?.src), b.props.title && `**${markdownDataText(b.props.title)}**`,
           richToMarkdown(b.props.content, markdownDataText))
         break
-      case 'image':
-        out.push(img(p.image?.src, p.caption), p.caption && `*${p.caption}*`)
+      case 'image': {
+        const caption = b.props.image ? b.props.caption : markdownDataText(b.props.caption)
+        out.push(img(b.props.image?.src, caption), caption && `*${caption}*`)
         break
+      }
       case 'gallery':
         out.push(p.images.map((i: any) => img(i.src)).join('\n'), p.caption && `*${p.caption}*`)
         break
@@ -100,9 +102,11 @@ export function docToMarkdown(doc: Doc): string {
       case 'photos':
         out.push(...pics(b.props.pics.slice(0, b.props.count), markdownDataText))
         break
-      case 'frame':
-        out.push(img(p.image?.src, p.caption), p.caption && `*${p.caption}*`)
+      case 'frame': {
+        const caption = b.props.image ? b.props.caption : markdownDataText(b.props.caption)
+        out.push(img(b.props.image?.src, caption), caption && `*${caption}*`)
         break
+      }
     }
   }
   doc.blocks.forEach(walk)

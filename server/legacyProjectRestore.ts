@@ -345,6 +345,8 @@ const coverTextKeys = new Set(['titleAlign', 'kicker', 'title', 'subtitle', 'met
 const endingTextKeys = new Set(['text', 'author', 'note'])
 const profileTextKeys = new Set(['name', 'role', 'bio'])
 const columnsTextKeys = new Set(['title', 'content', 'imagePosition'])
+const blankImageKeys = new Set(['caption', 'variant'])
+const blankFrameKeys = new Set(['caption', 'label', 'variant'])
 const legacyCoverAlignments = new Set<unknown>(['auto', 'left', 'center', 'right'])
 const legacyCoverVariants = new Set<unknown>(['auto', 'hero', 'band', 'minimal'])
 const knownKeys = (value: Record<string, unknown>, allowed: Set<string>) => Object.keys(value).every(key => allowed.has(key))
@@ -370,6 +372,14 @@ function acceptsTextColumns(props: Record<string, unknown>, budget: RichTextBudg
     (props.imagePosition === 'left' || props.imagePosition === 'right') && acceptsLegacyRichText(props.content, budget)
 }
 
+function acceptsBlankMedia(type: 'image' | 'frame', props: Record<string, unknown>) {
+  if (typeof props.variant !== 'string' || !boundedText(props.caption, 2000)) return false
+  if (type === 'image') {
+    return knownKeys(props, blankImageKeys) && ['full', 'framed', 'rounded'].includes(props.variant)
+  }
+  return knownKeys(props, blankFrameKeys) && ['flag', 'circuit', 'ticket'].includes(props.variant) && boundedText(props.label, 2000)
+}
+
 function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget) {
   if (!isObject(value) || !knownKeys(value, blockKeys) || typeof value.id !== 'string' ||
       !idPattern.test(value.id) || !isObject(value.props)) return false
@@ -383,6 +393,7 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
   if (value.type === 'cover') return acceptsTextCover(props)
   if (value.type === 'profile') return acceptsTextProfile(props)
   if (value.type === 'imageText') return acceptsTextColumns(props, budget)
+  if (value.type === 'image' || value.type === 'frame') return acceptsBlankMedia(value.type, props)
   if (typeof props.variant !== 'string') return false
   if (value.type === 'card') {
     return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&
