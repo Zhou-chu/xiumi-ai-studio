@@ -100,3 +100,7 @@ ZIP preview can plan unoccupied versions independently when the canonical local 
 ### Owner-local directory: images without a manuscript
 
 The opt-in independent-image mode applies only to the owner-configured, same-origin directory migration. It reports the planned new, identical, and blocked indexed PNG/JPEG items and allows an explicit image-only confirmation even when the old directory has no manuscript. Like ZIP restore, it neither imports unindexed files nor overwrites existing IDs or filenames. Exact reviewed source index and eligible raster bytes must still match on confirmation.
+
+### Owner-local directory: scoped themes, templates and components
+
+The separate owner-local design option shares the ZIP validator and add-only dependency-aware stores for supported themes, templates and reusable components. Missing or differing themes prevent writing dependent templates, not unrelated components. Shared qualified indexed media is added once only when needed. Exact reviewed source records and eligible raster bytes must still match on confirmation; existing destination records are not overwritten. This does not imply support for arbitrary legacy layouts or their external resources, and never imports credentials or settings.

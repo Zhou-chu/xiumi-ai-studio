@@ -3,6 +3,8 @@ import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Express, Request, RequestHandler, Response } from 'express'
 import { assetRestoreStore } from './assets'
+import { componentRestoreStore } from './components'
+import type { DesignCollections } from './legacyDesignRestore'
 import { isOwnedDesktopRequest } from './desktopActions'
 import { createLegacyDirectoryPreview } from './legacyDirectoryMigration'
 import { stageLegacyDirectoryProjects } from './legacyProjectRestore'
@@ -14,7 +16,9 @@ type Store = Parameters<typeof stageLegacyDirectoryProjects>[1]
 type History = NonNullable<Parameters<typeof stageLegacyDirectoryProjects>[2]['historyStore']>
 type Stage = ReturnType<typeof stageLegacyDirectoryProjects>
 type Snapshot = Awaited<ReturnType<ReturnType<typeof createLegacyDirectoryPreview>['snapshotProjects']>>
-type Pending = { hasHistory: boolean; standaloneImages: boolean; owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
+type Mode = NonNullable<Parameters<ReturnType<typeof createLegacyDirectoryPreview>['snapshotProjects']>[1]>
+type Stores = { history: History; design: DesignCollections }
+type Pending = { hasHistory: boolean; mode: Mode; owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
 
 const secret = () => randomBytes(32).toString('hex')
 const cookieOptions = { path: route, httpOnly: true, sameSite: 'strict' as const }
@@ -40,9 +44,18 @@ function respondError(res: Response, error: unknown) {
   }
 }
 
-function guardedStage(snapshot: Snapshot, projects: Store, target: string, historyStore: History, standaloneImages: boolean) {
-  const { projects: candidates, assets, history, targetHistory, verifyDestination } = snapshot
-  const inspectExisting = historyStore.inspectExisting
+function guardCollection(store: DesignCollections['themes'], guard: () => Promise<void>): DesignCollections['themes'] {
+  return {
+    restoreStatus: item => store.withRestoreEntry(item, async (_restore, status) => { await guard(); return status() }),
+    withRestoreEntry: (item, action) => store.withRestoreEntry(item, (restore, status) => action(
+      async () => { await guard(); return restore() }, async () => { await guard(); return status() },
+    )),
+  }
+}
+
+function guardedStage(snapshot: Snapshot, projects: Store, target: string, stores: Stores, mode: Mode) {
+  const { projects: candidates, assets, history, targetHistory, verifyDestination, design } = snapshot
+  const inspectExisting = stores.history.inspectExisting
   const verifyAssetDestination = async () => {
     await verifyDestination()
     const info = await lstat(join(target, 'assets', '_index.json')).catch(error => {
@@ -69,7 +82,17 @@ function guardedStage(snapshot: Snapshot, projects: Store, target: string, histo
       await targetHistory?.guard(doc.id)
       return ready
     }),
-  }, { assets, history, standaloneImages, assetStore: {
+  }, { assets, history, standaloneImages: mode.standaloneImages,
+    ...(design && {
+      design: design.records,
+      components: design.components,
+      designStore: {
+        themes: guardCollection(stores.design.themes, () => design.guard('themes')),
+        templates: guardCollection(stores.design.templates, () => design.guard('templates')),
+      },
+      componentStore: guardCollection(componentRestoreStore, () => design.guard('components')),
+    }),
+    assetStore: {
     status: asset => assetRestoreStore.withApplyLock(async (_restore, check) => {
       await verifyAssetDestination()
       return check(asset)
@@ -84,7 +107,7 @@ function guardedStage(snapshot: Snapshot, projects: Store, target: string, histo
       await targetHistory.guard(parent.id)
       return inspectExisting(parent, ids)
     }),
-    restore: (request, publishDependencies) => historyStore.restore(request, publishDependencies, async created => {
+    restore: (request, publishDependencies) => stores.history.restore(request, publishDependencies, async created => {
       await verifyDestination()
       await targetHistory.guard(request.sourceParent.id, created)
     }),
@@ -101,8 +124,32 @@ function assetResultCounts(assets: Awaited<ReturnType<Stage['apply']>>['assets']
   }
 }
 
+function migrationMode(body: Record<string, unknown> | null): Mode | undefined {
+  if (!bodyKeys(body)?.every(key => (key === 'standaloneImages' || key === 'designRecords') && body?.[key] === true)) return
+  return { standaloneImages: body?.standaloneImages === true, designRecords: body?.designRecords === true }
+}
+function collectionCounts<K extends string>(value: Partial<Record<K, string[]>> | undefined, keys: readonly K[]) {
+  return Object.fromEntries(keys.map(key => [key, value?.[key]?.length ?? 0]))
+}
+const designPreviewKeys = ['add', 'conflicts', 'alreadyPresent', 'unresolved'] as const
+const designResultKeys = ['restored', 'conflicts', 'alreadyPresent', 'unresolved', 'failed'] as const
+function designPreviewCounts(stage: Awaited<ReturnType<Stage['preview']>>) {
+  return {
+    themes: collectionCounts(stage.design?.themes, designPreviewKeys),
+    templates: collectionCounts(stage.design?.templates, designPreviewKeys),
+    components: collectionCounts(stage.components, designPreviewKeys),
+  }
+}
+function designResultCounts(stage: Awaited<ReturnType<Stage['apply']>>) {
+  return {
+    themes: collectionCounts(stage.design?.themes, designResultKeys),
+    templates: collectionCounts(stage.design?.templates, designResultKeys),
+    components: collectionCounts(stage.components, designResultKeys),
+  }
+}
+
 /** The source is supplied only by the owner-controlled portable launch. */
-export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: Store, configuredSource: string, target: string, historyStore: History) {
+export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: Store, configuredSource: string, target: string, stores: Stores) {
   const source = createLegacyDirectoryPreview({ configuredSource, target, maxEntries: 5000 })
   let pending: Pending | undefined
   let busy = false
@@ -113,8 +160,8 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
 
   app.get(route, ownerOnly, (_req, res) => res.json({ available: true }))
   app.post(route, ownerOnly, async (req, res) => {
-    const standaloneImages = req.body?.standaloneImages === true
-    if (bodyKeys(req.body)?.length !== (standaloneImages ? 1 : 0) || Object.keys(req.query).length) {
+    const mode = migrationMode(req.body)
+    if (!mode || Object.keys(req.query).length) {
       return res.status(400).json({ error: '不接受迁移路径或额外参数' })
     }
     if (busy || (pending && pending.owner !== requestOwner(req))) {
@@ -125,9 +172,9 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
     const close = () => { if (!res.writableFinished) controller.abort() }
     res.once('close', close)
     try {
-      const snapshot = await source.snapshotProjects(controller.signal, standaloneImages)
+      const snapshot = await source.snapshotProjects(controller.signal, mode)
       const { sourceLayout, sourceVersion, history, summaries } = snapshot
-      const stage = guardedStage(snapshot, projects, target, historyStore, standaloneImages)
+      const stage = guardedStage(snapshot, projects, target, stores, mode)
       const preview = await stage.preview()
       const plan = preview.projects
       if (controller.signal.aborted) return
@@ -136,11 +183,12 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       const owner = secret()
       const timeout = setTimeout(() => { if (pending?.token === token) discard() }, ttl)
       timeout.unref()
-      pending = { hasHistory: !!history, standaloneImages, owner, token, stage, sourceVersion, summaries, timeout }
+      pending = { hasHistory: !!history, mode, owner, token, stage, sourceVersion, summaries, timeout }
       res.cookie(cookieName, owner, { ...cookieOptions, maxAge: ttl })
       return res.json({ token, plan: {
         sourceLayout, add: plan.add.length, skip: plan.skip.length, unsupported: plan.unsupported.length, invalid: summaries.invalid, ignored: summaries.ignored,
-        ...(standaloneImages && { assets: assetPreviewCounts(preview.assets) }),
+        ...(mode.standaloneImages && { assets: assetPreviewCounts(preview.assets) }),
+        ...(mode.designRecords && { design: designPreviewCounts(preview) }),
         ...(history && { versions: { add: preview.versions.add.length, skip: preview.versions.skip.length, unsupported: preview.unsupported.filter(path => path.startsWith('versions/')).length } }),
       } })
     } catch (error) {
@@ -161,14 +209,14 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       return res.status(400).json({ error: '需要明确确认或取消迁移' })
     }
     if (busy) return res.status(429).json({ error: '另一个迁移操作正在运行' })
-    const { stage, sourceVersion, summaries, hasHistory, standaloneImages } = pending
+    const { stage, sourceVersion, summaries, hasHistory, mode } = pending
     discard()
     res.clearCookie(cookieName, cookieOptions)
     if (action === 'cancel') return res.status(204).end()
     busy = true
     try {
       let currentVersion: string
-      try { currentVersion = (await source.snapshotProjects(undefined, standaloneImages)).sourceVersion }
+      try { currentVersion = (await source.snapshotProjects(undefined, mode)).sourceVersion }
       catch { return res.status(409).json({ error: '旧版目录已更改或不可读，请重新检测' }) }
       if (currentVersion !== sourceVersion) return res.status(409).json({ error: '旧版目录已更改，请重新检测' })
       const applied = await stage.apply()
@@ -176,7 +224,8 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       return res.json({
         restored: result.restored.length, skipped: result.skipped.length, failed: result.failed.length, unsupported: result.unsupported.length,
         invalid: summaries.invalid, ignored: summaries.ignored,
-        ...(standaloneImages && { assets: assetResultCounts(applied.assets) }),
+        ...(mode.standaloneImages && { assets: assetResultCounts(applied.assets) }),
+        ...(mode.designRecords && { design: designResultCounts(applied) }),
         ...(hasHistory && { versions: {
           restored: applied.versions.restored.length, skipped: applied.versions.skipped.length, failed: applied.versions.failed.length,
           unsupported: applied.unsupported.filter(path => path.startsWith('versions/')).length,

@@ -39,8 +39,8 @@ type AssetStore = typeof assetRestoreStore
 type AssetLockCallbacks = Parameters<Parameters<AssetStore['withApplyLock']>[0]>
 type HistoryStore = Pick<ReturnType<typeof projectHistoryRestore>, 'restore'> & Partial<Pick<ReturnType<typeof projectHistoryRestore>, 'inspectExisting'>>
 export type HistoryCandidate = { path: string; projectId: string; id: string; raw: unknown }
-type ComponentRecord = { path: string; id: string; raw: unknown }
-type DesignEntry = ComponentRecord & { kind: DesignCategory }
+export type ComponentRecord = { path: string; id: string; raw: unknown }
+export type DesignEntry = ComponentRecord & { kind: DesignCategory }
 type ProjectArchive = { modelCards?: ReturnType<typeof archivedModelCards>; components: ComponentRecord[]; projects: Project[]; assets: ArchivedAsset[]; otherLibraryEntries: string[]; history: HistoryCandidate[]; design: DesignEntry[] }
 
 async function readEntry(zip: ZipFile, entry: Entry, limit: number): Promise<Buffer> {
@@ -465,9 +465,15 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
-export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, related: { assets: ArchivedAsset[]; assetStore: AssetStore; history?: HistoryCandidate[]; historyStore?: HistoryStore; standaloneImages?: boolean }) {
-  return stageDecodedLegacyProjects({ projects, assets: related.assets, history: related.history ?? [], design: [], components: [], otherLibraryEntries: [] },
-    store, related.historyStore, related.assets.length ? related.assetStore : undefined, undefined, { existingHistory: true, standaloneImages: related.standaloneImages })
+export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, related: {
+  assets: ArchivedAsset[]; assetStore: AssetStore; history?: HistoryCandidate[]; historyStore?: HistoryStore; standaloneImages?: boolean
+  design?: DesignEntry[]; designStore?: DesignCollections; components?: ComponentRecord[]; componentStore?: ComponentCollection
+}) {
+  return stageDecodedLegacyProjects({
+    projects, assets: related.assets, history: related.history ?? [], design: related.design ?? [], components: related.components ?? [], otherLibraryEntries: [],
+  }, store, related.historyStore, related.assets.length ? related.assetStore : undefined, related.designStore, {
+    existingHistory: true, standaloneImages: related.standaloneImages, components: related.componentStore,
+  })
 }
 
 type InspectExisting = NonNullable<HistoryStore['inspectExisting']>

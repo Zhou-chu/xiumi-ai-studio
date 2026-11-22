@@ -13,6 +13,7 @@ const allowedTags = ['body', 'section', 'p', 'span', 'strong', 'b', 'em', 'i', '
 const allowedAttrs = ['src', 'alt', 'style']
 export type ComponentCollection = Pick<ReturnType<typeof collection<LibraryComponent>>, 'restoreStatus' | 'withRestoreEntry'>
 type Image = { id: string; src: string }
+type ImageLookup = Pick<ReadonlyMap<string, Image>, 'get'>
 type AdvisorySource = { kind: 'original' | 'wechat' | 'xiumi' | 'other'; title: string; account: string; url: string }
 export type ComponentCandidate = { id: string; component: LibraryComponent; dependencies: Set<string>; missing: boolean }
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -34,7 +35,7 @@ function advisorySource(value: unknown): AdvisorySource {
   return { kind, title: shortText(source.title, 120), account: shortText(source.account, 60), url: '' }
 }
 
-function prepareHtml(html: string, images: ReadonlyMap<string, Image>) {
+function prepareHtml(html: string, images: ImageLookup) {
   const sanitized = DOMPurify.sanitize(html, { RETURN_DOM: true, ALLOWED_TAGS: allowedTags, ALLOWED_ATTR: allowedAttrs, ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false })
   if (sanitized.nodeType !== 1) return null
   const element = sanitized as HTMLElement
@@ -62,7 +63,7 @@ function prepareHtml(html: string, images: ReadonlyMap<string, Image>) {
 }
 
 /** Narrow archive subset: inert HTML and known managed images only. Trust is never imported. */
-export function qualifyLegacyComponent(id: string, raw: unknown, images: ReadonlyMap<string, Image>): ComponentCandidate | null {
+export function qualifyLegacyComponent(id: string, raw: unknown, images: ImageLookup): ComponentCandidate | null {
   if (!object(raw) || raw.id !== id || raw.schema !== COMPONENT_SCHEMA || !timestamp(raw.rev) || raw.rev < 1 ||
       !timestamp(raw.createdAt) || !timestamp(raw.updatedAt) || !object(raw.block) || raw.block.type !== 'html' ||
       typeof raw.block.id !== 'string' || !/^[\w-]{1,64}$/.test(raw.block.id) || !object(raw.block.props) ||
@@ -92,6 +93,15 @@ export function qualifyLegacyComponent(id: string, raw: unknown, images: Readonl
     ...validated, origin: { ...validated.origin, redistributable: false }, id, schema: raw.schema,
     rev: raw.rev, createdAt: raw.createdAt, updatedAt: raw.updatedAt,
   } }
+}
+
+/** Discover decoded, managed img src filenames through the same inert qualifier. */
+export function discoverLegacyComponentMedia(id: string, raw: unknown): string[] {
+  const files = new Set<string>()
+  const candidate = qualifyLegacyComponent(id, raw, {
+    get(file) { files.add(file); return undefined },
+  })
+  return candidate ? [...files] : []
 }
 
 export function stageLegacyComponents(candidates: ComponentCandidate[], store: ComponentCollection) {

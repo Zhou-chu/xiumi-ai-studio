@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { LegacyDirectoryMigrationPanel } from '../../src/editor/LegacyDirectoryMigrationPanel'
 
+vi.mock('../../src/editor/store', () => ({ loadCustomThemes: vi.fn().mockResolvedValue(undefined) }))
+
 const token = 'a'.repeat(64)
 const endpoint = '/api/data/migrate'
 const preview = { token, plan: { sourceLayout: 'checkout', add: 1, skip: 2, unsupported: 3, invalid: 4, ignored: 5 } }
@@ -142,4 +144,26 @@ it('requires an explicit opt-in and confirms an image-only plan', () => mounted(
     expect(host.querySelector('[role=status]')?.textContent).toContain('独立素材已新增 1')
     expect(changed).toHaveBeenCalledOnce()
   } finally { window.removeEventListener('assets-changed', changed) }
+}))
+
+it('requires explicit design consent and confirms zero-project theme, template and component data', () => mounted(async (request, host) => {
+  const pending = { add: 1, conflicts: 0, alreadyPresent: 0, unresolved: 0 }
+  const done = { restored: 1, conflicts: 0, alreadyPresent: 0, unresolved: 0, failed: 0 }
+  request.mockResolvedValueOnce(json({ ...preview, plan: { ...preview.plan, add: 0, design: {
+    themes: pending, templates: pending, components: pending,
+  } } })).mockResolvedValueOnce(json({
+    restored: 0, skipped: 0, failed: 0, unsupported: 0, invalid: 0, ignored: 0,
+    design: { themes: done, templates: done, components: done },
+  }))
+  const opted = [...host.querySelectorAll('label')].find(label => label.textContent?.includes('迁移旧目录中支持的主题、模板和组件'))
+    ?.querySelector<HTMLInputElement>('input')
+  expect(opted?.checked).toBe(false)
+  act(() => opted!.click())
+  await click(host, '检测已配置旧目录')
+  expect(request).toHaveBeenCalledWith(endpoint, expect.objectContaining({ body: '{"designRecords":true}' }))
+  expect(host.querySelector('[role=status]')?.textContent).toContain('主题预计新增 1')
+  expect(host.querySelector('[role=status]')?.textContent).toContain('模板预计新增 1')
+  expect(host.querySelector('[role=status]')?.textContent).toContain('组件预计新增 1')
+  await click(host, '确认迁移所选数据')
+  for (const group of ['主题', '模板', '组件']) expect(host.querySelector('[role=status]')?.textContent).toContain(group + '已新增 1')
 }))

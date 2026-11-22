@@ -116,7 +116,7 @@ export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayT
   }))
 
   const history = projectHistoryRestore(DIRS.versions, projects)
-  if (legacyMigrationSource) registerLegacyDirectoryMigrationRoutes(app, projects, legacyMigrationSource, DATA, history)
+  if (legacyMigrationSource) registerLegacyDirectoryMigrationRoutes(app, projects, legacyMigrationSource, DATA, { history, design: { themes, templates } })
   registerLegacyRestoreRoutes(app, projects, restoreTempRoot, history, { templates, themes })
 
   // ---------- 素材 ----------
