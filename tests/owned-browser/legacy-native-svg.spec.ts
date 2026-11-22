@@ -34,7 +34,7 @@ test('rejects the full cross-fragment article, then restores independent SVG cli
     await restore.getByText('不支持的项目（1）', { exact: true }).click()
     await expect(restore.getByText(nativeSvgProjectId, { exact: true })).toBeVisible()
     await expect(confirm).toBeDisabled()
-    expect((await page.request.get('/api/projects/' + nativeSvgProjectId)).status()).toBe(404)
+    expect((await page.request.get(origin + '/api/projects/' + nativeSvgProjectId)).status()).toBe(404)
 
     await upload.setInputFiles({ name: 'independent-native-svg.zip', mimeType: 'application/zip', buffer: (await independentSvgBackup()).bytes })
     await preview.click()
