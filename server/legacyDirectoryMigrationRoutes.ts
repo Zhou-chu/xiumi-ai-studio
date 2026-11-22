@@ -14,7 +14,7 @@ type Store = Parameters<typeof stageLegacyDirectoryProjects>[1]
 type History = NonNullable<Parameters<typeof stageLegacyDirectoryProjects>[2]['historyStore']>
 type Stage = ReturnType<typeof stageLegacyDirectoryProjects>
 type Snapshot = Awaited<ReturnType<ReturnType<typeof createLegacyDirectoryPreview>['snapshotProjects']>>
-type Pending = { hasHistory: boolean; owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
+type Pending = { hasHistory: boolean; standaloneImages: boolean; owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
 
 const secret = () => randomBytes(32).toString('hex')
 const cookieOptions = { path: route, httpOnly: true, sameSite: 'strict' as const }
@@ -40,7 +40,7 @@ function respondError(res: Response, error: unknown) {
   }
 }
 
-function guardedStage(snapshot: Snapshot, projects: Store, target: string, historyStore: History) {
+function guardedStage(snapshot: Snapshot, projects: Store, target: string, historyStore: History, standaloneImages: boolean) {
   const { projects: candidates, assets, history, targetHistory, verifyDestination } = snapshot
   const inspectExisting = historyStore.inspectExisting
   const verifyAssetDestination = async () => {
@@ -69,7 +69,7 @@ function guardedStage(snapshot: Snapshot, projects: Store, target: string, histo
       await targetHistory?.guard(doc.id)
       return ready
     }),
-  }, { assets, history, assetStore: {
+  }, { assets, history, standaloneImages, assetStore: {
     status: asset => assetRestoreStore.withApplyLock(async (_restore, check) => {
       await verifyAssetDestination()
       return check(asset)
@@ -91,6 +91,16 @@ function guardedStage(snapshot: Snapshot, projects: Store, target: string, histo
   } })
 }
 
+function assetPreviewCounts(assets: Awaited<ReturnType<Stage['preview']>>['assets']) {
+  return { add: assets?.add.length ?? 0, skip: assets?.skip.length ?? 0, alreadyPresent: assets?.alreadyPresent.length ?? 0 }
+}
+function assetResultCounts(assets: Awaited<ReturnType<Stage['apply']>>['assets']) {
+  return {
+    restored: assets?.restored.length ?? 0, skipped: assets?.skipped.length ?? 0,
+    failed: assets?.failed.length ?? 0, alreadyPresent: assets?.alreadyPresent.length ?? 0,
+  }
+}
+
 /** The source is supplied only by the owner-controlled portable launch. */
 export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: Store, configuredSource: string, target: string, historyStore: History) {
   const source = createLegacyDirectoryPreview({ configuredSource, target, maxEntries: 5000 })
@@ -103,7 +113,8 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
 
   app.get(route, ownerOnly, (_req, res) => res.json({ available: true }))
   app.post(route, ownerOnly, async (req, res) => {
-    if (bodyKeys(req.body)?.length !== 0 || Object.keys(req.query).length) {
+    const standaloneImages = req.body?.standaloneImages === true
+    if (bodyKeys(req.body)?.length !== (standaloneImages ? 1 : 0) || Object.keys(req.query).length) {
       return res.status(400).json({ error: '不接受迁移路径或额外参数' })
     }
     if (busy || (pending && pending.owner !== requestOwner(req))) {
@@ -114,9 +125,9 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
     const close = () => { if (!res.writableFinished) controller.abort() }
     res.once('close', close)
     try {
-      const snapshot = await source.snapshotProjects(controller.signal)
+      const snapshot = await source.snapshotProjects(controller.signal, standaloneImages)
       const { sourceLayout, sourceVersion, history, summaries } = snapshot
-      const stage = guardedStage(snapshot, projects, target, historyStore)
+      const stage = guardedStage(snapshot, projects, target, historyStore, standaloneImages)
       const preview = await stage.preview()
       const plan = preview.projects
       if (controller.signal.aborted) return
@@ -125,10 +136,11 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       const owner = secret()
       const timeout = setTimeout(() => { if (pending?.token === token) discard() }, ttl)
       timeout.unref()
-      pending = { hasHistory: !!history, owner, token, stage, sourceVersion, summaries, timeout }
+      pending = { hasHistory: !!history, standaloneImages, owner, token, stage, sourceVersion, summaries, timeout }
       res.cookie(cookieName, owner, { ...cookieOptions, maxAge: ttl })
       return res.json({ token, plan: {
         sourceLayout, add: plan.add.length, skip: plan.skip.length, unsupported: plan.unsupported.length, invalid: summaries.invalid, ignored: summaries.ignored,
+        ...(standaloneImages && { assets: assetPreviewCounts(preview.assets) }),
         ...(history && { versions: { add: preview.versions.add.length, skip: preview.versions.skip.length, unsupported: preview.unsupported.filter(path => path.startsWith('versions/')).length } }),
       } })
     } catch (error) {
@@ -149,14 +161,14 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       return res.status(400).json({ error: '需要明确确认或取消迁移' })
     }
     if (busy) return res.status(429).json({ error: '另一个迁移操作正在运行' })
-    const { stage, sourceVersion, summaries, hasHistory } = pending
+    const { stage, sourceVersion, summaries, hasHistory, standaloneImages } = pending
     discard()
     res.clearCookie(cookieName, cookieOptions)
     if (action === 'cancel') return res.status(204).end()
     busy = true
     try {
       let currentVersion: string
-      try { currentVersion = (await source.snapshotProjects()).sourceVersion }
+      try { currentVersion = (await source.snapshotProjects(undefined, standaloneImages)).sourceVersion }
       catch { return res.status(409).json({ error: '旧版目录已更改或不可读，请重新检测' }) }
       if (currentVersion !== sourceVersion) return res.status(409).json({ error: '旧版目录已更改，请重新检测' })
       const applied = await stage.apply()
@@ -164,6 +176,7 @@ export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: S
       return res.json({
         restored: result.restored.length, skipped: result.skipped.length, failed: result.failed.length, unsupported: result.unsupported.length,
         invalid: summaries.invalid, ignored: summaries.ignored,
+        ...(standaloneImages && { assets: assetResultCounts(applied.assets) }),
         ...(hasHistory && { versions: {
           restored: applied.versions.restored.length, skipped: applied.versions.skipped.length, failed: applied.versions.failed.length,
           unsupported: applied.unsupported.filter(path => path.startsWith('versions/')).length,

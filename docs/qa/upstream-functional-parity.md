@@ -96,3 +96,7 @@ unsupported, and re-previewing an exact no-op disables confirmation.
 ### Existing local manuscript: adding missing ZIP history
 
 ZIP preview can plan unoccupied versions independently when the canonical local current manuscript matches the backup (all fields except its local revision). Confirming neither rewrites that manuscript nor overwrites existing history, and preserves the history-retention cap. For that retained manuscript, confirmation can add only history approved by the preview, and the original local revision and matching content must still hold inside the write queue. If the manuscript changed, the dependent version and a PNG used only there are not added. Divergence, occupied version, retention limit, unavailable destination, and unavailable asset are reported separately. The owner-local directory migration uses the same existing-manuscript check, in addition to binding reviewed source and destination folders. Neither method implies support for path-based merging into a divergent manuscript.
+
+### Owner-local directory: images without a manuscript
+
+The opt-in independent-image mode applies only to the owner-configured, same-origin directory migration. It reports the planned new, identical, and blocked indexed PNG/JPEG items and allows an explicit image-only confirmation even when the old directory has no manuscript. Like ZIP restore, it neither imports unindexed files nor overwrites existing IDs or filenames. Exact reviewed source index and eligible raster bytes must still match on confirmation.

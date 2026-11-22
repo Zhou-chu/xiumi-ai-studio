@@ -120,3 +120,26 @@ it('allows a history-only directory confirmation without rewriting the retained 
   await click(host, '确认迁移历史版本')
   expect(host.querySelector('[role=status]')?.textContent).toContain('历史版本已新增 1')
 }))
+
+it('requires an explicit opt-in and confirms an image-only plan', () => mounted(async (request, host) => {
+  request.mockResolvedValueOnce(json({
+    ...preview, plan: { ...preview.plan, add: 0, assets: { add: 1, skip: 0, alreadyPresent: 0 } },
+  })).mockResolvedValueOnce(json({
+    restored: 0, skipped: 0, failed: 0, unsupported: 0, invalid: 0, ignored: 0,
+    assets: { restored: 1, skipped: 0, failed: 0, alreadyPresent: 0 },
+  }))
+  const option = host.querySelector<HTMLInputElement>('input[type=checkbox]')
+  expect(option?.checked).toBe(false)
+  act(() => option!.click())
+  await click(host, '检测已配置旧目录')
+  expect(request).toHaveBeenCalledWith(endpoint, expect.objectContaining({ body: '{"standaloneImages":true}' }))
+  expect(host.querySelector('[role=status]')?.textContent).toContain('独立素材预计新增 1')
+  expect(option?.disabled).toBe(true)
+  const changed = vi.fn()
+  window.addEventListener('assets-changed', changed)
+  try {
+    await click(host, '确认迁移素材')
+    expect(host.querySelector('[role=status]')?.textContent).toContain('独立素材已新增 1')
+    expect(changed).toHaveBeenCalledOnce()
+  } finally { window.removeEventListener('assets-changed', changed) }
+}))

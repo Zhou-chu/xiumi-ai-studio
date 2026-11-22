@@ -465,9 +465,9 @@ export async function stageLegacyTextProjects(path: string, store: ProjectStore,
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
-export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, related: { assets: ArchivedAsset[]; assetStore: AssetStore; history?: HistoryCandidate[]; historyStore?: HistoryStore }) {
+export function stageLegacyDirectoryProjects(projects: Project[], store: ProjectStore, related: { assets: ArchivedAsset[]; assetStore: AssetStore; history?: HistoryCandidate[]; historyStore?: HistoryStore; standaloneImages?: boolean }) {
   return stageDecodedLegacyProjects({ projects, assets: related.assets, history: related.history ?? [], design: [], components: [], otherLibraryEntries: [] },
-    store, related.historyStore, related.assets.length ? related.assetStore : undefined, undefined, { existingHistory: true })
+    store, related.historyStore, related.assets.length ? related.assetStore : undefined, undefined, { existingHistory: true, standaloneImages: related.standaloneImages })
 }
 
 type InspectExisting = NonNullable<HistoryStore['inspectExisting']>

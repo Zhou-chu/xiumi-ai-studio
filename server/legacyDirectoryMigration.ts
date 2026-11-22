@@ -328,10 +328,27 @@ async function snapshotHistory(data: string, projects: ProjectCandidate[], targe
   return { candidates, images, fingerprints }
 }
 
-async function snapshotReferencedAssets(data: string, ids: string[], verifyRoots: Verify, signal?: AbortSignal) {
+type AssetSnapshotOptions = { standaloneImages: boolean; maxEntries: number; signal?: AbortSignal }
+
+function selectedAssetIds(catalog: Record<string, unknown>, linked: string[], options: AssetSnapshotOptions) {
+  if (!options.standaloneImages) return linked
+  const names = Object.keys(catalog)
+  if (names.length > options.maxEntries) throw tooLarge()
+  const portableIds = new Set<string>()
+  const admitted = names.filter(name => id.test(name))
+  for (const name of admitted) {
+    const key = name.toLowerCase()
+    if (portableIds.has(key)) throw invalid()
+    portableIds.add(key)
+  }
+  return admitted.sort((a, b) => a.localeCompare(b, 'en'))
+}
+
+async function snapshotReferencedAssets(data: string, ids: string[], verifyRoots: Verify, options: AssetSnapshotOptions) {
   const assets: ArchivedAsset[] = []
   const fingerprints: string[] = []
-  if (!ids.length) return { assets, fingerprints }
+  if (!ids.length && !options.standaloneImages) return { assets, fingerprints }
+  const { signal } = options
   const folder = await pinFolder(join(data, 'assets'))
   const verify = async () => { await verifyRoots(); await folder.verify() }
   fingerprints.push(folder.identity)
@@ -362,7 +379,7 @@ async function snapshotReferencedAssets(data: string, ids: string[], verifyRoots
     try { catalog = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(index)) }
     catch { /* A malformed index cannot qualify any image. */ }
   }
-  if (isAssetCatalog(catalog)) for (const key of ids) {
+  if (isAssetCatalog(catalog)) for (const key of selectedAssetIds(catalog, ids, options)) {
     signal?.throwIfAborted()
     if (!Object.hasOwn(catalog, key)) continue
     let asset: ArchivedAsset['asset']
@@ -446,14 +463,15 @@ export function createLegacyDirectoryPreview({
     /** Server-internal bounded structural candidates; never a public response or a copy plan.
      * The ordinary restore stage must still qualify content and enforce destination ownership.
      */
-    async snapshotProjects(signal?: AbortSignal): Promise<SourceSnapshot> {
+    async snapshotProjects(signal?: AbortSignal, standaloneImages = false): Promise<SourceSnapshot> {
       return operation(async () => {
         const { data, destination, identity, sourceLayout, verify: verifyRoots } = await roots(signal)
+        const assetOptions = { maxEntries, signal, standaloneImages }
         const projects: ProjectCandidate[] = []
         const summaries = { candidates: 0, invalid: 0, ignored: 0 }
         const fingerprints: string[] = []
         const version = (folder: string, assets: string[] = [], history: string[] = []) => createHash('sha256')
-          .update(JSON.stringify([identity, targetProjects.identity, targetAssets.identity, targetVersions.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), assets, history, summaries])).digest('hex')
+          .update(JSON.stringify([identity, standaloneImages, targetProjects.identity, targetAssets.identity, targetVersions.identity, folder, fingerprints.sort((a, b) => a.localeCompare(b, 'en')), assets, history, summaries])).digest('hex')
         await verifyRoots()
         const targetProjects = await pinFolder(join(destination, 'projects'))
         const targetAssets = await pinFolder(join(destination, 'assets'))
@@ -466,9 +484,13 @@ export function createLegacyDirectoryPreview({
         }
         const requested = join(data, 'projects')
         if (!await inspect(requested)) {
-          await verifyDestination()
-          if (await inspect(requested)) throw changed()
-          return { sourceLayout, projects, assets: [], summaries, sourceVersion: version('absent'), verifyDestination }
+          const verifyAbsent = async () => {
+            await verifyDestination()
+            if (await inspect(requested)) throw changed()
+          }
+          await verifyAbsent()
+          const archived = await snapshotReferencedAssets(data, [], verifyAbsent, assetOptions)
+          return { sourceLayout, projects, assets: archived.assets, summaries, sourceVersion: version('absent', archived.fingerprints), verifyDestination }
         }
         const directory = await canonicalDirectory(requested)
         const verify = async () => {
@@ -513,7 +535,7 @@ export function createLegacyDirectoryPreview({
         let historyVisited = 0
         const visit = () => { signal?.throwIfAborted(); if (++historyVisited > maxEntries) throw tooLarge() }
         const history = await snapshotHistory(data, projects, targetHistory, verify, { visit, signal })
-        const archived = await snapshotReferencedAssets(data, imageDependencies([...projects, ...history.images], maxEntries), verify, signal)
+        const archived = await snapshotReferencedAssets(data, imageDependencies([...projects, ...history.images], maxEntries), verify, assetOptions)
         return { sourceLayout, projects, assets: archived.assets, summaries, sourceVersion: version(directory.identity, archived.fingerprints, history.fingerprints),
           verifyDestination, ...(history.candidates.length && { history: history.candidates, targetHistory }) }
       }, signal)
