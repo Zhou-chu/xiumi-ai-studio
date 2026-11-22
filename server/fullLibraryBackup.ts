@@ -216,6 +216,9 @@ export async function* libraryZip(plan: BackupPlan, signal: AbortSignal): AsyncG
       signal.throwIfAborted()
       const handle = await openOwned(plan.root, file)
       try {
+        // The response can close while the file is being opened and checked.
+        // Do not construct a read stream with an already-aborted signal.
+        signal.throwIfAborted()
         const entry = file.name.startsWith('assets/') ? new ZipPassThrough(file.name) : new ZipDeflate(file.name, { level: 6 })
         zip.add(entry)
         let actual = 0
