@@ -42,16 +42,30 @@ test('rejects the full cross-fragment article, then restores independent SVG cli
     await confirm.click()
     await expect(restore.getByRole('status')).toHaveText('新增 1 个项目。')
     await panel.getByRole('button', { name: '关闭', exact: true }).last().click()
-    await page.getByRole('button', { name: /Native SVG interaction acceptance fixture/ }).click()
+    const original = 'Native SVG interaction acceptance fixture'
+    const restored = page.getByRole('button', { name: /Native SVG interaction acceptance fixture/ })
+    await restored.click()
     const title = page.getByRole('textbox', { name: '文章标题' })
+    const canvasSets = page.getByTestId('canvas').locator('svg rect > set')
+    // Clicking the list starts a save-and-load operation, not a synchronous switch.
+    await expect(restored).toHaveAttribute('aria-current', 'page')
+    await expect(title).toHaveValue(original)
+    await expect(canvasSets).toHaveCount(2)
+
     const changed = 'Native SVG article after ordinary save'
-    const saved = page.waitForResponse(r => r.request().method() === 'PUT' && new URL(r.url()).pathname === '/api/projects/' + nativeSvgProjectId && r.ok())
-    await title.fill(changed)
-    await saved
+    const project = origin + '/api/projects/' + nativeSvgProjectId
+    const [saved] = await Promise.all([
+      page.waitForResponse(r => r.url() === project && r.request().method() === 'PUT' && r.request().postDataJSON()?.title === changed),
+      title.fill(changed),
+    ])
+    expect(saved.ok()).toBe(true)
     await expect(page.getByTestId('save-status')).toHaveText('已保存')
+    const persisted = await page.request.get(project)
+    expect(persisted.ok()).toBe(true)
+    expect(await persisted.json()).toMatchObject({ id: nativeSvgProjectId, title: changed })
     await page.reload()
     await expect(title).toHaveValue(changed)
-    await expect(page.getByTestId('canvas').locator('svg rect > set')).toHaveCount(2)
+    await expect(canvasSets).toHaveCount(2)
 
     const openPreview = page.getByTestId('open-preview')
     if (!await openPreview.isVisible()) await page.getByTestId('toolbar-more').click()
