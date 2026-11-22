@@ -2,6 +2,7 @@ import { crc32 } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
 import type { RestoreHistoryReason } from '../src/core/restoreHistoryReasons'
+import { renderLocalSvgInteraction } from '../src/core/localSvgInteraction'
 import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
@@ -378,6 +379,14 @@ function acceptedImageRef(image: unknown, images: Map<string, RestoreImage>): im
       (typeof image.displayWidth === 'number' && image.displayWidth >= 10 && image.displayWidth <= 100))
 }
 
+const svgBlockKeys = new Set(['html', 'label'])
+function acceptedLocalSvgBlock(block: unknown): boolean {
+  return isObject(block) && knownKeys(block, blockKeys) && block.type === 'html' &&
+    typeof block.id === 'string' && idPattern.test(block.id) && isObject(block.props) &&
+    knownKeys(block.props, svgBlockKeys) && boundedText(block.props.label, 2000) &&
+    typeof block.props.html === 'string' && renderLocalSvgInteraction(block.props.html) !== null
+}
+
 function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>) {
   // Accept only a finite, shallow schema. Extra or nested application data
   // is explicitly deferred instead of being silently pruned or restored.
@@ -391,7 +400,7 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
     if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) return false
   }
   const budget = { nodes: 0, characters: 0 }
-  return doc.blocks.every(block => textBlock(block, budget) || acceptedImageBlock(block, images)) &&
+  return doc.blocks.every(block => textBlock(block, budget) || acceptedImageBlock(block, images) || acceptedLocalSvgBlock(block)) &&
     new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length
 }
 

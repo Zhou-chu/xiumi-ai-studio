@@ -6,6 +6,7 @@ import { variantUrl } from './managedMediaUrl'
 // 画布、手机预览、复制、草稿箱都使用同一份输出，保证所见即所得。
 import { boxParts, boxTheme, KIT_RENDERERS, KIT_TYPES, kitEmptySlots, type KitCtx } from './kit'
 import { guardHtml } from './sanitize'
+import { renderLocalSvgInteraction } from './localSvgInteraction'
 import { safeTextFont, safeTextSize } from './textTypography'
 import { css, esc, safeColor } from './style'
 import { resolveTheme } from './themes'
@@ -488,7 +489,7 @@ const MEDIA_BG = /url\((&quot;|["']?)(\/media\/[^"')]*?)\1\)/gi
 /** 原文片段：存储时已清洗，输出前再做一次字符串级防护 */
 function renderHtml(b: Extract<Block, { type: 'html' }>, ctx: Ctx): string {
   const map = ctx.opts.mapImage
-  const html = guardHtml(b.props.html)
+  const html = renderLocalSvgInteraction(b.props.html) ?? guardHtml(b.props.html)
   if (!map) return html
   return html
     .replace(/(<img\b[^>]*\ssrc=")([^"]+)(")/gi, (_m, a, u, z) => a + esc(map(u.replace(/&amp;/g, '&'))) + z)
