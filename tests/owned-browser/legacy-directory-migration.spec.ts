@@ -45,7 +45,18 @@ test('owned built app rejects stale directory images and opens a freshly reviewe
     const base = 'http://127.0.0.1:' + address.port
     const project = base + '/api/projects/edited'
     const visualProject = base + '/api/projects/visual-history'
+    const bootWrite = page.waitForResponse(response =>
+      response.url().startsWith(base + '/api/projects/') && response.request().method() === 'PUT' && response.ok())
     await page.goto(base)
+    await bootWrite
+    await expect(page.getByTestId('save-status')).toHaveText('已保存')
+    const storedProjects = join(destination, 'projects')
+    async function projectFiles() {
+      const names = (await readdir(storedProjects)).sort()
+      return Promise.all(names.map(async name => ({ name, bytes: await readFile(join(storedProjects, name)) })))
+    }
+    const beforeMigration = await projectFiles()
+    expect(beforeMigration).toHaveLength(1)
     await page.getByTestId('tab-projects').click()
     const backup = page.getByRole('button', { name: '项目和素材备份', exact: true })
     if (!await backup.isVisible()) await page.getByTestId('toolbar-more').click()
@@ -66,8 +77,9 @@ test('owned built app rejects stale directory images and opens a freshly reviewe
     expect(await readFile(join(projects, 'visual-history.json'))).toEqual(manuscript)
     await confirm.click()
     await expect(migration.getByRole('alert')).toContainText('目录已更改')
-    expect(await readdir(join(destination, 'projects'))).toEqual([])
+    expect(await projectFiles()).toEqual(beforeMigration)
     expect(await readdir(join(destination, 'assets'))).toEqual([])
+    expect((await page.request.get(project)).status()).toBe(404)
     expect((await page.request.get(visualProject)).status()).toBe(404)
     await preview.click()
     await expect(migration.getByRole('status')).toContainText('尚未写入。预计新增 2')

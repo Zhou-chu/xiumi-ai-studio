@@ -7,33 +7,39 @@ import { expect, it, vi } from 'vitest'
 import { createLegacyDirectoryPreview } from '../../server/legacyDirectoryMigration'
 
 const snapshotWitness = vi.hoisted(() => ({
-  projectDirectory: '', projectFile: '', openDirectories: 0, openFiles: 0,
+  sourceRoot: '', projectDirectory: '', projectFile: '',
+  openDirectories: 0, sawProjectOpen: false,
   afterScan: undefined as (() => void) | undefined,
   afterRead: undefined as (() => void) | undefined,
 }))
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
+  function samePath(input: unknown, expected: string) {
+    return typeof input === 'string' && (process.platform === 'win32'
+      ? input.toLowerCase() === expected.toLowerCase()
+      : input === expected)
+  }
   return {
     ...actual,
     async open(...args: Parameters<typeof actual.open>) {
       const handle = await actual.open(...args)
-      if (args[0] === snapshotWitness.projectFile) {
-        snapshotWitness.openFiles++
-        const close = handle.close.bind(handle)
-        let released = false
-        handle.close = async () => {
-          await close()
-          if (released) return
-          released = true
-          snapshotWitness.openFiles--
-          snapshotWitness.afterRead?.()
-        }
-      }
+      if (samePath(args[0], snapshotWitness.projectFile)) snapshotWitness.sawProjectOpen = true
       return handle
+    },
+    async lstat(...args: Parameters<typeof actual.lstat>) {
+      // File reads inspect the leaf, not the source root. The first source
+      // root check after a real file open is the post-read verification,
+      // after the production reader closes its handle in finally.
+      if (snapshotWitness.sawProjectOpen && samePath(args[0], snapshotWitness.sourceRoot)) {
+        const callback = snapshotWitness.afterRead
+        snapshotWitness.afterRead = undefined
+        callback?.()
+      }
+      return actual.lstat(...args)
     },
     async opendir(...args: Parameters<typeof actual.opendir>) {
       const directory = await actual.opendir(...args)
-      if (args[0] === snapshotWitness.projectDirectory) {
+      if (samePath(args[0], snapshotWitness.projectDirectory)) {
         const iterate = directory[Symbol.asyncIterator].bind(directory)
         directory[Symbol.asyncIterator] = async function *() {
           snapshotWitness.openDirectories++
@@ -139,27 +145,35 @@ it.each(['afterScan', 'afterRead'] as const)('aborts on direct root replacement 
   inFixture(async (root, _source, data, target) => {
     const payload = '{"id":"one","blocks":[]}'
     await writeFile(join(data, 'projects', 'one.json'), payload)
-    snapshotWitness.projectDirectory = join(await realpath(data), 'projects')
+    snapshotWitness.sourceRoot = await realpath(data)
+    snapshotWitness.projectDirectory = join(snapshotWitness.sourceRoot, 'projects')
     snapshotWitness.projectFile = join(snapshotWitness.projectDirectory, 'one.json')
+    snapshotWitness.sawProjectOpen = false
     const original = join(root, 'moved')
-    let openAtReplacement: number[] | undefined
+    const replacements: { openDirectories: number; sawProjectOpen: boolean }[] = []
     snapshotWitness[checkpoint] = () => {
-      openAtReplacement = [snapshotWitness.openDirectories, snapshotWitness.openFiles]
-      // Trigger immediately after the real handles close. Windows may deny
-      // a directory rename while either its scan or a child file remains open.
+      // An actual rename also proves the child handles did not prevent the
+      // normal owner action on Windows.
       renameSync(data, original)
       mkdirSync(join(data, 'projects'), { recursive: true })
+      replacements.push({ openDirectories: snapshotWitness.openDirectories, sawProjectOpen: snapshotWitness.sawProjectOpen })
     }
     try {
-      await expect(createLegacyDirectoryPreview({ configuredSource: data, target }).snapshotProjects(new AbortController().signal))
-        .rejects.toMatchObject({ status: 409 })
-      expect(openAtReplacement).toEqual([0, 0])
+      const outcome = await createLegacyDirectoryPreview({ configuredSource: data, target })
+        .snapshotProjects(new AbortController().signal).then(
+          snapshot => ({ snapshot }),
+          (error: unknown) => ({ error }),
+        )
+      expect(replacements).toEqual([{ openDirectories: 0, sawProjectOpen: checkpoint === 'afterRead' }])
+      expect(outcome).toMatchObject({ error: { status: 409 } })
       expect(await readFile(join(original, 'projects', 'one.json'), 'utf8')).toBe(payload)
       expect(await readdir(join(data, 'projects'))).toEqual([])
       expect(await readdir(target)).toEqual([])
     } finally {
       snapshotWitness[checkpoint] = undefined
+      snapshotWitness.sourceRoot = ''
       snapshotWitness.projectDirectory = ''
       snapshotWitness.projectFile = ''
+      snapshotWitness.sawProjectOpen = false
     }
   }))
