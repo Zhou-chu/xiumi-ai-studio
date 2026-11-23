@@ -85,3 +85,17 @@ it('serializes literal marked SVG syntax and normalizes only viewBox whitespace'
   expect(renderLocalSvgInteraction(local.replace('0 0', '0\n 0').replace('"/>', '"></set>')))
     .toBe(local.replace('"/>', '" />'))
 })
+
+it('preserves both quote styles and standard whitespace within a valid local fragment', () => {
+  const mixedQuoted = local.replace(' viewBox="0 0 100 100"', "\tviewBox \r=\n'0\t0 100 100' ")
+    .replace(' width="100"', "\u00a0width \t= '100'").replace(' fill="freeze"', "\nfill = 'freeze' ")
+  expect(renderLocalSvgInteraction(mixedQuoted)).toBe(local.replace('"/>', '" />'))
+})
+
+it.each([
+  local.replace(' height=', 'height='),
+  local.replace('width="100"', 'width=100'),
+  local.replace('width="100"', "width='100\""),
+])('requires attribute separators and paired quotes in %s', (fragment) => {
+  expect(renderLocalSvgInteraction(fragment)).toBeNull()
+})

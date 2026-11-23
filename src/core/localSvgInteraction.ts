@@ -3,7 +3,6 @@
  * This is not a general sanitizer. Reject the entire fragment on mismatch,
  * then rebuild only literal tags and validated values; never splice input HTML.
  */
-const ATTR = /\s+([A-Za-z]+)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)')/y
 const NUMBER = /^-?\d{1,4}(?:\.\d{1,4})?$/
 const finite = (s: string, min: number, max: number) => NUMBER.test(s) && Number(s) >= min && Number(s) <= max
 const dimension = (s: string) => finite(s, 0, 4096)
@@ -30,19 +29,38 @@ const ANIMATE: Rules = {
   dur: s => /^\d{1,2}(?:\.\d{1,3})?s$/.test(s) && Number(s.slice(0, -1)) > 0 && Number(s.slice(0, -1)) <= 10,
 }
 
+function skipWhitespace(input: string, offset: number): number {
+  while (/\s/.test(input.charAt(offset))) offset++
+  return offset
+}
+
+function readAttribute(input: string, start: number) {
+  let end = start
+  while (/[A-Za-z]/.test(input.charAt(end))) end++
+  const equals = skipWhitespace(input, end)
+  if (end === start || input[equals] !== '=') return null
+  const opening = skipWhitespace(input, equals + 1)
+  const quote = input[opening]
+  if (quote !== '"' && quote !== "'") return null
+  const closing = input.indexOf(quote, opening + 1)
+  if (closing < 0) return null
+  // The enclosing fragment grammar already excludes angle brackets here.
+  return { name: input.slice(start, end), value: input.slice(opening + 1, closing), next: closing + 1 }
+}
+
 function attributes(input: string, rules: Rules, required: string[]) {
   const parsed = new Map<string, string>()
-  const scanner = new RegExp(ATTR)
   let offset = 0
-  while (offset < input.length && input.slice(offset).trim()) {
-    scanner.lastIndex = offset
-    const match = scanner.exec(input)
-    if (!match) return null
-    const [, name, a, b] = match
-    const value = a ?? b
+  while (offset < input.length) {
+    const start = skipWhitespace(input, offset)
+    if (start === input.length) break
+    if (start === offset) return null
+    const attr = readAttribute(input, start)
+    if (!attr) return null
+    const { name, value, next } = attr
     if (!Object.hasOwn(rules, name) || parsed.has(name) || !rules[name](value)) return null
     parsed.set(name, name === 'viewBox' ? value.trim().split(/\s+/).join(' ') : value)
-    offset = scanner.lastIndex
+    offset = next
   }
   return required.every(name => parsed.has(name)) ? parsed : null
 }
