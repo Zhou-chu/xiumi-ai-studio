@@ -189,6 +189,47 @@ export async function planLibraryBackup(directory: string, version: string, sign
 }
 
 type BackupPlan = Awaited<ReturnType<typeof planLibraryBackup>>
+
+/** Upper bound for the pinned fflate 0.8.3 encoder, not a rejection quota.
+ * Headers per member: 30 local + 16 descriptor + 46 central + two names;
+ * end of central directory: 22. There are no extras or comments.
+ * With inputs at most 64 KiB, Deflate keeps a 98,304-byte buffer and calls
+ * dflt at most twice per push. Its output buffer is bounded by
+ * 98,304 + 5 * (1 + ceil(98,304 / 7000)) = 98,384 bytes per call.
+ * A final push may be empty; count it separately. */
+export function libraryZipByteCeiling(plan: BackupPlan): number {
+  let total = 22
+  const add = (name: string, size: number) => {
+    total += 92 + 2 * Buffer.byteLength(name, 'utf8')
+    total += name.startsWith('assets/') && name !== INDEX ? size : 2 * 98_384 * (Math.ceil(size / CHUNK) + 1)
+  }
+  for (const { name, size } of plan.files) add(name, size)
+  for (const [name, text] of plan.redacted) add(name, Buffer.byteLength(text, 'utf8'))
+  return total
+}
+
+/** highWaterMark is a maximum, not a lower bound on file-read chunk size.
+ * Coalesce short reads so non-final deflate inputs are exactly CHUNK. */
+async function* fullDeflateChunks(source: AsyncIterable<Buffer>): AsyncGenerator<Buffer> {
+  let pending: Buffer | undefined
+  let used = 0
+  for await (let bytes of source) {
+    if (!used && bytes.length === CHUNK) { yield bytes; continue }
+    while (bytes.length > 0) {
+      pending ??= Buffer.allocUnsafe(CHUNK)
+      const copied = bytes.copy(pending, used, 0, CHUNK - used)
+      used += copied
+      bytes = bytes.subarray(copied)
+      if (used === CHUNK) {
+        yield pending
+        pending = undefined
+        used = 0
+      }
+    }
+  }
+  if (pending && used) yield pending.subarray(0, used)
+}
+
 export async function* libraryZip(plan: BackupPlan, signal: AbortSignal): AsyncGenerator<Uint8Array> {
   let chunks: Uint8Array[] = []
   let zipError: Error | null = null
@@ -221,10 +262,12 @@ export async function* libraryZip(plan: BackupPlan, signal: AbortSignal): AsyncG
         // The response can close while the file is being opened and checked.
         // Do not construct a read stream with an already-aborted signal.
         signal.throwIfAborted()
-        const entry = file.name.startsWith('assets/') ? new ZipPassThrough(file.name) : new ZipDeflate(file.name, { level: 6 })
+        const stored = file.name.startsWith('assets/')
+        const entry = stored ? new ZipPassThrough(file.name) : new ZipDeflate(file.name, { level: 6 })
         zip.add(entry)
         let actual = 0
-        for await (const bytes of handle.createReadStream({ autoClose: false, highWaterMark: CHUNK, signal })) {
+        const read = handle.createReadStream({ autoClose: false, highWaterMark: CHUNK, signal })
+        for await (const bytes of stored ? read : fullDeflateChunks(read)) {
           actual += bytes.length
           if (actual > file.size) throw stale()
           entry.push(bytes)

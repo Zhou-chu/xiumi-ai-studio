@@ -3,7 +3,6 @@ import { createHostedReplayConsentRouter, isOwnedReplayBrowser } from './hostedR
 import { createUploadGate } from './uploadGate'
 import { importArticleImages } from './articleImages'
 import { existsSync, readFileSync } from 'node:fs'
-import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { lstat, realpath } from 'node:fs/promises'
@@ -28,7 +27,8 @@ import { projectCollection } from './projectStore'
 import { localArchiveOrigin } from './localArchiveOrigin'
 import { registerLegacyRestoreRoutes } from './legacyRestoreRoutes'
 import { registerLegacyDirectoryMigrationRoutes } from './legacyDirectoryMigrationRoutes'
-import { libraryZip, planLibraryBackup } from './fullLibraryBackup'
+import { planLibraryBackup } from './fullLibraryBackup'
+import { prepareLibraryDownload, type BackupZipOptions } from './libraryBackupDownload'
 import { addDraft, uploadContentImage, uploadCover, validateDraft, wechatStatus } from './wechat'
 
 type Doc = { id: string; title: string; updatedAt: number; [k: string]: any }
@@ -56,8 +56,9 @@ async function publicMediaFile(candidate: string, roots: readonly string[]) {
 }
 
 /** Build the HTTP application without opening a listener or loading credentials. */
-export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayTransport }: {
+export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayTransport, backupZip }: {
   restoreTempRoot?: string
+  backupZip?: BackupZipOptions
   legacyMigrationSource?: string
   ownedReplayTransport?: Parameters<typeof createHostedReplayConsentRouter>[0]
 } = {}) {
@@ -95,6 +96,7 @@ export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayT
     const controller = new AbortController()
     const closed = () => { if (!res.writableFinished) controller.abort() }
     res.once('close', closed)
+    let download: Awaited<ReturnType<typeof prepareLibraryDownload>> | undefined
     try {
       let version = 'dev'
       try {
@@ -102,14 +104,18 @@ export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayT
         if (typeof value === 'string') version = value
       } catch { /* Keep development version for source builds without metadata. */ }
       const plan = await planLibraryBackup(DATA, version, controller.signal)
+      download = await prepareLibraryDownload(plan, controller.signal, backupZip)
+      controller.signal.throwIfAborted()
       res.setHeader('Content-Type', 'application/zip')
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin')
       res.setHeader('Content-Disposition', `attachment; filename="xiumi-backup-${stamp}.zip"; filename*=UTF-8''${encodeURIComponent(`XIUMI备份-${stamp}.zip`)}`)
-      await pipeline(Readable.from(libraryZip(plan, controller.signal), { objectMode: false }), res, { signal: controller.signal })
+      if (download.size !== undefined) res.setHeader('Content-Length', download.size)
+      await pipeline(download.body(), res, { signal: controller.signal })
     } catch (error) {
       if (!controller.signal.aborted && !res.destroyed) throw error
     } finally {
+      await download?.dispose?.()
       res.off('close', closed)
       backupActive = false
     }

@@ -1,4 +1,4 @@
-// Admit the native text-only starter shape, optionally including the editor's second scene.
+// Admit the native text-only starter shape, with up to three independent automatic scenes.
 // Do not normalize untrusted input here: admission must not silently drop data.
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -52,8 +52,8 @@ function starterPreferences(value: Record<string, unknown>): boolean {
 }
 
 function starterScenes(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 2) return false
-  // Keep the original whole-replay item budget despite adding a second scene.
+  if (!Array.isArray(value) || value.length < 1 || value.length > 3) return false
+  // The original eight-item budget applies across all scenes, not per scene.
   const budget = { remaining: 8 }
   const sceneIds = new Set<string>()
   return value.every(scene => starterScene(scene, budget, sceneIds))

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { expect, it, vi } from 'vitest'
 import { createBlock } from '../../src/core/blocks'
-import { compileDoc } from '../../src/core/compiler'
+import { compileDoc, compileReplay } from '../../src/core/compiler'
 import type { Block, Doc } from '../../src/core/types'
 
 async function library<T>(work:(url:string,data:string)=>Promise<T>) {
@@ -73,7 +73,9 @@ it('round-trips an editable native replay and skips unsupported replay shapes in
           return b
         })],
         'audit-replay-many-scenes': [modified(b => {
-          b.props.scenes.push({ ...b.props.scenes[0], id: 'second' }, { ...b.props.scenes[0], id: 'third' })
+          // Seven items fit the aggregate budget, so only the scene cap excludes this.
+          const scene = (id: string) => ({ ...b.props.scenes[0], id, items: [b.props.scenes[0].items[0]] })
+          b.props.scenes.push(scene('second'), scene('third'), scene('fourth'))
           return b
         })],
         'audit-replay-many-items': [modified(b => {
@@ -81,6 +83,11 @@ it('round-trips an editable native replay and skips unsupported replay shapes in
           scene.id = 'second'
           scene.items.push({ ...scene.items[0], id: 'extra' })
           b.props.scenes.push(scene)
+          return b
+        })],
+        'audit-replay-three-many-items': [modified(b => {
+          const scene = (id: string, count: number) => ({ ...b.props.scenes[0], id, items: b.props.scenes[0].items.slice(0, count) })
+          b.props.scenes.push(scene('second', 3), scene('third', 2))
           return b
         })],
         'audit-replay-later-scene-image': [modified(b => {
@@ -162,5 +169,50 @@ it('restores both ordered text scenes from the pinned upstream writer without ch
     const html = compileDoc(actual).html
     expect(html.match(/<svg\b/g)).toHaveLength(2)
     expect(digest(html)).toBe('86632a3462d300129140cd08597ea888f584778a6717222b149f4f4bc1739e96')
+  })
+}, 20_000)
+
+
+it('restores three native automatic scenes in order with identical HTML and independent clocks', async () => {
+  const file = 'upstream-three-scene-replay.zip'
+  const archive = await readFile(new URL('../fixtures/legacy-backup/' + file, import.meta.url))
+  const digest = (content: string | Buffer) => createHash('sha256').update(content).digest('hex')
+  expect(digest(archive)).toBe('cf3a84108c0c9ba367fa15e32cbdf9cb6643780ef775b13aa43363c6f397e763')
+  const projectId = 'upstream-three-scene-replay'
+  const project = JSON.parse(new TextDecoder().decode(unzipSync(archive)['projects/' + projectId + '.json'])) as Doc
+  await library(async (base, data) => {
+    const route = base + '/api/data/restore'
+    const projectUrl = base + '/api/projects/' + projectId
+    const form = new FormData()
+    form.append('file', new Blob([new Uint8Array(archive)]), file)
+    const response = await fetch(route, { method: 'POST', body: form })
+    expect(response.status).toBe(200)
+    const cookie = response.headers.get('set-cookie')!.split(';', 1)[0]
+    const { token, plan } = await response.json()
+    expect(await readdir(join(data, 'projects'))).toEqual([])
+    expect(await readdir(join(data, 'assets'))).toEqual([])
+    expect((await fetch(projectUrl)).status).toBe(404)
+    expect(plan.projects.add).toEqual([projectId])
+    expect(plan.projects.unsupported).toEqual([])
+    const applied = await fetch(route + '/' + token + '/apply', {
+      method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: '{"confirm":true}',
+    })
+    expect(applied.status).toBe(200)
+    expect((await applied.json()).projects.restored).toEqual([projectId])
+    const opened = await fetch(projectUrl)
+    expect(opened.status).toBe(200)
+    const actual: Doc = await opened.json()
+    expect(actual.blocks).toEqual(project.blocks)
+    const replay = actual.blocks[0] as Block<'replay'>
+    expect(replay.props.scenes.map(scene => scene.id)).toEqual(['opening', 'middle', 'closing'])
+    expect(replay.props.scenes.flatMap(scene => scene.items)).toHaveLength(8)
+    const output = compileReplay(replay)
+    expect(output.errors).toEqual([])
+    expect(output.scenes.map(scene => scene.timeline.items[0].tStart)).toEqual([0.3, 0.3, 0.3])
+    expect(output.scenes.map(scene => scene.bytes).every(bytes => bytes <= 80 * 1024)).toBe(true)
+    expect(output.scenes.reduce((sum, scene) => sum + scene.bytes, 0)).toBeLessThanOrEqual(400 * 1024)
+    const html = compileDoc(actual).html
+    expect(html.match(/<svg\b/g)).toHaveLength(3)
+    expect(digest(html)).toBe('bc7a4dd8c49916c7f2c33fb86efd681d0054ed2c460a26185fc460dc118040dc')
   })
 }, 20_000)

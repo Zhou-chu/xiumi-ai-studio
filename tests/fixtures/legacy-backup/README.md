@@ -67,3 +67,13 @@ one exclusive image dependency. SHA-256:
   three synthetic solid-color inputs. Includes current and historical native
   carousels with different ratios and empty slots, and one history-only JPEG.
   SHA-256: `4f3df6a733d2de0e54ea5b182f80ac14419ff413d82ba86507e168d6b9d46bee`.
+
+
+- `upstream-three-scene-replay.zip`: upstream `550c0ef` project/backup HTTP
+  writer output, using only the stock editor replay factories, eight native
+  text-only items across three ordered automatic scenes, default 80/400 KiB
+  budgets and no credentials, network resources, media or custom timing.
+  The tested compiled HTML digest is
+  `bc7a4dd8c49916c7f2c33fb86efd681d0054ed2c460a26185fc460dc118040dc`.
+  The archive digest is
+  `cf3a84108c0c9ba367fa15e32cbdf9cb6643780ef775b13aa43363c6f397e763`.
