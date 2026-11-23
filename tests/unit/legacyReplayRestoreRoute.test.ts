@@ -95,6 +95,13 @@ it('round-trips an editable native replay and skips unsupported replay shapes in
           return b
         })],
         'audit-replay-count': [replay, { ...edited, id: 'second-replay' }],
+        ...Object.fromEntries([-5.01, 10.01, '0.5', null].map((delay, i) => [
+          'audit-replay-outside-delay-' + i,
+          [modified(b => {
+            Object.assign(b.props.scenes[0].items[0], { delay })
+            return b
+          })],
+        ])),
       }
       for (const [id, blocks] of Object.entries(negative)) {
         const saved = await fetch(base + '/api/projects/' + id, {
@@ -173,12 +180,25 @@ it('restores both ordered text scenes from the pinned upstream writer without ch
 }, 20_000)
 
 
-it('restores three native automatic scenes in order with identical HTML and independent clocks', async () => {
-  const file = 'upstream-three-scene-replay.zip'
+it.each([
+  {
+    projectId: 'upstream-three-scene-replay',
+    zipHash: 'cf3a84108c0c9ba367fa15e32cbdf9cb6643780ef775b13aa43363c6f397e763',
+    htmlHash: 'bc7a4dd8c49916c7f2c33fb86efd681d0054ed2c460a26185fc460dc118040dc',
+    firstStarts: [0.3, 0.3, 0.3],
+  },
+  {
+    projectId: 'upstream-timed-text-replay',
+    zipHash: '3e7cb004dc2f096ed72f97ac801ceda7a16c6555189a164086894b445104723b',
+    htmlHash: 'e0d80a05ab639726742a8ca53a2af183fd0f89b1987b2afcbd2ef18a9870af10',
+    firstStarts: [0, 10.3, 0.3],
+    timings: [[[0, 0.4], [1.49, 1.96], [1.772, 2.472], [2.192, 2.592]], [[10.3, 10.996], [10.268, 10.968]], [[0.3, 0.828], [0.617, 1.317]]],
+  },
+])('restores $projectId with identical HTML and independent clocks', async ({ projectId, zipHash, htmlHash, firstStarts, timings }) => {
+  const file = projectId + '.zip'
   const archive = await readFile(new URL('../fixtures/legacy-backup/' + file, import.meta.url))
   const digest = (content: string | Buffer) => createHash('sha256').update(content).digest('hex')
-  expect(digest(archive)).toBe('cf3a84108c0c9ba367fa15e32cbdf9cb6643780ef775b13aa43363c6f397e763')
-  const projectId = 'upstream-three-scene-replay'
+  expect(digest(archive)).toBe(zipHash)
   const project = JSON.parse(new TextDecoder().decode(unzipSync(archive)['projects/' + projectId + '.json'])) as Doc
   await library(async (base, data) => {
     const route = base + '/api/data/restore'
@@ -208,11 +228,14 @@ it('restores three native automatic scenes in order with identical HTML and inde
     expect(replay.props.scenes.flatMap(scene => scene.items)).toHaveLength(8)
     const output = compileReplay(replay)
     expect(output.errors).toEqual([])
-    expect(output.scenes.map(scene => scene.timeline.items[0].tStart)).toEqual([0.3, 0.3, 0.3])
+    expect(output.scenes.map(scene => scene.timeline.items[0].tStart)).toEqual(firstStarts)
+    if (timings) {
+      expect(output.scenes.map(scene => scene.timeline.items.map(({ tStart, tEnd }) => [tStart, tEnd]))).toEqual(timings)
+    }
     expect(output.scenes.map(scene => scene.bytes).every(bytes => bytes <= 80 * 1024)).toBe(true)
     expect(output.scenes.reduce((sum, scene) => sum + scene.bytes, 0)).toBeLessThanOrEqual(400 * 1024)
     const html = compileDoc(actual).html
     expect(html.match(/<svg\b/g)).toHaveLength(3)
-    expect(digest(html)).toBe('bc7a4dd8c49916c7f2c33fb86efd681d0054ed2c460a26185fc460dc118040dc')
+    expect(digest(html)).toBe(htmlHash)
   })
 }, 20_000)

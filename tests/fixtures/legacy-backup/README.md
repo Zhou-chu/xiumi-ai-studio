@@ -85,3 +85,13 @@ one exclusive image dependency. SHA-256:
   punctuation. It contains no media, settings, or credentials. Archive
   SHA-256: `553b317880c9ef8dee41a8249c38b17c8e2e0ce0026b68204c51430b72cfc5d0`;
   compiled HTML SHA-256: `b29f601db8314e587af7428ae1c9513a79a1fb4abc1a765d3d316b877009cb57`.
+
+`upstream-timed-text-replay.zip` is a 1,293-byte synthetic archive produced by the
+pinned upstream `550c0ef2e99e4d493bb0e9d017178aa7fbdc7fbe` HTTP writer
+(`PUT /api/projects/upstream-timed-text-replay`, then `GET /api/data/backup`).
+The native three-scene starter uses the editor's delay field at -5, 1.25, 10
+and -0.45 seconds. Its original project is the only project in the archive;
+there are no media, credentials or external network requests. SHA-256:
+`3e7cb004dc2f096ed72f97ac801ceda7a16c6555189a164086894b445104723b`.
+Upstream offline HTML SHA-256:
+`e0d80a05ab639726742a8ca53a2af183fd0f89b1987b2afcbd2ef18a9870af10`.

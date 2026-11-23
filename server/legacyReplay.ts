@@ -8,6 +8,9 @@ const id = (value: unknown): value is string => typeof value === 'string' && /^[
 const hex = (value: unknown): boolean => typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)
 const integer = (value: unknown, min: number, max: number) =>
   typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+// Native replay normalization clamps delay to this range; reject values it would change.
+const nativeDelay = (value: unknown) =>
+  value === undefined || (typeof value === 'number' && value >= -5 && value <= 10)
 
 function starterCanvas(value: unknown): boolean {
   if (!object(value) || !only(value, ['width', 'background']) || value.width !== 750) return false
@@ -35,9 +38,9 @@ function starterScene(value: unknown, budget: { remaining: number }, sceneIds: S
   sceneIds.add(value.id)
   const ids = new Set<string>()
   for (const item of value.items) {
-    if (!object(item) || !only(item, ['id', 'type', 'content']) || !id(item.id) ||
+    if (!object(item) || !only(item, ['id', 'type', 'content', 'delay']) || !id(item.id) ||
         typeof item.type !== 'string' || !starterTypes.has(item.type) || typeof item.content !== 'string' ||
-        item.content.length > 600 || ids.has(item.id)) return false
+        item.content.length > 600 || !nativeDelay(item.delay) || ids.has(item.id)) return false
     ids.add(item.id)
   }
   return true
