@@ -100,6 +100,7 @@ it.each(['clean', 'conflict'] as const)('recovers a managed publication cover fr
     expect([...selected.plan.projects.add].sort()).toEqual(expected)
     expect([...selected.plan.projects.unsupported].sort()).toEqual(rejected)
     expect(selected.plan.projects.skip).toEqual(mode === 'conflict' ? [id] : [])
+    expect(selected.plan.projects.reasons ?? {}).toEqual(mode === 'conflict' ? { [id]: 'asset-conflict' } : {})
     expect(await readdir(join(data, 'projects'))).toEqual([])
     expect(await readdir(join(data, 'assets'))).toEqual(mode === 'conflict' ? [file] : [])
     const response = await fetch(route + '/' + selected.token + '/apply', {
@@ -107,6 +108,9 @@ it.each(['clean', 'conflict'] as const)('recovers a managed publication cover fr
     })
     expect(response.status).toBe(200)
     expect([...(await response.json()).projects.restored].sort()).toEqual(expected)
+    expect((await preview('?indexedImages=1')).plan.projects.reasons).toEqual(
+      mode === 'conflict' ? { control: 'occupied', [id]: 'asset-conflict' } : { control: 'occupied', [id]: 'occupied' },
+    )
     if (mode === 'conflict') {
       expect((await fetch(base + '/api/projects/' + id)).status).toBe(404)
       expect(await readFile(join(data, 'assets', file), 'utf8')).toBe('unrelated local bytes')

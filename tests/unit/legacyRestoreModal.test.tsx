@@ -325,3 +325,21 @@ it('refreshes matching custom styles before announcing restored projects', () =>
     window.removeEventListener('projects-changed', changed)
   }
 }))
+
+
+it('distinguishes existing projects from blocked dependencies in the ZIP preview', () => modal(async requests => {
+  requests.mockResolvedValueOnce(json({
+    ...previewBody,
+    plan: { ...previewBody.plan, projects: {
+      ...previewBody.plan.projects,
+      skip: ['existing', 'theme-missing', 'image-missing'],
+      reasons: { existing: 'occupied', 'theme-missing': 'theme-conflict', 'image-missing': 'asset-conflict' },
+    } },
+  }))
+  pick('conflicts.zip')
+  await act(async () => button('预览恢复')!.click())
+  expect(document.body.textContent).toContain('existing：本地已有同 ID 的项目')
+  expect(document.body.textContent).toContain('theme-missing：引用的主题与本地冲突')
+  expect(document.body.textContent).toContain('image-missing：引用的图片与本地冲突')
+  expect(document.body.textContent).not.toContain('现有项目，不覆盖')
+}))

@@ -86,7 +86,7 @@ it('restores the actual upstream cross-SVG ZIP as typed project data only after 
     const occupied = await upload('?crossSvgRestore=1', {}, backup)
     const occupiedCookie = occupied.headers.get('set-cookie')!.split(';')[0]
     const occupiedPlan = await occupied.json()
-    expect(occupiedPlan.plan.projects).toEqual({ add: [], skip: [nativeSvgProjectId], unsupported: [] })
+    expect(occupiedPlan.plan.projects).toEqual({ add: [], skip: [nativeSvgProjectId], unsupported: [], reasons: { [nativeSvgProjectId]: 'occupied' } })
     expect((await fetch(url + '/' + occupiedPlan.token + '/cancel', { method: 'POST', headers: { Cookie: occupiedCookie } })).status).toBe(204)
     expect((await fetch(projectUrl, { method: 'DELETE' })).ok).toBe(true)
     // The normal project-delete route does not remove historical files; the

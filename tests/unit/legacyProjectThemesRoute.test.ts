@@ -88,6 +88,8 @@ it.each(['clean', 'reuse', 'conflict', 'late-conflict', 'cleared-conflict'] as c
     expect([...selected.plan.projects.add].sort()).toEqual(preexistingConflict
       ? ['article-independent', 'article-overrides'] : ['article-custom', 'article-independent', 'article-overrides'])
     expect((await fetch(base + '/api/projects/article-independent')).status).toBe(404)
+    expect((await fetch(base + '/api/projects/article-custom')).status).toBe(404)
+    expect(selected.plan.projects.reasons ?? {}).toEqual(preexistingConflict ? { 'article-custom': 'theme-conflict' } : {})
     if (mode === 'late-conflict') await insertConflict()
     if (mode === 'cleared-conflict') expect((await fetch(base + '/api/themes/' + customId, { method: 'DELETE' })).ok).toBe(true)
     const result = await apply(selected.token)

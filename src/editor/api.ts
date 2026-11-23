@@ -4,6 +4,7 @@ import type { ComponentDraft, LibraryComponent } from '../core/components'
 import type { RoleId } from '../core/roles'
 import type { Block, Doc, ImageRef, Theme } from '../core/types'
 import { restoreHistoryReasons, type RestoreHistoryReason } from '../core/restoreHistoryReasons'
+import { restoreProjectReasons, type RestoreProjectReason } from '../core/restoreProjectReasons'
 import { validMediaGeneration } from '../core/managedMediaUrl'
 
 export interface Asset {
@@ -125,7 +126,7 @@ const designResultFields = ['restored', 'conflicts', 'alreadyPresent', 'failed']
 export interface LegacyRestorePlan {
   crossSvgPreview?: CrossSvgPreview
   modelCards?: Record<typeof designPlanFields[number], string[]>
-  projects: { add: string[]; skip: string[]; unsupported: string[] }
+  projects: { add: string[]; skip: string[]; unsupported: string[]; reasons?: Record<string, RestoreProjectReason> }
   versions?: { add: string[]; skip: string[]; reasons?: Record<string, RestoreHistoryReason> }
   assets?: { add: string[]; skip: string[]; alreadyPresent: string[] }
   design?: DesignCategories<typeof designPlanFields[number]>
@@ -175,6 +176,19 @@ function historyReasons(raw: unknown, reported: string[]): { reasons?: Record<st
   }
   return { reasons: Object.fromEntries(entries) }
 }
+function projectSkipReasons(raw: unknown, skipped: string[]): { reasons?: Record<string, RestoreProjectReason> } {
+  if (raw === undefined) return {}
+  const payload = jsonObject(raw)
+  if (!payload) throw new Error('无法读取项目恢复原因')
+  const ids = new Set(skipped)
+  const entries: [string, RestoreProjectReason][] = []
+  for (const [id, value] of Object.entries(payload)) {
+    const reason = restoreProjectReasons.find(candidate => candidate === value)
+    if (!ids.has(id) || !reason) throw new Error('无法读取项目恢复原因')
+    entries.push([id, reason])
+  }
+  return { reasons: Object.fromEntries(entries) }
+}
 function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
   const body = jsonObject(v), plan = jsonObject(body?.plan), projects = jsonObject(plan?.projects), versions = jsonObject(plan?.versions)
   if (typeof body?.token !== 'string' || !restoreToken.test(body.token) ||
@@ -192,7 +206,7 @@ function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
   const components = plan.components === undefined ? undefined : designFields(plan.components, [...designPlanFields, 'unresolved'], '组件')
   const crossSvgPreview = decodeCrossSvgPreview(plan.crossSvgPreview)
   if (plan.crossSvgPreview !== undefined && !crossSvgPreview) throw new Error('无法读取跨块 SVG 预览')
-  return { token: body.token, plan: { ...(crossSvgPreview && { crossSvgPreview }), ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported }, unsupported: plan.unsupported } }
+  return { token: body.token, plan: { ...(crossSvgPreview && { crossSvgPreview }), ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported, ...projectSkipReasons(projects.reasons, projects.skip) }, unsupported: plan.unsupported } }
 }
 function decodeResult(v: unknown): LegacyRestoreResult {
   const body = jsonObject(v), projects = jsonObject(body?.projects), versions = jsonObject(body?.versions)

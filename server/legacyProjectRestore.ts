@@ -2,6 +2,7 @@ import { decodeLinkedSvgScene, parseCrossSvgPreview, type CrossSvgPreview } from
 import { crc32 } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
+import type { RestoreProjectReason } from '../src/core/restoreProjectReasons'
 import type { RestoreHistoryReason } from '../src/core/restoreHistoryReasons'
 import { renderLocalSvgInteraction } from '../src/core/localSvgInteraction'
 import { normalizeBlocks } from '../src/core/blocks'
@@ -799,9 +800,17 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
         return possible
       }
       const retained = new Set<string>()
+      const projectReasons: [string, RestoreProjectReason][] = []
+      async function blockedProject(doc: Doc, dependencies: Set<string>): Promise<RestoreProjectReason | undefined> {
+        if (await store.occupied(doc.id)) return 'occupied'
+        if (!await planTheme(doc.themeId)) return 'theme-conflict'
+        if (!await planDependencies(dependencies)) return 'asset-conflict'
+        return undefined
+      }
       for (const { doc, dependencies } of supported) {
-        if (await store.occupied(doc.id)) { retained.add(doc.id); skip.push(doc.id) }
-        else if (!(await planTheme(doc.themeId)) || !(await planDependencies(dependencies))) skip.push(doc.id)
+        const reason = await blockedProject(doc, dependencies)
+        if (reason === 'occupied') retained.add(doc.id)
+        if (reason) { skip.push(doc.id); projectReasons.push([doc.id, reason]) }
         else add.push(doc.id)
       }
       const components = await componentStage?.preview((candidate, existing) => planDependencies(candidate.dependencies, existing))
@@ -813,7 +822,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
       for (const id of standalone) await planDependencies(new Set([id]))
       plan.skip = [...conflicts]
       for (const id of needed) (status.get(id) === 'available' ? plan.add : plan.alreadyPresent).push(id)
-      return { ...crossPreviewPlan, ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: targetVersions.plan, projects: { add, skip, unsupported: [...unsupported] }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
+      return { ...crossPreviewPlan, ...(modelStage && { modelCards: await modelStage.preview() }), ...(components && { components }), ...(design && { design }), versions: targetVersions.plan, projects: { add, skip, unsupported: [...unsupported], ...(projectReasons.length ? { reasons: Object.fromEntries(projectReasons) } : {}) }, ...(assetStore && { assets: plan }), unsupported: [...otherLibraryEntries] }
     },
     async apply() {
       const restored: string[] = [], skipped: string[] = [], failed: string[] = []

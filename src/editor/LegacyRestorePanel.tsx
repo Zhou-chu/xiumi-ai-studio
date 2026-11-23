@@ -1,5 +1,6 @@
 import { renderCrossSvgPreview } from '../core/crossSvgPreview'
 import { useEffect, useRef, useState } from 'react'
+import type { RestoreProjectReason } from '../core/restoreProjectReasons'
 import type { RestoreHistoryReason } from '../core/restoreHistoryReasons'
 import { api, type LegacyRestorePlan, type LegacyRestoreResult } from './api'
 import { loadCustomThemes } from './store'
@@ -12,6 +13,14 @@ function RestoreList({ label, entries }: { label: string; entries: string[] }) {
     <summary>{label}（{entries.length}）</summary>
     <ul>{entries.map((entry, index) => <li key={index}>{entry}</li>)}</ul>
   </details>
+}
+const projectReasonLabels: Record<RestoreProjectReason, string> = {
+  occupied: '本地已有同 ID 的项目',
+  'theme-conflict': '引用的主题与本地冲突',
+  'asset-conflict': '引用的图片与本地冲突',
+}
+function projectSkipLabels({ skip, reasons = {} }: LegacyRestorePlan['projects']) {
+  return skip.map(id => Object.hasOwn(reasons, id) ? id + '：' + projectReasonLabels[reasons[id]] : id)
 }
 const historyReasonLabels: Record<RestoreHistoryReason, string> = {
   'parent-mismatch': '本地稿件与备份中的稿件不同',
@@ -231,7 +240,7 @@ export function LegacyRestorePanel() {
     {preview && <div className="report" aria-label="恢复预览">
       <p role="status">预览未写入项目数据。预计新增 {preview.plan.projects.add.length} 个项目；确认时会重新检查。</p>
       <RestoreList label="可添加的项目" entries={preview.plan.projects.add} />
-      <RestoreList label="现有项目，不覆盖" entries={preview.plan.projects.skip} />
+      <RestoreList label="将跳过的项目" entries={projectSkipLabels(preview.plan.projects)} />
       <RestoreList label="不支持的项目" entries={preview.plan.projects.unsupported} />
       <RestoreList label="可添加的历史版本" entries={preview.plan.versions?.add ?? []} />
       <RestoreList label="将跳过的历史版本" entries={historyLabels(preview.plan.versions?.skip, preview.plan.versions?.reasons)} />
