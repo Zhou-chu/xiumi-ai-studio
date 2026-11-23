@@ -45,3 +45,12 @@ an all-empty four-slot layout. It contains four tiny, independently colored
 synthetic PNG assets, no projects or credentials. Each new mixed layout uses
 one exclusive image dependency. SHA-256:
 `7dc1d1c7a594cf8d7a582887483aa6d3d2e71ee7a512822b3db544ea4c0a8946`.
+
+- `upstream-two-scene-replay.zip`: synthetic text-only replay saved via the
+  project API and downloaded through `/api/data/backup` on upstream
+  `550c0ef2e99e4d493bb0e9d017178aa7fbdc7fbe`. It contains the starter and a
+  second scene constructed via the upstream editor's native scene and item
+  factories. The regression checks the exact ZIP, unchanged restored scene
+  data, and the upstream compiled HTML digest. Native auto playback emits
+  the two SVGs in scene order; each plays on its own clock, not as a timed
+  handoff. There are no external resources, accounts, or credentials.

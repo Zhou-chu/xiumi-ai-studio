@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import { once } from 'node:events'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { unzipSync } from 'fflate'
 import { expect, it, vi } from 'vitest'
 import { createBlock } from '../../src/core/blocks'
 import { compileDoc } from '../../src/core/compiler'
@@ -66,6 +68,25 @@ it('round-trips an editable native replay and skips unsupported replay shapes in
           b.props.scenes[0].items[1].content = 'x'.repeat(2001)
           return b
         })],
+        'audit-replay-duplicate-scenes': [modified(b => {
+          b.props.scenes.push(structuredClone(b.props.scenes[0]))
+          return b
+        })],
+        'audit-replay-many-scenes': [modified(b => {
+          b.props.scenes.push({ ...b.props.scenes[0], id: 'second' }, { ...b.props.scenes[0], id: 'third' })
+          return b
+        })],
+        'audit-replay-many-items': [modified(b => {
+          const scene = structuredClone(b.props.scenes[0])
+          scene.id = 'second'
+          scene.items.push({ ...scene.items[0], id: 'extra' })
+          b.props.scenes.push(scene)
+          return b
+        })],
+        'audit-replay-later-scene-image': [modified(b => {
+          b.props.scenes.push({ ...b.props.scenes[0], id: 'second', items: [{ id: 'later-image', type: 'image', content: '' }] })
+          return b
+        })],
         'audit-replay-count': [replay, { ...edited, id: 'second-replay' }],
       }
       for (const [id, blocks] of Object.entries(negative)) {
@@ -107,5 +128,39 @@ it('round-trips an editable native replay and skips unsupported replay shapes in
       expect(html).toContain('<animate')
       expect(html).not.toContain('<image')
     }
+  })
+}, 20_000)
+
+it('restores both ordered text scenes from the pinned upstream writer without changing compiled output', async () => {
+  const archive = await readFile(new URL('../fixtures/legacy-backup/upstream-two-scene-replay.zip', import.meta.url))
+  const digest = (content: string | Buffer) => createHash('sha256').update(content).digest('hex')
+  expect(digest(archive)).toBe('7ad51f2d433aa242e8f3d9eea88d5ea2e908a24fd15a6f616e0d5f8f9a43b4fb')
+  const projectId = 'upstream-two-scene-replay'
+  const project = JSON.parse(new TextDecoder().decode(unzipSync(archive)['projects/' + projectId + '.json'])) as Doc
+  await library(async (base, data) => {
+    const route = base + '/api/data/restore'
+    const form = new FormData()
+    form.append('file', new Blob([new Uint8Array(archive)]), 'upstream-two-scene-replay.zip')
+    const response = await fetch(route, { method: 'POST', body: form })
+    expect(response.status).toBe(200)
+    const cookie = response.headers.get('set-cookie')!.split(';', 1)[0]
+    const { token, plan } = await response.json()
+    expect(await readdir(join(data, 'projects'))).toEqual([])
+    expect(plan.projects.add).toEqual([projectId])
+    expect(plan.projects.unsupported).toEqual([])
+    const applied = await fetch(route + '/' + token + '/apply', {
+      method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: '{"confirm":true}',
+    })
+    expect(applied.status).toBe(200)
+    expect((await applied.json()).projects.restored).toEqual([projectId])
+    const opened = await fetch(base + '/api/projects/' + projectId)
+    expect(opened.status).toBe(200)
+    const actual: Doc = await opened.json()
+    expect(actual.blocks).toEqual(project.blocks)
+    const replay = actual.blocks[0] as Block<'replay'>
+    expect(replay.props.scenes.map(scene => scene.id)).toEqual(['opening', 'closing'])
+    const html = compileDoc(actual).html
+    expect(html.match(/<svg\b/g)).toHaveLength(2)
+    expect(digest(html)).toBe('86632a3462d300129140cd08597ea888f584778a6717222b149f4f4bc1739e96')
   })
 }, 20_000)

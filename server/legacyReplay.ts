@@ -1,4 +1,4 @@
-// This accepts the native starter's data shape, not arbitrary SVG or all ReplayDoc fields.
+// Admit the native text-only starter shape, optionally including the editor's second scene.
 // Do not normalize untrusted input here: admission must not silently drop data.
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -27,10 +27,12 @@ function starterTheme(value: unknown): boolean {
 }
 
 const starterTypes = new Set<string>(['tag', 'title', 'text', 'button'])
-function starterScene(value: unknown): boolean {
+function starterScene(value: unknown, budget: { remaining: number }, sceneIds: Set<string>): boolean {
   if (!object(value) || !only(value, ['id', 'layout', 'finale', 'items']) || !id(value.id) ||
       value.layout !== 'flow' || value.finale !== 'exit' || !Array.isArray(value.items) ||
-      value.items.length < 1 || value.items.length > 8) return false
+      value.items.length < 1 || value.items.length > budget.remaining || sceneIds.has(value.id)) return false
+  budget.remaining -= value.items.length
+  sceneIds.add(value.id)
   const ids = new Set<string>()
   for (const item of value.items) {
     if (!object(item) || !only(item, ['id', 'type', 'content']) || !id(item.id) ||
@@ -49,8 +51,16 @@ function starterPreferences(value: Record<string, unknown>): boolean {
     object(budget) && only(budget, ['sceneKB', 'totalKB']) && budget.sceneKB === 80 && budget.totalKB === 400
 }
 
+function starterScenes(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 2) return false
+  // Keep the original whole-replay item budget despite adding a second scene.
+  const budget = { remaining: 8 }
+  const sceneIds = new Set<string>()
+  return value.every(scene => starterScene(scene, budget, sceneIds))
+}
+
 export function acceptsLegacyStarterReplay(value: unknown): boolean {
   return object(value) && only(value, ['canvas', 'playback', 'textMode', 'theme', 'cursors', 'budget', 'scenes']) &&
     starterCanvas(value.canvas) && starterTheme(value.theme) && starterPreferences(value) &&
-    Array.isArray(value.scenes) && value.scenes.length === 1 && starterScene(value.scenes[0])
+    starterScenes(value.scenes)
 }
