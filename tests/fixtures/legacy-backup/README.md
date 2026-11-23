@@ -77,3 +77,11 @@ one exclusive image dependency. SHA-256:
   `bc7a4dd8c49916c7f2c33fb86efd681d0054ed2c460a26185fc460dc118040dc`.
   The archive digest is
   `cf3a84108c0c9ba367fa15e32cbdf9cb6643780ef775b13aa43363c6f397e763`.
+
+- `upstream-heading-box.zip`: saved with stock box, heading, paragraph and
+  editor insertion helpers, then written by the project/backup HTTP routes
+  at upstream `550c0ef2e99e4d493bb0e9d017178aa7fbdc7fbe`. One synthetic
+  project has two headings surrounding a paragraph, including literal HTML
+  punctuation. It contains no media, settings, or credentials. Archive
+  SHA-256: `553b317880c9ef8dee41a8249c38b17c8e2e0ce0026b68204c51430b72cfc5d0`;
+  compiled HTML SHA-256: `b29f601db8314e587af7428ae1c9513a79a1fb4abc1a765d3d316b877009cb57`.

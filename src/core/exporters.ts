@@ -36,9 +36,12 @@ export function docToMarkdown(doc: Doc): string {
         out.push(`# ${markdownDataText(b.props.title)}`,
           b.props.subtitle && `> ${markdownDataText(b.props.subtitle)}`, markdownDataText(b.props.meta), img(b.props.image?.src))
         break
-      case 'heading':
-        out.push(`## ${p.index ? p.index + ' ' : ''}${p.title}`, p.subtitle)
+      case 'heading': {
+        const { index, title, subtitle } = b.props
+        const format = inBox ? markdownDataText : (text: string) => text
+        out.push(`## ${index ? format(index) + ' ' : ''}${format(title)}`, format(subtitle))
         break
+      }
       case 'paragraph':
         out.push(richToMarkdown(p.content, inBox ? markdownDataText : undefined))
         break

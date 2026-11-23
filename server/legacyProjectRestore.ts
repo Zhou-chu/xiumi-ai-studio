@@ -403,12 +403,19 @@ function takeProjectBlockId(value: unknown, ids: Set<string>) {
   return true
 }
 
+function acceptsTextHeading(props: Record<string, unknown>) {
+  return knownKeys(props, headingKeys) && typeof props.variant === 'string' &&
+    ['auto', 'number', 'bar', 'pill', 'underline'].includes(props.variant) &&
+    boundedText(props.index, 160) && boundedText(props.title, 2000) && boundedText(props.subtitle, 2000)
+}
+
 function acceptsTextBox(props: Record<string, unknown>, budget: RichTextBudget, ids: Set<string>) {
   return knownKeys(props, textBoxKeys) && boundedText(props.title, 2000) && boundedText(props.label, 160) &&
     (props.variant === 'plate' || props.variant === 'rule' || props.variant === 'paper') &&
     Array.isArray(props.children) && props.children.length <= 64 && props.children.every(child =>
-      isObject(child) && child.type === 'paragraph' && knownKeys(child, blockKeys) && isObject(child.props) &&
-      takeProjectBlockId(child, ids) && textParagraph(child.props, budget))
+      isObject(child) && knownKeys(child, blockKeys) && isObject(child.props) && takeProjectBlockId(child, ids) &&
+      (child.type === 'paragraph' ? textParagraph(child.props, budget) :
+        child.type === 'heading' && acceptsTextHeading(child.props)))
 }
 
 function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget, ids: Set<string>) {
@@ -416,6 +423,7 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
   const { props } = value
   switch (value.type) {
     case 'paragraph': return textParagraph(props, budget, true)
+    case 'heading': return acceptsTextHeading(props)
     case 'box': return acceptsTextBox(props, budget, ids)
     case 'gallery': return acceptsBlankGallery(props)
     case 'carousel': return acceptsBlankCarousel(value)
@@ -432,10 +440,6 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
   if (value.type === 'card') {
     return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&
       boundedText(props.title, 2000) && acceptsLegacyRichText(props.content, budget)
-  }
-  if (value.type === 'heading') {
-    return knownKeys(props, headingKeys) && ['auto', 'number', 'bar', 'pill', 'underline'].includes(props.variant) &&
-      boundedText(props.index, 160) && boundedText(props.title, 2000) && boundedText(props.subtitle, 2000)
   }
   if (value.type === 'quote') {
     return knownKeys(props, quoteKeys) && ['auto', 'line', 'mark', 'center'].includes(props.variant) &&
