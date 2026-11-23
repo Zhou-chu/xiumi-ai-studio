@@ -9,7 +9,7 @@ import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
 import { readAssetMetadata, validateArchivedRaster } from './legacyRaster'
-import { selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
+import { MAX_NATIVE_GALLERY_IMAGES, selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
 import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
@@ -462,6 +462,15 @@ function acceptedImageBlock(block: unknown, images: Map<string, RestoreImage>): 
     typeof variant === 'string' && ['full', 'framed', 'rounded'].includes(variant) && acceptedImageRef(image, images)
 }
 
+function acceptedFilledGallery(block: Block, images: Map<string, RestoreImage>): block is Block<'gallery'> {
+  if (block.type !== 'gallery' || !knownKeys(block, blockKeys) || !isObject(block.props)) return false
+  const { props } = block
+  return knownKeys(props, blankGalleryKeys) && Array.isArray(props.images) &&
+    props.images.length > 0 && props.images.length <= MAX_NATIVE_GALLERY_IMAGES &&
+    (props.columns === 1 || props.columns === 2 || props.columns === 3) &&
+    boundedText(props.caption, 2000) && props.images.every(image => acceptedImageRef(image, images))
+}
+
 function acceptedImageRef(image: unknown, images: Map<string, RestoreImage>): image is ImageRef & { assetId: string } {
   if (!isObject(image) || !knownKeys(image, imageRefKeys) || typeof image.assetId !== 'string') return false
   const record = images.get(image.assetId)
@@ -516,7 +525,7 @@ function linkedSvgProject(doc: Project): Project | null {
 }
 
 type ArchivedThemes = Map<string, DesignData['themes'][number]>
-type ProjectQualification = { linkedSvg?: boolean; draftCover?: boolean; nativePhotos?: boolean; themes: ArchivedThemes }
+type ProjectQualification = { linkedSvg?: boolean; draftCover?: boolean; nativePhotos?: boolean; nativeGallery?: boolean; themes: ArchivedThemes }
 function validProjectStyle(doc: Project, themes: ArchivedThemes) {
   const id = doc.themeId
   if (id !== undefined && (typeof id !== 'string' || (!coreThemeIds.has(id) && !themes.has(id)))) return false
@@ -551,6 +560,7 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
     (textBlock(block, budget, dataBudget, ids) || acceptedImageBlock(block, images) ||
       acceptedLocalSvgBlock(block) || acceptedStarterReplayBlock(block, dataBudget) ||
       (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
+      (options.nativeGallery && acceptedFilledGallery(block, images)) ||
       (options.linkedSvg && acceptedLinkedSvgBlock(block))))
 }
 
@@ -565,12 +575,17 @@ function canonicalImageBlock(block: Block<'image'>, images: Map<string, RestoreI
 function canonicalRestoredBlock(block: Block, images: Map<string, RestoreImage>): Block {
   if (block.type === 'image') return canonicalImageBlock(block, images)
   if (block.type === 'photos') return qualifyProjectPhotos(block, images)!
+  if (block.type === 'gallery' && block.props.images.length) {
+    const refs = block.props.images.map(image => ({ ...image, src: images.get(image.assetId!)!.qualifiedSrc }))
+    return { ...block, props: { ...block.props, images: refs } }
+  }
   return block
 }
 
 function restoredBlockDependencies(block: Block): string[] {
   if (block.type === 'image') return block.props.image?.assetId ? [block.props.image.assetId] : []
   if (block.type === 'photos') return block.props.pics.flatMap(slot => slot.image?.assetId ? [slot.image.assetId] : [])
+  if (block.type === 'gallery') return block.props.images.flatMap(ref => ref.assetId ? [ref.assetId] : [])
   return []
 }
 
@@ -636,12 +651,12 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; draftCover?: boolean; nativePhotos?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; draftCover?: boolean; nativePhotos?: boolean; nativeGallery?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const references = assetStore && !options.standaloneImages ? { projectImages: options.projectImages !== false } : undefined
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards, references)
-  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true, draftCover: true, nativePhotos: true })
+  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true, draftCover: true, nativePhotos: true, nativeGallery: true })
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
@@ -762,7 +777,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   }
   const designs = designStore ? stageLegacyDesign(designRecords, designStore) : null
   const archivedThemes: ArchivedThemes = new Map(designStore ? designRecords.themes.map(theme => [theme.id, theme]) : [])
-  const projectQualification = { linkedSvg: options.crossSvgRestore, draftCover: options.draftCover, nativePhotos: options.nativePhotos, themes: archivedThemes }
+  const projectQualification = { linkedSvg: options.crossSvgRestore, draftCover: options.draftCover, nativePhotos: options.nativePhotos, nativeGallery: options.nativeGallery, themes: archivedThemes }
   const fallbackTime = Date.now()
   let crossSvgPreview: CrossSvgPreview | null = null
   for (const source of projects) {

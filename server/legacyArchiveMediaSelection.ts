@@ -1,6 +1,8 @@
 import { discoverLegacyComponentMedia } from './legacyComponentRestore'
 import { hasNativePhotoSlots } from './legacyDesignRestore'
 
+export const MAX_NATIVE_GALLERY_IMAGES = 30
+
 const INDEXED_IMAGE = /^\/media\/([\w-]{1,64})\.(png|jpg)(?:\?gen=[a-f0-9]{64})?$/
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -30,7 +32,13 @@ function addImageBlocks(blocks: unknown, add: AddFile) {
 
 function addProjectMedia(project: Record<string, unknown>, add: AddFile) {
   add(imageFile(project.cover))
-  if (Array.isArray(project.blocks)) for (const block of project.blocks) addLeafMedia(block, add)
+  if (!Array.isArray(project.blocks)) return
+  for (const block of project.blocks) {
+    if (object(block) && block.type === 'gallery' && object(block.props) &&
+        Array.isArray(block.props.images) && block.props.images.length <= MAX_NATIVE_GALLERY_IMAGES) {
+      for (const ref of block.props.images) add(imageFile(ref))
+    } else addLeafMedia(block, add)
+  }
 }
 
 function addVersionMedia({ raw, id, projectId }: Candidates['history'][number], add: AddFile) {

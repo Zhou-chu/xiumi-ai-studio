@@ -3,13 +3,42 @@ import TextAlign from '@tiptap/extension-text-align'
 import { Color, TextStyle, FontFamily, FontSize } from '@tiptap/extension-text-style'
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { useEffect } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { TEXT_FONTS, TEXT_SIZES } from '../core/textTypography'
 import { toHex } from '../core/color'
 import './text-typography.css'
 import type { RichText, Theme } from '../core/types'
 
 const MIXED_FORMAT = '__mixed__'
+const COMMON_TEXT_COLORS = [
+  ['黑色', '#000000'], ['深灰', '#3f3f3f'], ['浅灰', '#888888'], ['白色', '#ffffff'],
+  ['红色', '#c0392b'], ['橙色', '#e67e22'], ['金色', '#d4a017'], ['绿色', '#27ae60'],
+  ['蓝色', '#2e86de'], ['深蓝', '#1f3a93'], ['紫色', '#8e44ad'], ['粉色', '#e84393'],
+] as const
+
+interface QuickColorsProps {
+  id: string
+  theme: Theme
+  active: string
+  onChoose: (color: string) => void
+}
+
+function QuickColors({ id, theme, active, onChoose }: QuickColorsProps) {
+  const { primary, accent, text, muted } = theme.colors
+  const groups = [
+    ['主题色', [['主题主色', primary], ['主题强调色', accent], ['主题正文色', text], ['主题次要文字色', muted]]],
+    ['常用色', COMMON_TEXT_COLORS],
+  ] as const
+  return <div id={id} className="rich-color-palette">
+    {groups.map(([group, swatches]) => <div key={group} role="group" aria-label={group} className="rich-color-group">
+      <span>{group}</span>
+      {swatches.map(([label, color]) => <button key={label} type="button" title={label} aria-label={label}
+        aria-pressed={toHex(color) === active} onMouseDown={e => e.preventDefault()} onClick={() => onChoose(color)}>
+        <span aria-hidden="true" style={{ backgroundColor: color }} />
+      </button>)}
+    </div>)}
+  </div>
+}
 
 function typographyState(editor: Editor | null) {
   const active = editor?.getAttributes('textStyle')
@@ -49,6 +78,9 @@ interface Props {
 
 /** 正文模块的就地富文本编辑器（tiptap），以结构化 JSON 存储 */
 export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) {
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const paletteId = useId()
+  const paletteButton = useRef<HTMLButtonElement>(null)
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [3] }, codeBlock: false, code: false, horizontalRule: false, link: { openOnClick: false } }),
@@ -98,7 +130,13 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
   )
   const chain = () => editor.chain().focus()
   return (
-    <div className="rich-editor" onClick={(e) => e.stopPropagation()}>
+    <div className="rich-editor" onClick={(e) => e.stopPropagation()} onKeyDownCapture={e => {
+      if (e.key !== 'Escape' || !paletteOpen) return
+      e.preventDefault()
+      e.stopPropagation()
+      setPaletteOpen(false)
+      paletteButton.current?.focus()
+    }}>
       <div className="rich-toolbar" onKeyDown={(e) => e.stopPropagation()}>
         <label className="text-font-control">字体
           <select aria-label="正文字体" value={st?.mixedFamily ? MIXED_FORMAT : st?.fontFamily ?? ''} onChange={(e) => {
@@ -126,6 +164,11 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
         <span className="sep" />
         <label className="text-font-control">文字颜色<input type="color" aria-label="正文文字颜色" value={toHex(st?.color ?? '') ?? '#222222'} onChange={e => editor.chain().setColor(e.target.value).run()} /></label>
         {btn('默认色', false, () => chain().unsetColor().run(), '恢复默认文字颜色')}
+        <button ref={paletteButton} type="button" aria-label="预设文字颜色" aria-expanded={paletteOpen}
+          aria-controls={paletteOpen ? paletteId : undefined} onMouseDown={e => e.preventDefault()}
+          onClick={() => setPaletteOpen(open => !open)}>色板</button>
+        {paletteOpen && <QuickColors id={paletteId} theme={theme} active={toHex(st?.color ?? '') ?? ''}
+          onChoose={color => { chain().setColor(color).run(); setPaletteOpen(false) }} />}
         {btn('B', st?.bold ?? false, () => chain().toggleBold().run(), '加粗（主题色）')}
         {btn('I', st?.italic ?? false, () => chain().toggleItalic().run(), '斜体')}
         {btn('U', st?.underline ?? false, () => chain().toggleUnderline().run(), '下划线')}

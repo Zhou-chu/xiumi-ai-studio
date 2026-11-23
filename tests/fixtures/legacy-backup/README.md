@@ -54,3 +54,10 @@ one exclusive image dependency. SHA-256:
   data, and the upstream compiled HTML digest. Native auto playback emits
   the two SVGs in scene order; each plays on its own clock, not as a timed
   handoff. There are no external resources, accounts, or credentials.
+
+- `upstream-filled-gallery.zip`: generated with upstream `550c0ef`'s
+  actual upload, project, version and whole-library backup HTTP handlers using
+  three synthetic solid-color PNG inputs, stored by upstream as JPEGs. The
+  current gallery contains the first two assets in reversed order; the prior
+  version has one different image available only in history. SHA-256:
+  `137705a3b642503b5384496b80ff37b9016e1c68105934ea2afb8ed40f65ddf6`.
