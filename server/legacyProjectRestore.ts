@@ -1,5 +1,6 @@
 import { decodeLinkedSvgScene, parseCrossSvgPreview, type CrossSvgPreview } from '../src/core/crossSvgPreview'
 import { crc32 } from 'node:zlib'
+import { LIBRARY_RESTORE_ZIP_BUDGET, restoredZipNameBytes } from './libraryRestoreBudget'
 import { createHash } from 'node:crypto'
 import { openPromise, type Entry, type ZipFile } from 'yauzl'
 import type { RestoreProjectReason } from '../src/core/restoreProjectReasons'
@@ -124,12 +125,10 @@ async function readLegacyArchive(path: string, budget: typeof DEFAULT_BUDGET, in
       const key = name.toLowerCase()
       // Bound the seen set and the names kept for the unsupported list. Unicode
       // normalization to lowercase may increase the size of the retained key.
-      nameBytes += Buffer.byteLength(key, 'utf8')
-      if (key !== name) nameBytes += Buffer.byteLength(name, 'utf8')
-      if (includeAssets && (name === ASSET_INDEX || ASSET_FILE.test(name))) {
-        // Retained ZIP entry handles also retain comment and extra-field bytes.
-        nameBytes += entry.fileNameLength + entry.extraFieldLength + entry.fileCommentLength
-      }
+      // Retained ZIP entry handles also retain comment and extra-field bytes.
+      const metadataBytes = includeAssets && (name === ASSET_INDEX || ASSET_FILE.test(name)) ?
+        entry.fileNameLength + entry.extraFieldLength + entry.fileCommentLength : 0
+      nameBytes += restoredZipNameBytes(name, key, metadataBytes)
       if (nameBytes > budget.maxNameBytes) throw tooLarge()
       if (seen.has(key)) throw invalid()
       seen.add(key)
@@ -332,7 +331,7 @@ export async function stageLegacyLibrary(path: string, projects: ProjectStore, a
 
 
 const coreThemeIds = new Set(THEMES.map(({ id }) => id))
-const routeBudget = { ...DEFAULT_BUDGET, maxEntries: 5000, maxNameBytes: 1024 * 1024, entryBytes: 4 * 1024 * 1024, totalProjectBytes: 32 * 1024 * 1024, totalAssetBytes: 32 * 1024 * 1024 }
+const routeBudget = { ...DEFAULT_BUDGET, ...LIBRARY_RESTORE_ZIP_BUDGET }
 const idPattern = /^[\w-]{1,64}$/
 const boundedText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max
 

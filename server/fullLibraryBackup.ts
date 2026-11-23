@@ -2,6 +2,7 @@ import { constants } from 'node:fs'
 import { lstat, open, opendir, realpath, type FileHandle } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { Zip, ZipDeflate, ZipPassThrough } from 'fflate'
+import { assertLibraryRestoreCapacity } from './libraryRestoreBudget'
 
 const CATEGORIES = ['projects', 'versions', 'templates', 'components', 'themes', 'assets'] as const
 const INDEX = 'assets/_index.json'
@@ -183,6 +184,7 @@ export async function planLibraryBackup(directory: string, version: string, sign
   if (settings !== undefined) redacted.push([SETTINGS, JSON.stringify(publicSettings(settings))])
   const assets = await safeJson(root, INDEX)
   if (assets !== undefined) redacted.push([INDEX, JSON.stringify(publicAssetIndex(assets, new Set(files.map(file => file.name))))])
+  assertLibraryRestoreCapacity([...files, ...redacted.map(([name, data]) => ({ name, size: Buffer.byteLength(data, 'utf8') }))])
   return { root, files, redacted }
 }
 

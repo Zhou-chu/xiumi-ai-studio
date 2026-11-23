@@ -109,3 +109,17 @@ it('applies upstream quick swatches to the selected text without replacing custo
  expect(document.activeElement).toBe(opener)
  expect(done).not.toHaveBeenCalled()
 })
+
+it('dismisses an open palette through the rich-text keyboard handler without finishing the edit', async () => {
+ await render()
+ const opener = host.querySelector<HTMLButtonElement>('[aria-label="预设文字颜色"]')!
+ act(() => opener.click())
+ const key = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+ act(() => expect(h.options.editorProps.handleKeyDown(null, key)).toBe(true))
+ expect(done).not.toHaveBeenCalled()
+ expect(key.defaultPrevented).toBe(true)
+ expect(opener.getAttribute('aria-expanded')).toBe('false')
+ expect(document.activeElement).toBe(opener)
+ act(() => expect(h.options.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true))
+ expect(done).toHaveBeenCalledTimes(1)
+})
