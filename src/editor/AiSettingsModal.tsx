@@ -1,3 +1,4 @@
+import { ignoredExtraParameters } from '../core/aiParameters'
 import { removeParentheticalName } from '../core/textLinear'
 import { ModelPicker } from './ModelPicker'
 import { Help } from './Help'
@@ -37,7 +38,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   const [modelList, setModelList] = useState<Awaited<ReturnType<typeof api.aiModels>>>([])
   const [modelStatus, setModelStatus] = useState('')
   const [fetchingModels, setFetchingModels] = useState(false)
-  const modelRequest = useRef({ generation: 0 })
+  const modelRequest = useRef({ generation: 0, pending: false })
   const [busy, setBusy] = useState(false)
   // 设置读取完成前不能新增：否则读取结果会覆盖刚选的预设
   const [loaded, setLoaded] = useState(false)
@@ -66,7 +67,8 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     const requestState = modelRequest.current
     return () => { requestState.generation++ }
   }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey])
-  const fetchModels = async (p: AiProfile) => {
+  const fetchModels = async (p: AiProfile, automatic = false) => {
+    modelRequest.current.pending = false
     const request = ++modelRequest.current.generation
     setFetchingModels(true)
     setModelList([])
@@ -80,10 +82,19 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       if (matched?.contextWindow) setProfiles((list) => list.map((x) => x.id === p.id && x.model === p.model && !x.contextWindow ? { ...x, contextWindow: matched.contextWindow } : x))
       setModelStatus(models.length ? `已获取 ${models.length} 个模型；未提供的参数请查阅服务商文档。` : '服务未返回模型，可手动填写。')
     } catch (e: any) {
-      if (request === modelRequest.current.generation) setModelStatus(`${e.message}；可继续手动填写。`)
+      if (request === modelRequest.current.generation) setModelStatus(automatic ? '无法自动获取模型列表，可手动重试或填写。' : `${e.message}；可继续手动填写。`)
     } finally {
       if (request === modelRequest.current.generation) setFetchingModels(false)
     }
+  }
+  const discoverAfterEdit = (p: AiProfile, previous: Element, next: EventTarget | null) => {
+    // Browser/window focus loss or leaving this dialog must not start a request.
+    if (!(next instanceof Element) || next.closest('[role="dialog"]') !== previous.closest('[role="dialog"]')) return
+    if (next.matches('button, input[type="password"], [data-testid="ai-base-url"], [data-testid="ai-add-preset"]')) return
+    if (!modelRequest.current.pending || p.readonly || !endpointOrigin(p.baseUrl)) return
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(p.baseUrl).hostname)
+    if (!p.apiKey.trim() && !p.hasKey && !local) return
+    void fetchModels(p, true)
   }
   useEffect(() => {
     const state = actionRequest.current
@@ -98,6 +109,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
   }, [cur?.id, cur?.baseUrl, cur?.provider, cur?.apiKey, cur?.model, cur?.extraBody, cur?.jsonMode, cur?.maxOutputTokens])
 
   const invalidate = () => {
+    modelRequest.current.pending = false
     setFetchingModels(false)
     setProbing(false)
     setModelStatus('')
@@ -119,7 +131,10 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
       (nextOrigin !== null && previousOrigin !== null && nextOrigin !== previousOrigin))
     // Invalid intermediate URL drafts must not erase settings or forget the prior credential origin.
     if (cur && (nextOrigin ?? previousOrigin)) profileOrigins.current.set(cur.id, (nextOrigin ?? previousOrigin)!)
-    if (endpoint) modelRequest.current.generation++
+    if (endpoint) {
+      modelRequest.current.generation++
+      modelRequest.current.pending = p.baseUrl !== undefined || p.apiKey !== undefined
+    }
     actionRequest.current.probe++
     actionRequest.current.test++
     setProbing(false)
@@ -210,6 +225,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const ignoredExtras = ignoredExtraParameters(cur?.extraBody)
   const preset = cur ? AI_PRESETS.find((x) => x.baseUrl && x.baseUrl === cur.baseUrl) : undefined
   return (
     <Modal title="AI 模型设置" onClose={close} width={760}>
@@ -245,10 +261,10 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                   <button aria-pressed={cur.provider === 'anthropic'} className={cur.provider === 'anthropic' ? 'on' : ''} disabled={cur.readonly} onClick={() => patch({ provider: 'anthropic' })}>Anthropic Claude</button>
                 </div>
               </div>
-              <label className="field"><span>接口地址 Base URL</span><input value={cur.baseUrl} disabled={cur.readonly} placeholder="https://…/v1" onChange={(e) => patch({ baseUrl: e.target.value })} /></label>
+              <label className="field"><span>接口地址 Base URL</span><input data-testid="ai-base-url" value={cur.baseUrl} disabled={cur.readonly} placeholder="https://…/v1" onChange={(e) => patch({ baseUrl: e.target.value })} onBlur={(e) => discoverAfterEdit(cur, e.currentTarget, e.relatedTarget)} /></label>
               <label className="field">
                 <span>API Key{preset?.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noreferrer">获取密钥 ↗</a>}</span>
-                <input type="password" value={cur.apiKey} disabled={cur.readonly} placeholder={cur.hasKey ? '已保存（留空则不修改）' : '粘贴密钥'} autoComplete="off" onChange={(e) => patch({ apiKey: e.target.value })} />
+                <input type="password" value={cur.apiKey} disabled={cur.readonly} placeholder={cur.hasKey ? '已保存（留空则不修改）' : '粘贴密钥'} autoComplete="off" onChange={(e) => patch({ apiKey: e.target.value })} onBlur={(e) => discoverAfterEdit(cur, e.currentTarget, e.relatedTarget)} />
               </label>
               <label className="field"><span>模型名称</span><input data-testid="ai-model" value={cur.model} disabled={cur.readonly} placeholder="例如 deepseek-chat / qwen-plus / claude-sonnet-5-5" onChange={(e) => selectModel(e.target.value)} /></label>
               <button data-testid="ai-load-models" disabled={!endpointOrigin(cur.baseUrl) || fetchingModels} onClick={() => fetchModels(cur)}>{fetchingModels ? '获取中…' : '从服务商获取模型列表'}</button>
@@ -269,6 +285,7 @@ export function AiSettingsModal({ onClose }: { onClose: () => void }) {
                 <summary>高级：额外的请求参数{cur.extraBody ? '（已设置）' : ''}</summary>
                 <textarea data-testid="ai-extra-body" rows={3} value={cur.extraBody ?? ''} disabled={cur.readonly} placeholder='{"enable_thinking": false}' onChange={(e) => patch({ extraBody: e.target.value })} />
                 <p className={`hint ${validExtra(cur.extraBody) ? '' : 'bad'}`}>{validExtra(cur.extraBody) ? '支持服务商专用 JSON 参数；不能覆盖模型、消息、输出上限、思考强度、温度或 JSON 模式。' : '不是有效的 JSON 对象，请修正后保存。'}</p>
+                {ignoredExtras.length > 0 && <p className="hint warn" role="status" data-testid="ai-extra-ignored">额外参数中的 {ignoredExtras.join('、')} 会被忽略；请使用上方对应设置，JSON 格式由任务控制。</p>}
               </details>
               {preset?.note && <p className="hint">{preset.note}</p>}
               <label className="check">

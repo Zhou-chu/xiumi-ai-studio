@@ -1,3 +1,4 @@
+import { PROTECTED_AI_PARAMETERS } from '../src/core/aiParameters'
 import { safeProviderError } from './providerError'
 import { trimTrailingSlashes } from './urlText'
 // AI 提供方抽象：OpenAI 兼容接口（DeepSeek / 通义 / Kimi / 智谱 / MiniMax / MiMo / 豆包 / OpenAI / Gemini / Ollama…）或 Anthropic。
@@ -62,7 +63,7 @@ async function readError(res: Response) {
 }
 
 /** 请求里这些字段不能被“额外参数”改掉 */
-const PROTECTED = new Set(['model', 'messages', 'system', 'stream', 'tools', 'tool_choice', 'max_tokens', 'max_completion_tokens', 'temperature', 'reasoning_effort', 'output_config', 'response_format'])
+const PROTECTED = new Set<string>(PROTECTED_AI_PARAMETERS)
 
 /** 配置里的额外请求参数（JSON 对象），去掉不允许覆盖的字段 */
 export function extraBodyOf(p: AiProfile): Record<string, unknown> {
