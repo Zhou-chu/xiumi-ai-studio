@@ -1,0 +1,56 @@
+// This accepts the native starter's data shape, not arbitrary SVG or all ReplayDoc fields.
+// Do not normalize untrusted input here: admission must not silently drop data.
+const object = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+const only = (value: Record<string, unknown>, fields: readonly string[]) =>
+  Object.keys(value).every(field => fields.includes(field))
+const id = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,64}$/.test(value)
+const hex = (value: unknown): boolean => typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)
+const integer = (value: unknown, min: number, max: number) =>
+  typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+
+function starterCanvas(value: unknown): boolean {
+  if (!object(value) || !only(value, ['width', 'background']) || value.width !== 750) return false
+  const { background } = value
+  if (!object(background) || !only(background, ['type', 'value', 'grid']) || background.type !== 'color' ||
+      !hex(background.value)) return false
+  const { grid } = background
+  return grid === undefined || (object(grid) && only(grid, ['color', 'size']) &&
+    hex(grid.color) && integer(grid.size, 10, 300))
+}
+
+function starterTheme(value: unknown): boolean {
+  if (!object(value) || !only(value, ['accent', 'inspector', 'alert', 'text', 'cursorPalette'])) return false
+  const { accent, inspector, alert, text, cursorPalette } = value
+  return [accent, inspector, alert, text].every(hex) && Array.isArray(cursorPalette) &&
+    cursorPalette.length >= 1 && cursorPalette.length <= 8 && cursorPalette.every(hex)
+}
+
+const starterTypes = new Set<string>(['tag', 'title', 'text', 'button'])
+function starterScene(value: unknown): boolean {
+  if (!object(value) || !only(value, ['id', 'layout', 'finale', 'items']) || !id(value.id) ||
+      value.layout !== 'flow' || value.finale !== 'exit' || !Array.isArray(value.items) ||
+      value.items.length < 1 || value.items.length > 8) return false
+  const ids = new Set<string>()
+  for (const item of value.items) {
+    if (!object(item) || !only(item, ['id', 'type', 'content']) || !id(item.id) ||
+        typeof item.type !== 'string' || !starterTypes.has(item.type) || typeof item.content !== 'string' ||
+        item.content.length > 600 || ids.has(item.id)) return false
+    ids.add(item.id)
+  }
+  return true
+}
+
+function starterPreferences(value: Record<string, unknown>): boolean {
+  const { playback, textMode, cursors, budget } = value
+  return (textMode === 'image' || textMode === 'svg-text') &&
+    object(playback) && only(playback, ['trigger', 'pace']) && playback.trigger === 'auto' && playback.pace === 'fast' &&
+    object(cursors) && only(cursors, ['count', 'show']) && integer(cursors.count, 1, 6) && typeof cursors.show === 'boolean' &&
+    object(budget) && only(budget, ['sceneKB', 'totalKB']) && budget.sceneKB === 80 && budget.totalKB === 400
+}
+
+export function acceptsLegacyStarterReplay(value: unknown): boolean {
+  return object(value) && only(value, ['canvas', 'playback', 'textMode', 'theme', 'cursors', 'budget', 'scenes']) &&
+    starterCanvas(value.canvas) && starterTheme(value.theme) && starterPreferences(value) &&
+    Array.isArray(value.scenes) && value.scenes.length === 1 && starterScene(value.scenes[0])
+}

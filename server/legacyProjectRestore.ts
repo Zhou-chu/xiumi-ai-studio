@@ -14,6 +14,7 @@ import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
 import type { projectCollection } from './projectStore'
+import { acceptsLegacyStarterReplay } from './legacyReplay'
 import { acceptsLegacyDataBlock, type LegacyDataBlockBudget } from './legacyDataBlocks'
 import { COMPONENT_ENTRY, qualifyLegacyComponent, stageLegacyComponents, type ComponentCollection, type ComponentCandidate } from './legacyComponentRestore'
 import { DESIGN_ENTRY, qualifyLegacyDesign, qualifyNativePhotoProps, stageLegacyDesign, validOverrides, type DesignCategory, type DesignCollections, type DesignData } from './legacyDesignRestore'
@@ -480,6 +481,14 @@ function acceptedLocalSvgBlock(block: unknown): boolean {
     typeof block.props.html === 'string' && renderLocalSvgInteraction(block.props.html) !== null
 }
 
+function acceptedStarterReplayBlock(block: unknown, budget: { replays: number }): boolean {
+  if (!isObject(block) || block.type !== 'replay' || !knownKeys(block, blockKeys) ||
+      typeof block.id !== 'string' || !idPattern.test(block.id) || budget.replays !== 0 ||
+      !acceptsLegacyStarterReplay(block.props)) return false
+  budget.replays++
+  return true
+}
+
 function acceptedLinkedSvgBlock(block: unknown): boolean {
   return isObject(block) && knownKeys(block, blockKeys) && block.type === 'linkedSvg' &&
     typeof block.id === 'string' && idPattern.test(block.id) && isObject(block.props) &&
@@ -536,11 +545,12 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
     if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) return false
   }
   const budget = { nodes: 0, characters: 0 }
-  const dataBudget = { characters: 0 }
+  const dataBudget = { characters: 0, replays: 0 }
   const ids = new Set<string>()
   return doc.blocks.every(block => takeProjectBlockId(block, ids) &&
     (textBlock(block, budget, dataBudget, ids) || acceptedImageBlock(block, images) ||
-      acceptedLocalSvgBlock(block) || (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
+      acceptedLocalSvgBlock(block) || acceptedStarterReplayBlock(block, dataBudget) ||
+      (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
       (options.linkedSvg && acceptedLinkedSvgBlock(block))))
 }
 
