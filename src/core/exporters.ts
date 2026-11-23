@@ -29,7 +29,7 @@ export function docToMarkdown(doc: Doc): string {
       const caption = format(x.caption)
       return [img(x.image!.src, caption), caption && `*${caption}*`]
     })
-  const walk = (b: Block) => {
+  const walk = (b: Block, inBox = false) => {
     const p: any = b.props
     switch (b.type) {
       case 'cover':
@@ -40,7 +40,7 @@ export function docToMarkdown(doc: Doc): string {
         out.push(`## ${p.index ? p.index + ' ' : ''}${p.title}`, p.subtitle)
         break
       case 'paragraph':
-        out.push(richToMarkdown(p.content))
+        out.push(richToMarkdown(p.content, inBox ? markdownDataText : undefined))
         break
       case 'card':
         out.push(p.title && `**${p.title}**`, richToMarkdown(p.content))
@@ -57,9 +57,11 @@ export function docToMarkdown(doc: Doc): string {
         out.push(img(b.props.image?.src, caption), caption && `*${caption}*`)
         break
       }
-      case 'gallery':
-        out.push(p.images.map((i: any) => img(i.src)).join('\n'), p.caption && `*${p.caption}*`)
+      case 'gallery': {
+        const { caption, images } = b.props
+        out.push(images.map(i => img(i.src)).join('\n'), caption && `*${images.length === 0 ? markdownDataText(caption) : caption}*`)
         break
+      }
       case 'timeline':
         out.push(b.props.items.map(({ time, title, desc }) =>
           `- ${time ? `**${markdownDataText(time)}** ` : ''}${markdownDataText(title)}${desc ? `：${markdownDataText(desc)}` : ''}`).join('\n'))
@@ -93,8 +95,8 @@ export function docToMarkdown(doc: Doc): string {
           markdownDataText(b.props.note), markdownDataText(b.props.author))
         break
       case 'box':
-        out.push(p.title && `### ${p.title}`)
-        p.children.forEach(walk)
+        out.push(b.props.title && `### ${markdownDataText(b.props.title)}`)
+        b.props.children.forEach(child => walk(child, true))
         break
       case 'carousel':
         out.push(...pics(b.props.pics))
@@ -109,6 +111,6 @@ export function docToMarkdown(doc: Doc): string {
       }
     }
   }
-  doc.blocks.forEach(walk)
+  doc.blocks.forEach(block => walk(block))
   return out.filter(Boolean).join('\n\n') + '\n'
 }

@@ -1,3 +1,4 @@
+import { richLinkHref } from './richLink'
 import { renderLinkedSvgScene } from './crossSvgPreview'
 import { normalizeReplay } from './replay/schema'
 import { renderReplay, type ReplayOutput } from './replay/render'
@@ -141,7 +142,7 @@ function renderInline(n: RichNode, ctx: Ctx, textHtml: string): string {
         break
       }
       case 'link':
-        linkHref = String(m.attrs?.href ?? '')
+        linkHref = richLinkHref(m.attrs?.href)
         break
     }
   }

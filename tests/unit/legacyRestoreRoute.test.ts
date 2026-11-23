@@ -145,7 +145,7 @@ it('binds a read-only staged preview to its owner and confirms once without over
       } }],
     })
     augmented.file('projects/rich-link.json', JSON.stringify(rich('rich-link', {
-      type: 'text', text: 'An archived link', marks: [{ type: 'link', attrs: { href: 'https://example.invalid' } }],
+      type: 'text', text: 'An archived link', marks: [{ type: 'link', attrs: { href: '/local-note' } }],
     })))
     augmented.file('projects/rich-nested.json', JSON.stringify(rich('rich-nested', {
       type: 'paragraph', content: [{ type: 'text', text: 'An invalid nested paragraph' }],

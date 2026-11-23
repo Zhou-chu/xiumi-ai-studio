@@ -48,3 +48,23 @@ it('handles link removal, a valid new link, cancellation and default empty selec
  const editor=h.editor;await act(async()=>root.unmount());expect(editor.destroy).toHaveBeenCalled();root=createRoot(host)
 })
 it('renders defensive toolbar defaults before editor selection state is available',async()=>{h.stateAbsent=true;await render();expect(host.querySelector<HTMLSelectElement>('[aria-label="正文字体"]')!.value).toBe('');expect(host.querySelector<HTMLInputElement>('[aria-label="正文文字颜色"]')!.value).toBe('#222222');expect(host.querySelector('[aria-label="斜体"]')!.getAttribute('aria-pressed')).toBe('false')})
+
+it('keeps restored editorial marks through a real Tiptap edit and serialization', async () => {
+ await render()
+ const { Editor } = await vi.importActual<typeof import('@tiptap/react')>('@tiptap/react')
+ const leaf = (text: string, href: string) => ({
+   type: 'text', text, marks: [{ type: 'link', attrs: { href, target: '_blank', rel: 'noopener noreferrer nofollow', class: null, title: null } }],
+ })
+ const links = [leaf('Paper', 'https://example.org/paper'), leaf('Author', 'mailto:editor@example.org'), leaf('Call', 'tel:+12025550123'), leaf('Docs', '/docs')]
+ const editor = new Editor({ extensions: h.options.extensions, content: { type: 'doc', content: [{
+   type: 'paragraph', content: links.flatMap((link, i) => i ? [{ type: 'text', text: ' and ' }, link] : [link]),
+ }] } })
+ try {
+   expect(editor.commands.insertContentAt(1, 'Updated: ')).toBe(true)
+   expect(editor.getText()).toBe('Updated: Paper and Author and Call and Docs')
+   expect(editor.getJSON().content?.[0].content?.filter(node => node.marks?.length)).toMatchObject([{ ...links[0], text: 'Updated: Paper' }, ...links.slice(1)])
+   const rendered = document.createElement('div')
+   rendered.innerHTML = editor.getHTML()
+   expect([...rendered.querySelectorAll('a')].map(a => a.getAttribute('href'))).toEqual(links.map(x => x.marks[0].attrs.href))
+ } finally { editor.destroy() }
+})

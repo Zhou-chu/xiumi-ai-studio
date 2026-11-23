@@ -1,3 +1,4 @@
+import { archivedRichLinkHref } from '../src/core/richLink'
 import { safeColor } from '../src/core/style'
 import { safeTextFont, safeTextSize } from '../src/core/textTypography'
 
@@ -12,7 +13,15 @@ const supportedColor = (value: unknown) => typeof value === 'string' && value.le
 const nullable = (value: unknown, judge: (input: unknown) => boolean) => value === undefined || value === null || judge(value)
 export type RichTextBudget = { nodes: number; characters: number }
 
-function styleMark(mark: Record<string, unknown>) {
+function linkMark(attrs: unknown) {
+  return object(attrs) && hasOnly(attrs, ['href', 'target', 'rel', 'class', 'title']) &&
+    archivedRichLinkHref(attrs.href) !== undefined &&
+    nullable(attrs.target, value => value === '_blank' || value === '_self') &&
+    nullable(attrs.rel, value => value === 'noopener noreferrer nofollow') &&
+    attrs.class == null && attrs.title == null
+}
+
+function styleMark(mark: Record<string, unknown>, allowLinks: boolean) {
   const attrs = mark.attrs
   if (simpleMarks.has(String(mark.type))) return attrs === undefined
   if (mark.type === 'highlight') {
@@ -24,7 +33,8 @@ function styleMark(mark: Record<string, unknown>) {
       nullable(attrs.fontFamily, font => safeTextFont(font) !== undefined) &&
       nullable(attrs.fontSize, size => safeTextSize(size) !== undefined)
   }
-  // Hyperlinks, nested notes/lists and other custom nodes remain unsupported.
+  if (mark.type === 'link') return allowLinks && linkMark(attrs)
+  // Nested notes/lists and other custom nodes remain unsupported.
   return false
 }
 
@@ -32,7 +42,7 @@ function count(budget: RichTextBudget) {
   return ++budget.nodes <= MAX_NODES
 }
 
-function inline(node: unknown, budget: RichTextBudget): boolean {
+function inline(node: unknown, budget: RichTextBudget, allowLinks: boolean): boolean {
   if (!object(node) || !count(budget)) return false
   if (node.type === 'hardBreak') return hasOnly(node, ['type'])
   if (node.type !== 'text' || !hasOnly(node, ['type', 'text', 'marks']) ||
@@ -44,7 +54,7 @@ function inline(node: unknown, budget: RichTextBudget): boolean {
   const used = new Set<string>()
   for (const mark of node.marks) {
     if (!object(mark) || !count(budget) || !hasOnly(mark, ['type', 'attrs']) ||
-        typeof mark.type !== 'string' || used.has(mark.type) || !styleMark(mark)) return false
+        typeof mark.type !== 'string' || used.has(mark.type) || !styleMark(mark, allowLinks)) return false
     used.add(mark.type)
   }
   return true
@@ -52,7 +62,7 @@ function inline(node: unknown, budget: RichTextBudget): boolean {
 
 /** Bounded, non-coercive subset of the existing Tiptap document format.
  * No recursive or unknown nodes, and no silent pruning of attributes. */
-export function acceptsLegacyRichText(value: unknown, budget: RichTextBudget): boolean {
+export function acceptsLegacyRichText(value: unknown, budget: RichTextBudget, allowLinks = false): boolean {
   if (!object(value) || value.type !== 'doc' || !hasOnly(value, ['type', 'content']) || !count(budget) ||
       !Array.isArray(value.content) || !value.content.length) return false
   for (const paragraph of value.content) {
@@ -63,7 +73,7 @@ export function acceptsLegacyRichText(value: unknown, budget: RichTextBudget): b
         !nullable(attrs.textAlign, value => typeof value === 'string' && legacyTextAlignments.has(value)))) return false
     if (paragraph.content !== undefined) {
       if (!Array.isArray(paragraph.content)) return false
-      for (const node of paragraph.content) if (!inline(node, budget)) return false
+      for (const node of paragraph.content) if (!inline(node, budget, allowLinks)) return false
     }
   }
   return true

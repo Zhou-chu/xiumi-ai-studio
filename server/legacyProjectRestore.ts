@@ -348,6 +348,10 @@ const profileTextKeys = new Set(['name', 'role', 'bio'])
 const columnsTextKeys = new Set(['title', 'content', 'imagePosition'])
 const blankImageKeys = new Set(['caption', 'variant'])
 const blankFrameKeys = new Set(['caption', 'label', 'variant'])
+const blankGalleryKeys = new Set(['images', 'columns', 'caption'])
+const blankCarouselKeys = new Set(['pics', 'label', 'ratio', 'variant'])
+const blankSlotKeys = new Set(['caption'])
+const textBoxKeys = new Set(['title', 'label', 'variant', 'children'])
 const legacyCoverAlignments = new Set<unknown>(['auto', 'left', 'center', 'right'])
 const legacyCoverVariants = new Set<unknown>(['auto', 'hero', 'band', 'minimal'])
 const knownKeys = (value: Record<string, unknown>, allowed: Set<string>) => Object.keys(value).every(key => allowed.has(key))
@@ -381,20 +385,55 @@ function acceptsBlankMedia(type: 'image' | 'frame', props: Record<string, unknow
   return knownKeys(props, blankFrameKeys) && ['flag', 'circuit', 'ticket'].includes(props.variant) && boundedText(props.label, 2000)
 }
 
-function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget) {
-  if (!isObject(value) || !knownKeys(value, blockKeys) || typeof value.id !== 'string' ||
-      !idPattern.test(value.id) || !isObject(value.props)) return false
+function acceptsBlankGallery(props: Record<string, unknown>) {
+  return knownKeys(props, blankGalleryKeys) && Array.isArray(props.images) && props.images.length === 0 &&
+    (props.columns === 1 || props.columns === 2 || props.columns === 3) && boundedText(props.caption, 2000)
+}
+
+function acceptsBlankCarousel(props: Record<string, unknown>) {
+  return knownKeys(props, blankCarouselKeys) && boundedText(props.label, 2000) &&
+    (props.variant === 'peek' || props.variant === 'full') && typeof props.ratio === 'string' &&
+    ['4:3', '3:2', '16:9', '1:1', '3:4'].includes(props.ratio) &&
+    Array.isArray(props.pics) && props.pics.length <= 30 && props.pics.every(slot =>
+      isObject(slot) && knownKeys(slot, blankSlotKeys) && boundedText(slot.caption, 2000))
+}
+
+function textParagraph(props: Record<string, unknown>, budget: RichTextBudget, allowLinks = false) {
+  return knownKeys(props, paragraphKeys) && typeof props.align === 'string' &&
+    legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget, allowLinks)
+}
+
+function takeProjectBlockId(value: unknown, ids: Set<string>) {
+  if (!isObject(value) || typeof value.id !== 'string' || !idPattern.test(value.id) || ids.has(value.id)) return false
+  ids.add(value.id)
+  return true
+}
+
+function acceptsTextBox(props: Record<string, unknown>, budget: RichTextBudget, ids: Set<string>) {
+  return knownKeys(props, textBoxKeys) && boundedText(props.title, 2000) && boundedText(props.label, 160) &&
+    (props.variant === 'plate' || props.variant === 'rule' || props.variant === 'paper') &&
+    Array.isArray(props.children) && props.children.length <= 64 && props.children.every(child =>
+      isObject(child) && child.type === 'paragraph' && knownKeys(child, blockKeys) && isObject(child.props) &&
+      takeProjectBlockId(child, ids) && textParagraph(child.props, budget))
+}
+
+function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDataBlockBudget, ids: Set<string>) {
+  if (!isObject(value) || !knownKeys(value, blockKeys) || !isObject(value.props)) return false
   const { props } = value
-  if (value.type === 'paragraph') {
-    return knownKeys(props, paragraphKeys) && typeof props.align === 'string' &&
-      legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget)
+  switch (value.type) {
+    case 'paragraph': return textParagraph(props, budget, true)
+    case 'box': return acceptsTextBox(props, budget, ids)
+    case 'gallery': return acceptsBlankGallery(props)
+    case 'carousel': return acceptsBlankCarousel(props)
+    case 'timeline':
+    case 'table': return acceptsLegacyDataBlock(value.type, props, dataBudget)
+    case 'ending': return acceptsTextEnding(props)
+    case 'cover': return acceptsTextCover(props)
+    case 'profile': return acceptsTextProfile(props)
+    case 'imageText': return acceptsTextColumns(props, budget)
+    case 'image':
+    case 'frame': return acceptsBlankMedia(value.type, props)
   }
-  if (value.type === 'timeline' || value.type === 'table') return acceptsLegacyDataBlock(value.type, props, dataBudget)
-  if (value.type === 'ending') return acceptsTextEnding(props)
-  if (value.type === 'cover') return acceptsTextCover(props)
-  if (value.type === 'profile') return acceptsTextProfile(props)
-  if (value.type === 'imageText') return acceptsTextColumns(props, budget)
-  if (value.type === 'image' || value.type === 'frame') return acceptsBlankMedia(value.type, props)
   if (typeof props.variant !== 'string') return false
   if (value.type === 'card') {
     return knownKeys(props, cardKeys) && ['auto', 'border', 'fill', 'accent'].includes(props.variant) &&
@@ -498,10 +537,11 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
   }
   const budget = { nodes: 0, characters: 0 }
   const dataBudget = { characters: 0 }
-  return doc.blocks.every(block => textBlock(block, budget, dataBudget) || acceptedImageBlock(block, images) ||
-    acceptedLocalSvgBlock(block) || (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
-    (options.linkedSvg && acceptedLinkedSvgBlock(block))) &&
-    new Set(doc.blocks.map(block => block.id)).size === doc.blocks.length
+  const ids = new Set<string>()
+  return doc.blocks.every(block => takeProjectBlockId(block, ids) &&
+    (textBlock(block, budget, dataBudget, ids) || acceptedImageBlock(block, images) ||
+      acceptedLocalSvgBlock(block) || (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
+      (options.linkedSvg && acceptedLinkedSvgBlock(block))))
 }
 
 function canonicalImageBlock(block: Block<'image'>, images: Map<string, RestoreImage>): Block<'image'> {
