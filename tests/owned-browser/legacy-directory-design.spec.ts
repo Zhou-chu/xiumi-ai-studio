@@ -60,9 +60,17 @@ test('restores old-directory design without a manuscript, uses its theme and reo
     await expect(page.getByTestId('save-status')).toHaveText('已保存')
 
     await page.getByTestId('tab-projects').click()
+    // The click starts an async save of the template before the new doc is loaded.
+    const blankWrite = page.waitForResponse(r => r.request().method() === 'PUT' &&
+      r.url().startsWith(origin + '/api/projects/') && r.ok() &&
+      r.request().postDataJSON()?.title === '未命名推文')
     await page.getByRole('button', { name: '新建空白项目' }).click()
+    await blankWrite
     const title = 'Independently reusable directory component'
-    await page.getByRole('textbox', { name: '文章标题' }).fill(title)
+    const titleInput = page.getByRole('textbox', { name: '文章标题' })
+    await expect(titleInput).toHaveValue('未命名推文')
+    await titleInput.fill(title)
+    await expect(titleInput).toHaveValue(title)
     await page.getByTestId('tab-components').click()
     const card = page.getByTestId('component-card').filter({ hasText: 'Archived local component' })
     await card.getByRole('button', { name: '插入组件：Archived local component', exact: true }).click()
