@@ -4,6 +4,7 @@ import { ReplayPanel } from './ReplayPanel'
 import './accessibility-controls.css'
 import { Help } from './Help'
 import { CoverTitleAlignment } from './CoverTitleAlignment'
+import { ImportedSlotPalette } from './ImportedSlotPalette'
 import { useEffect, useMemo, useState } from 'react'
 import { blockLabel, blockMeta, createBlock } from '../core/blocks'
 import { summarize } from '../core/operationDescriptions'
@@ -12,7 +13,7 @@ import { displayUrl } from '../core/images'
 import { sanitizeHtml } from '../core/sanitize'
 import { setPhoto } from '../core/photos'
 import { collectColors, docMainColors, fixedDecorCount, harmonize, recolorHtml } from '../core/recolor'
-import { backgroundPhotos, editableText, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, setSlotAlign, slotAligns, slotRawTexts, type Align, type SlotRole, type TextSlot } from '../core/slots'
+import { backgroundPhotos, colorableHtmlTextSlots, editableText, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, setImportedSlotTextColor, setSlotAlign, slotAligns, slotRawTexts, type Align, type SlotRole, type TextSlot } from '../core/slots'
 import { resolveTheme } from '../core/themes'
 import { richToPlain, setRichAlignment, textToRich } from '../core/richtext'
 import type { Block, ImageRef, PicItem } from '../core/types'
@@ -151,6 +152,8 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
   // 表单里显示保留空格的文字；对齐状态一次算出，避免每个槽位都重新解析一遍大片段
   const raws = useMemo(() => slotRawTexts(html, parseDoc), [html])
   const aligns = useMemo(() => slotAligns(html, parseDoc), [html])
+  const fragmentPalette = useMemo(() => collectColors(html, parseDoc).slice(0, 8).map(({ hex }) => hex), [html])
+  const colorable = useMemo(() => colorableHtmlTextSlots(html, parseDoc), [html])
   const imgs = slots.filter((s) => s.kind === 'image').map((s) => s.src)
   const bgPhotos = useMemo(() => backgroundPhotos(html, parseDoc), [html])
   const replace = (i: number, src: string) => {
@@ -186,6 +189,11 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
                   ))}
                 </span>
               </div>
+              {fragmentPalette.length > 0 && colorable.has(s.id) && (
+                <ImportedSlotPalette colors={fragmentPalette} onChoose={(color) => upd({
+                  html: setImportedSlotTextColor(html, s.id, color, parseDoc),
+                }, `slot-color-${s.id}`)} />
+              )}
               <BufferedArea
                 rows={s.role === 'body' ? 3 : 1}
                 value={raws[s.id] ?? s.text}

@@ -61,3 +61,9 @@ one exclusive image dependency. SHA-256:
   current gallery contains the first two assets in reversed order; the prior
   version has one different image available only in history. SHA-256:
   `137705a3b642503b5384496b80ff37b9016e1c68105934ea2afb8ed40f65ddf6`.
+
+- `upstream-filled-carousel.zip`: generated on upstream `550c0ef` by its
+  actual upload, project, version and whole-library backup HTTP handlers with
+  three synthetic solid-color inputs. Includes current and historical native
+  carousels with different ratios and empty slots, and one history-only JPEG.
+  SHA-256: `4f3df6a733d2de0e54ea5b182f80ac14419ff413d82ba86507e168d6b9d46bee`.

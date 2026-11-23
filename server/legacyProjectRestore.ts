@@ -10,7 +10,7 @@ import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
 import { readAssetMetadata, validateArchivedRaster } from './legacyRaster'
-import { MAX_NATIVE_GALLERY_IMAGES, selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
+import { MAX_NATIVE_GALLERY_IMAGES, nativeCarouselSlots, selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
 import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
@@ -349,8 +349,6 @@ const columnsTextKeys = new Set(['title', 'content', 'imagePosition'])
 const blankImageKeys = new Set(['caption', 'variant'])
 const blankFrameKeys = new Set(['caption', 'label', 'variant'])
 const blankGalleryKeys = new Set(['images', 'columns', 'caption'])
-const blankCarouselKeys = new Set(['pics', 'label', 'ratio', 'variant'])
-const blankSlotKeys = new Set(['caption'])
 const textBoxKeys = new Set(['title', 'label', 'variant', 'children'])
 const legacyCoverAlignments = new Set<unknown>(['auto', 'left', 'center', 'right'])
 const legacyCoverVariants = new Set<unknown>(['auto', 'hero', 'band', 'minimal'])
@@ -390,12 +388,8 @@ function acceptsBlankGallery(props: Record<string, unknown>) {
     (props.columns === 1 || props.columns === 2 || props.columns === 3) && boundedText(props.caption, 2000)
 }
 
-function acceptsBlankCarousel(props: Record<string, unknown>) {
-  return knownKeys(props, blankCarouselKeys) && boundedText(props.label, 2000) &&
-    (props.variant === 'peek' || props.variant === 'full') && typeof props.ratio === 'string' &&
-    ['4:3', '3:2', '16:9', '1:1', '3:4'].includes(props.ratio) &&
-    Array.isArray(props.pics) && props.pics.length <= 30 && props.pics.every(slot =>
-      isObject(slot) && knownKeys(slot, blankSlotKeys) && boundedText(slot.caption, 2000))
+function acceptsBlankCarousel(block: unknown) {
+  return nativeCarouselSlots(block)?.every(slot => !Object.hasOwn(slot, 'image')) === true
 }
 
 function textParagraph(props: Record<string, unknown>, budget: RichTextBudget, allowLinks = false) {
@@ -424,7 +418,7 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
     case 'paragraph': return textParagraph(props, budget, true)
     case 'box': return acceptsTextBox(props, budget, ids)
     case 'gallery': return acceptsBlankGallery(props)
-    case 'carousel': return acceptsBlankCarousel(props)
+    case 'carousel': return acceptsBlankCarousel(value)
     case 'timeline':
     case 'table': return acceptsLegacyDataBlock(value.type, props, dataBudget)
     case 'ending': return acceptsTextEnding(props)
@@ -468,6 +462,10 @@ function acceptedFilledGallery(block: Block, images: Map<string, RestoreImage>):
     props.images.length > 0 && props.images.length <= MAX_NATIVE_GALLERY_IMAGES &&
     (props.columns === 1 || props.columns === 2 || props.columns === 3) &&
     boundedText(props.caption, 2000) && props.images.every(image => acceptedImageRef(image, images))
+}
+
+function acceptedFilledCarousel(block: Block, images: Map<string, RestoreImage>): boolean {
+  return nativeCarouselSlots(block)?.every(slot => !Object.hasOwn(slot, 'image') || acceptedImageRef(slot.image, images)) === true
 }
 
 function acceptedImageRef(image: unknown, images: Map<string, RestoreImage>): image is ImageRef & { assetId: string } {
@@ -524,7 +522,7 @@ function linkedSvgProject(doc: Project): Project | null {
 }
 
 type ArchivedThemes = Map<string, DesignData['themes'][number]>
-type ProjectQualification = { linkedSvg?: boolean; draftCover?: boolean; nativePhotos?: boolean; nativeGallery?: boolean; themes: ArchivedThemes }
+type ProjectQualification = { linkedSvg?: boolean; draftCover?: boolean; nativePhotos?: boolean; nativeCollections?: boolean; themes: ArchivedThemes }
 function validProjectStyle(doc: Project, themes: ArchivedThemes) {
   const id = doc.themeId
   if (id !== undefined && (typeof id !== 'string' || (!coreThemeIds.has(id) && !themes.has(id)))) return false
@@ -559,7 +557,7 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
     (textBlock(block, budget, dataBudget, ids) || acceptedImageBlock(block, images) ||
       acceptedLocalSvgBlock(block) || acceptedStarterReplayBlock(block, dataBudget) ||
       (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
-      (options.nativeGallery && acceptedFilledGallery(block, images)) ||
+      (options.nativeCollections && (acceptedFilledGallery(block, images) || acceptedFilledCarousel(block, images))) ||
       (options.linkedSvg && acceptedLinkedSvgBlock(block))))
 }
 
@@ -575,15 +573,23 @@ function canonicalRestoredBlock(block: Block, images: Map<string, RestoreImage>)
   if (block.type === 'image') return canonicalImageBlock(block, images)
   if (block.type === 'photos') return qualifyProjectPhotos(block, images)!
   if (block.type === 'gallery' && block.props.images.length) {
-    const refs = block.props.images.map(image => ({ ...image, src: images.get(image.assetId!)!.qualifiedSrc }))
+    const refs = block.props.images.map(image => pinRestoredImage(image, images))
     return { ...block, props: { ...block.props, images: refs } }
+  }
+  if (block.type === 'carousel') {
+    const pics = block.props.pics.map(slot => slot.image ? { ...slot, image: pinRestoredImage(slot.image, images) } : slot)
+    return { ...block, props: { ...block.props, pics } }
   }
   return block
 }
 
+function pinRestoredImage(image: ImageRef, images: Map<string, RestoreImage>): ImageRef {
+  return { ...image, src: images.get(image.assetId!)!.qualifiedSrc }
+}
+
 function restoredBlockDependencies(block: Block): string[] {
   if (block.type === 'image') return block.props.image?.assetId ? [block.props.image.assetId] : []
-  if (block.type === 'photos') return block.props.pics.flatMap(slot => slot.image?.assetId ? [slot.image.assetId] : [])
+  if (block.type === 'photos' || block.type === 'carousel') return block.props.pics.flatMap(slot => slot.image?.assetId ? [slot.image.assetId] : [])
   if (block.type === 'gallery') return block.props.images.flatMap(ref => ref.assetId ? [ref.assetId] : [])
   return []
 }
@@ -650,12 +656,12 @@ const initAssetResult = () => ({ restored: [] as string[], skipped: [] as string
 
 /** Exposable subset. Opt-in images require both exact index metadata and
  * matching bytes; text-only preview/apply remains available independently. */
-type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; draftCover?: boolean; nativePhotos?: boolean; nativeGallery?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
+type StageOptions = { components?: ComponentCollection; projectImages?: boolean; standaloneImages?: boolean; modelCards?: boolean; existingHistory?: boolean; draftCover?: boolean; nativePhotos?: boolean; nativeCollections?: boolean; crossSvgPreview?: boolean; crossSvgRestore?: boolean }
 
 export async function stageLegacyTextProjects(path: string, store: ProjectStore, historyStore?: HistoryStore, assetStore?: AssetStore, designStore?: DesignCollections, options: StageOptions = {}) {
   const references = assetStore && !options.standaloneImages ? { projectImages: options.projectImages !== false } : undefined
   const decoded = await readLegacyArchive(path, routeBudget, !!assetStore, true, !!historyStore, !!designStore, !!options.components, !!options.modelCards, references)
-  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true, draftCover: true, nativePhotos: true, nativeGallery: true })
+  return stageDecodedLegacyProjects(decoded, store, historyStore, assetStore, designStore, { ...options, existingHistory: true, draftCover: true, nativePhotos: true, nativeCollections: true })
 }
 
 /** Current manuscripts and their reviewed indexed raster dependencies from an owner-local directory. */
@@ -776,7 +782,7 @@ function stageDecodedLegacyProjects({ projects, assets, history, design, compone
   }
   const designs = designStore ? stageLegacyDesign(designRecords, designStore) : null
   const archivedThemes: ArchivedThemes = new Map(designStore ? designRecords.themes.map(theme => [theme.id, theme]) : [])
-  const projectQualification = { linkedSvg: options.crossSvgRestore, draftCover: options.draftCover, nativePhotos: options.nativePhotos, nativeGallery: options.nativeGallery, themes: archivedThemes }
+  const projectQualification = { linkedSvg: options.crossSvgRestore, draftCover: options.draftCover, nativePhotos: options.nativePhotos, nativeCollections: options.nativeCollections, themes: archivedThemes }
   const fallbackTime = Date.now()
   let crossSvgPreview: CrossSvgPreview | null = null
   for (const source of projects) {

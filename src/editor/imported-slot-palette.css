@@ -1,0 +1,8 @@
+.imported-slot-palette { display: grid; gap: 4px; justify-items: start; }
+.imported-slot-palette > button { min-height: 30px; padding: 3px 8px; font-size: 12px; }
+.imported-slot-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.imported-slot-swatches > button { display: grid; place-items: center; width: 30px; height: 30px; padding: 2px; }
+.imported-slot-swatches > button > span { width: 15px; height: 15px; border: 1px solid var(--line); border-radius: 3px; }
+@media (max-width: 600px) {
+  .imported-slot-swatches > button { width: 40px; height: 40px; }
+}

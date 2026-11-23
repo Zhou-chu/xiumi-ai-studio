@@ -51,6 +51,34 @@ function readZip(buf: Buffer) {
   return files
 }
 
+test('原文片段：取片段自带颜色，仅改所选文字并在重开后保留', async ({ page }) => {
+  await page.goto('/')
+  await pasteArticle(page, '<section style="background-color:#f3eefa;padding:18px;border-radius:10px">' +
+    '<p style="color:#6b2fa0;font-size:20px">文章主标题</p><p style="color:#999">次要说明</p></section>')
+  await page.getByTestId('article-import').click()
+  const block = canvas(page).locator('[data-block-id]').filter({ hasText: '文章主标题' })
+  const title = block.locator('p').filter({ hasText: '文章主标题' })
+  const note = block.locator('p').filter({ hasText: '次要说明' })
+  await expect(title).toHaveCSS('color', 'rgb(107, 47, 160)')
+  await block.click()
+  const slot = page.getByTestId('slot-t0')
+  const opener = slot.getByRole('button', { name: '片段配色' })
+  await opener.press('Enter')
+  const choices = slot.getByRole('group', { name: '片段原有颜色' })
+  await expect(choices).toBeVisible()
+  await choices.getByRole('button', { name: '#999999', exact: true }).press('Escape')
+  await expect(opener).toBeFocused()
+  await expect(choices).toHaveCount(0)
+  await opener.click()
+  await choices.getByRole('button', { name: '#999999', exact: true }).click()
+  await expect(title).toHaveCSS('color', 'rgb(153, 153, 153)')
+  await expect(title).toHaveCSS('font-size', '20px')
+  await expect(note).toHaveCSS('color', 'rgb(153, 153, 153)')
+  await waitSaved(page)
+  await page.reload()
+  await expect(title).toHaveCSS('color', 'rgb(153, 153, 153)')
+})
+
 test('导出给秀米：本地图片不内嵌；有接口时传微信图床，没有时给占位图和编号图片包', async ({ page }) => {
   await page.goto('/')
   const { assets } = await (await page.request.post('/api/samples/load')).json()
