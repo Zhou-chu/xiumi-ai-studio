@@ -41,7 +41,10 @@ it.each([
 
 it.each([
   '',
-  '<a href="https://example.invalid/">label</a>',
+  '<a href="/relative">label</a>',
+  '<a href="mailto:user@example.invalid">label</a>',
+  '<a>label</a>',
+  '<p href="https://example.invalid/">label</p>',
   '<p style="position: fixed">label</p>',
   '<p style="display: none">label</p>',
   '<p style="color:">label</p>',

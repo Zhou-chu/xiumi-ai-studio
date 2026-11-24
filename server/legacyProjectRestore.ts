@@ -10,7 +10,7 @@ import { normalizeBlocks } from '../src/core/blocks'
 import { THEMES } from '../src/core/themes'
 import type { Block, Doc, ImageRef } from '../src/core/types'
 import { readAssetMetadata, validateArchivedRaster } from './legacyRaster'
-import { MAX_NATIVE_GALLERY_IMAGES, nativeCarouselSlots, selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
+import { MAX_NATIVE_GALLERY_IMAGES, nativeCarouselSlots, nativeFilledFrameImage, selectArchiveMediaFiles } from './legacyArchiveMediaSelection'
 import { archivedModelCards, stageModelCards } from './modelRestore'
 import type { ArchivedAsset, assetRestoreStore } from './assets'
 import { acceptsLegacyRichText, legacyTextAlignments, type RichTextBudget } from './legacyRichText'
@@ -472,6 +472,10 @@ function acceptedFilledCarousel(block: Block, images: Map<string, RestoreImage>)
   return nativeCarouselSlots(block)?.every(slot => !Object.hasOwn(slot, 'image') || acceptedImageRef(slot.image, images)) === true
 }
 
+function acceptedNativeCollection(block: Block, images: Map<string, RestoreImage>): boolean {
+  return acceptedImageRef(nativeFilledFrameImage(block), images) || acceptedFilledGallery(block, images) || acceptedFilledCarousel(block, images)
+}
+
 function acceptedImageRef(image: unknown, images: Map<string, RestoreImage>): image is ImageRef & { assetId: string } {
   if (!isObject(image) || !knownKeys(image, imageRefKeys) || typeof image.assetId !== 'string') return false
   const record = images.get(image.assetId)
@@ -561,11 +565,11 @@ function independentlyRestorable(doc: Project, images: Map<string, RestoreImage>
     (textBlock(block, budget, dataBudget, ids) || acceptedImageBlock(block, images) ||
       acceptedLocalSvgBlock(block) || acceptedStarterReplayBlock(block, dataBudget) ||
       (options.nativePhotos && !!qualifyProjectPhotos(block, images)) ||
-      (options.nativeCollections && (acceptedFilledGallery(block, images) || acceptedFilledCarousel(block, images))) ||
+      (options.nativeCollections && acceptedNativeCollection(block, images)) ||
       (options.linkedSvg && acceptedLinkedSvgBlock(block))))
 }
 
-function canonicalImageBlock(block: Block<'image'>, images: Map<string, RestoreImage>): Block<'image'> {
+function canonicalImageBlock<T extends 'image' | 'frame'>(block: Block<T>, images: Map<string, RestoreImage>): Block<T> {
   const ref = block.props.image
   const record = images.get(ref?.assetId ?? '')
   if (!ref || !record) return block
@@ -574,7 +578,7 @@ function canonicalImageBlock(block: Block<'image'>, images: Map<string, RestoreI
 }
 
 function canonicalRestoredBlock(block: Block, images: Map<string, RestoreImage>): Block {
-  if (block.type === 'image') return canonicalImageBlock(block, images)
+  if (block.type === 'image' || block.type === 'frame') return canonicalImageBlock(block, images)
   if (block.type === 'photos') return qualifyProjectPhotos(block, images)!
   if (block.type === 'gallery' && block.props.images.length) {
     const refs = block.props.images.map(image => pinRestoredImage(image, images))
@@ -592,7 +596,7 @@ function pinRestoredImage(image: ImageRef, images: Map<string, RestoreImage>): I
 }
 
 function restoredBlockDependencies(block: Block): string[] {
-  if (block.type === 'image') return block.props.image?.assetId ? [block.props.image.assetId] : []
+  if (block.type === 'image' || block.type === 'frame') return block.props.image?.assetId ? [block.props.image.assetId] : []
   if (block.type === 'photos' || block.type === 'carousel') return block.props.pics.flatMap(slot => slot.image?.assetId ? [slot.image.assetId] : [])
   if (block.type === 'gallery') return block.props.images.flatMap(ref => ref.assetId ? [ref.assetId] : [])
   return []

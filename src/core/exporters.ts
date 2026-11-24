@@ -108,7 +108,7 @@ export function docToMarkdown(doc: Doc): string {
         out.push(...pics(b.props.pics.slice(0, b.props.count), markdownDataText))
         break
       case 'frame': {
-        const caption = b.props.image ? b.props.caption : markdownDataText(b.props.caption)
+        const caption = markdownDataText(b.props.caption)
         out.push(img(b.props.image?.src, caption), caption && `*${caption}*`)
         break
       }

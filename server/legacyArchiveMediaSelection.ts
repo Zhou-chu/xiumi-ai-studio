@@ -14,7 +14,8 @@ function imageFile(value: unknown): string | null {
   return match && match[1] === value.assetId ? match[1] + '.' + match[2] : null
 }
 
-const carouselBlockKeys = new Set(['id', 'type', 'props'])
+const projectBlockKeys = new Set(['id', 'type', 'props'])
+const filledFrameKeys = new Set(['image', 'caption', 'label', 'variant'])
 const carouselPropsKeys = new Set(['pics', 'label', 'ratio', 'variant'])
 const carouselSlotKeys = new Set(['image', 'caption'])
 const carouselRatios = new Set<unknown>(['4:3', '3:2', '16:9', '1:1', '3:4'])
@@ -46,11 +47,20 @@ function nativeCarouselHeader(value: Record<string, unknown>): boolean {
  * Actual catalog, byte, dimensions and generation validation still happens
  * through the archive reader and the existing qualified image policy. */
 export function nativeCarouselSlots(value: unknown): Record<string, unknown>[] | null {
-  if (!object(value) || value.type !== 'carousel' || !hasOnlyKeys(value, carouselBlockKeys) ||
+  if (!object(value) || value.type !== 'carousel' || !hasOnlyKeys(value, projectBlockKeys) ||
       typeof value.id !== 'string' || !/^[\w-]{1,64}$/.test(value.id) || !object(value.props) ||
       !nativeCarouselHeader(value.props)) return null
   const { pics } = value.props
   return Array.isArray(pics) && pics.length <= MAX_NATIVE_CAROUSEL_SLOTS && pics.every(supportedCarouselSlot) ? pics : null
+}
+
+/** Validate frame structure before selecting bytes; the store verifies the indexed reference separately. */
+export function nativeFilledFrameImage(value: unknown): unknown {
+  if (!object(value) || value.type !== 'frame' || !hasOnlyKeys(value, projectBlockKeys) ||
+      typeof value.id !== 'string' || !/^[\w-]{1,64}$/.test(value.id) || !object(value.props)) return undefined
+  const { image, caption, label, variant } = value.props
+  return hasOnlyKeys(value.props, filledFrameKeys) && captionText(caption) && captionText(label) &&
+    (variant === 'flag' || variant === 'circuit' || variant === 'ticket') && looksLikeLocalRaster(image) ? image : undefined
 }
 
 function imageBlock(value: unknown): string | null {
@@ -75,6 +85,10 @@ function addProjectCollectionMedia(block: unknown, add: AddFile) {
     const { images } = block.props
     if (block.type === 'gallery' && Array.isArray(images) && images.length <= MAX_NATIVE_GALLERY_IMAGES) {
       for (const ref of images) add(imageFile(ref))
+      return
+    }
+    if (block.type === 'frame') {
+      add(imageFile(nativeFilledFrameImage(block)))
       return
     }
     if (block.type === 'carousel') {

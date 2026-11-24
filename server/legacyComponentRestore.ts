@@ -9,8 +9,8 @@ export const COMPONENT_ENTRY = /^components\/([\w-]{1,64})\.json$/
 const MEDIA = /^\/media\/([\w-]{1,64}\.(?:png|jpg))(?:\?gen=[a-f0-9]{64})?$/
 const supportedStyles = new Set(['background-color', 'border', 'border-color', 'border-radius', 'color', 'display', 'font-size',
   'font-weight', 'height', 'letter-spacing', 'line-height', 'margin', 'max-width', 'padding', 'text-align', 'width'])
-const allowedTags = ['body', 'section', 'p', 'span', 'strong', 'b', 'em', 'i', 'u', 's', 'br', 'img', 'h1', 'h2', 'h3', 'blockquote', 'ul', 'ol', 'li', 'figure', 'figcaption']
-const allowedAttrs = ['src', 'alt', 'style']
+const allowedTags = ['body', 'section', 'p', 'span', 'a', 'strong', 'b', 'em', 'i', 'u', 's', 'br', 'img', 'h1', 'h2', 'h3', 'blockquote', 'ul', 'ol', 'li', 'figure', 'figcaption']
+const allowedAttrs = ['src', 'alt', 'style', 'href']
 export type ComponentCollection = Pick<ReturnType<typeof collection<LibraryComponent>>, 'restoreStatus' | 'withRestoreEntry'>
 type Image = { id: string; src: string }
 type ImageLookup = Pick<ReadonlyMap<string, Image>, 'get'>
@@ -35,11 +35,21 @@ function advisorySource(value: unknown): AdvisorySource {
   return { kind, title: shortText(source.title, 120), account: shortText(source.account, 60), url: '' }
 }
 
+function isOrdinaryLink(href: string | null): boolean {
+  if (href === null || href.length > 2048 || !/^https?:\/\/[^/]/i.test(href) || /[\p{Cc}\s\\]/u.test(href)) return false
+  const url = URL.parse(href)
+  return !!url?.hostname && !url.username && !url.password
+}
+
 function prepareHtml(html: string, images: ImageLookup) {
   const sanitized = DOMPurify.sanitize(html, { RETURN_DOM: true, ALLOWED_TAGS: allowedTags, ALLOWED_ATTR: allowedAttrs, ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false })
   if (sanitized.nodeType !== 1) return null
   const element = sanitized as HTMLElement
   if (DOMPurify.removed.length || element.attributes.length || !element.innerHTML.trim()) return null
+  // Links are navigation only; keep other HTML and managed image checks intact.
+  for (const node of element.querySelectorAll('a, [href]')) {
+    if (node.localName !== 'a' || !isOrdinaryLink(node.getAttribute('href'))) return null
+  }
   const dependencies = new Set<string>()
   let missing = false
   for (const node of element.querySelectorAll('[style], [src], img')) {
@@ -62,7 +72,7 @@ function prepareHtml(html: string, images: ImageLookup) {
   return { element, dependencies, missing }
 }
 
-/** Narrow archive subset: inert HTML and known managed images only. Trust is never imported. */
+/** Narrow archive subset: restricted HTML, ordinary links and known managed images only. Trust is never imported. */
 export function qualifyLegacyComponent(id: string, raw: unknown, images: ImageLookup): ComponentCandidate | null {
   if (!object(raw) || raw.id !== id || raw.schema !== COMPONENT_SCHEMA || !timestamp(raw.rev) || raw.rev < 1 ||
       !timestamp(raw.createdAt) || !timestamp(raw.updatedAt) || !object(raw.block) || raw.block.type !== 'html' ||
