@@ -325,3 +325,80 @@ it('keeps loading failures disabled instead of allowing destructive empty saves'
   expect(host.querySelector<HTMLButtonElement>('.modal-actions .primary')!.disabled).toBe(true)
   expect(host.querySelector<HTMLSelectElement>('[data-testid=ai-add-preset]')!.disabled).toBe(true)
 })
+
+const blurField = (el: HTMLElement, next: HTMLElement | null) => act(async () => {
+  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: next }))
+})
+
+it('queries once when edited credentials are ready and leaving the credential fields', async () => {
+  const base = host.querySelector<HTMLInputElement>('input[placeholder="https://…/v1"]')!
+  const key = host.querySelector<HTMLInputElement>('input[type=password]')!
+  vi.mocked(api.aiModels).mockResolvedValue([{ id: 'fresh-model' }])
+  changeInput(base, 'https://example.invalid/v2')
+  await blurField(base, key)
+  await blurField(base, input('ai-model'))
+  expect(api.aiModels).not.toHaveBeenCalled()
+  changeInput(key, 'typed-test-marker')
+  await blurField(key, fetchButton())
+  expect(api.aiModels).not.toHaveBeenCalled()
+  await blurField(key, input('ai-model'))
+  await blurField(key, input('ai-model'))
+  expect(api.aiModels).toHaveBeenCalledTimes(1)
+  expect(api.aiModels).toHaveBeenCalledWith(expect.objectContaining({ baseUrl: 'https://example.invalid/v2', apiKey: 'typed-test-marker' }))
+  expect(host.querySelector('[data-testid=ai-model-note]')?.textContent).toContain('已获取 1 个模型')
+  expect(host.textContent).not.toContain('typed-test-marker')
+})
+
+it('does not send an old credential or publish a stale discovery after an endpoint change', async () => {
+  const base = host.querySelector<HTMLInputElement>('input[placeholder="https://…/v1"]')!
+  const key = host.querySelector<HTMLInputElement>('input[type=password]')!
+  let finish!: (models: { id: string }[]) => void
+  vi.mocked(api.aiModels).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+  changeInput(key, 'old-test-key')
+  await blurField(key, input('ai-model'))
+  expect(api.aiModels).toHaveBeenCalledTimes(1)
+  changeInput(base, 'https://second.invalid/v1')
+  await blurField(base, input('ai-model'))
+  expect(api.aiModels).toHaveBeenCalledTimes(1)
+  await act(async () => finish([{ id: 'stale-name' }]))
+  expect(host.textContent).not.toContain('stale-name')
+  expect(key.value).toBe('')
+  expect(fetchButton().disabled).toBe(false)
+})
+
+it('reports only the names of ignored top-level extra parameters', () => {
+  const field = host.querySelector<HTMLTextAreaElement>('[data-testid=ai-extra-body]')!
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(field,
+      '{"response_format":{"secret":"validation-marker"},"model":"hidden-value","extra":{"messages":[]}}')
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const warning = host.querySelector('[data-testid=ai-extra-ignored]')?.textContent
+  expect(warning).toContain('model、response_format')
+  expect(warning).not.toMatch(/validation-marker|hidden-value|messages|extra/)
+})
+
+it('allows credential-free auto discovery only on loopback and hides provider failure details', async () => {
+  const base = input('ai-base-url')
+  vi.mocked(api.aiModels).mockRejectedValueOnce(new Error('provider-private-marker'))
+  changeInput(base, 'http://127.0.0.1:9444/v1')
+  await blurField(base, input('ai-model'))
+  expect(api.aiModels).toHaveBeenCalledTimes(1)
+  expect(host.textContent).toContain('可手动重试')
+  expect(host.textContent).not.toContain('provider-private-marker')
+})
+
+it('does not automatically query on focus loss outside settings or on dismiss', async () => {
+  const key = host.querySelector<HTMLInputElement>('input[type=password]')!
+  const outside = document.createElement('input')
+  document.body.append(outside)
+  try {
+    changeInput(key, 'typed-not-sent')
+    await blurField(key, null)
+    await blurField(key, outside)
+    await blurField(key, host.querySelector<HTMLButtonElement>('[aria-label="关闭"]'))
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+    await blurField(key, input('ai-model'))
+    expect(api.aiModels).not.toHaveBeenCalled()
+  } finally { outside.remove() }
+})
