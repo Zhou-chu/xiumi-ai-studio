@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
+    "mcp": "tsx server/mcp/cli.ts",
     "e2e": "node --import isomorphic-dompurify node_modules/@playwright/test/cli.js test",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "sample": "tsx scripts/make-sample.ts",
