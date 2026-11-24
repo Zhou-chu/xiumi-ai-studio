@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 
@@ -82,4 +83,35 @@ test('renders the indexed legacy image after preview and confirm on an already v
   const image = canvas.locator('img[src*="/media/fixture-image.png?"][src*="gen="]')
   await expect(image).toBeVisible()
   await expect.poll(async () => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1)
+})
+
+
+test('restores an upstream text box and preserves the paragraph link in Markdown', async ({ page }) => {
+  const projectId = 'upstream-linked-text-box'
+  const archive = fileURLToPath(new URL('../fixtures/legacy-backup/upstream-linked-text-box.zip', import.meta.url))
+  await page.goto('/')
+  await page.getByTestId('tab-projects').click()
+  const menu = page.getByTestId('toolbar-more')
+  if (await menu.isVisible()) await menu.click()
+  await page.getByRole('button', { name: '项目和素材备份' }).click()
+  const dialog = page.getByRole('dialog', { name: '项目和素材备份' })
+  const restore = dialog.getByRole('region', { name: '从整库 ZIP 恢复部分项目' })
+  await restore.getByLabel('选择整库 ZIP').setInputFiles(archive)
+  await restore.getByRole('button', { name: '预览恢复' }).click()
+  await expect(restore.getByRole('status')).toContainText('预计新增 1 个项目')
+  expect((await page.request.get('/api/projects/' + projectId)).status()).toBe(404)
+  await restore.getByRole('button', { name: '确认添加项目' }).click()
+  await expect(restore.getByRole('status')).toHaveText('新增 1 个项目。')
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click()
+  await page.getByRole('button', { name: /Linked reference/ }).click()
+  const canvas = page.getByTestId('canvas')
+  await expect(canvas.getByText('Official guide')).toBeVisible()
+  await page.getByTestId('open-export').click()
+  const exporter = page.getByRole('dialog', { name: '导出与发布' })
+  const downloadEvent = page.waitForEvent('download')
+  await exporter.getByRole('button', { name: 'Markdown' }).click()
+  const download = await downloadEvent
+  expect(await readFile(await download.path(), 'utf8')).toContain(
+    '[Official guide](<https://example.org/guide?part=1&amp;chapter=2>)',
+  )
 })

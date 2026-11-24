@@ -55,7 +55,7 @@ it('restores native text boxes and blank picture collections, rejecting unsuppor
       const child = box.props.children[0]
       const linkedChild = createBlock('paragraph', { content: { type: 'doc', content: [{
         type: 'paragraph', content: [{ type: 'text', text: 'Nested source', marks: [
-          { type: 'link', attrs: { href: 'https://example.org/reference' } },
+          { type: 'link', attrs: { href: 'ftp://example.org/reference' } },
         ] }],
       }] } })
       const heading = createBlock('heading')
@@ -64,7 +64,7 @@ it('restores native text boxes and blank picture collections, rejecting unsuppor
         { ...docs[0], id: 'bad-box-heading-extra', blocks: [{ ...box, props: { ...box.props, children: [{ ...heading, props: { ...heading.props, image: { src: '/media/unused.png' } } }] } }] },
         { ...docs[0], id: 'bad-box-heading-long', blocks: [{ ...box, props: { ...box.props, children: [{ ...heading, props: { ...heading.props, title: 'x'.repeat(2001) } }] } }] },
         { ...docs[0], id: 'bad-box-heading-duplicate', blocks: [{ ...box, props: { ...box.props, children: [heading] } }, heading] },
-        { ...docs[0], id: 'bad-box-link', blocks: [{ ...box, props: { ...box.props, children: [linkedChild] } }] },
+        { ...docs[0], id: 'bad-box-non-web-link', blocks: [{ ...box, props: { ...box.props, children: [linkedChild] } }] },
         { ...docs[0], id: 'bad-box-nested', blocks: [{ ...box, props: { ...box.props, children: [box] } }] },
         { ...docs[0], id: 'bad-box-duplicate', blocks: [box, child] },
         { ...docs[0], id: 'bad-box-content', blocks: [{ ...box, props: { ...box.props, children: [createBlock('html')] } }] },
@@ -94,7 +94,7 @@ it('restores native text boxes and blank picture collections, rejecting unsuppor
     expect([...plan.projects.add].sort()).toEqual(['audit-box', 'audit-carousel', 'audit-gallery'])
     expect([...plan.projects.unsupported].sort()).toEqual([
       'bad-box-content', 'bad-box-duplicate', 'bad-box-heading-duplicate', 'bad-box-heading-extra',
-      'bad-box-heading-long', 'bad-box-heading-variant', 'bad-box-link', 'bad-box-nested', 'bad-carousel-many', 'bad-carousel-media', 'bad-gallery-media',
+      'bad-box-heading-long', 'bad-box-heading-variant', 'bad-box-nested', 'bad-box-non-web-link', 'bad-carousel-many', 'bad-carousel-media', 'bad-gallery-media',
     ])
     const applied = await fetch(route + '/' + token + '/apply', {
       method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: '{"confirm":true}',
@@ -153,5 +153,38 @@ it('restores the pinned upstream heading and paragraph box without changing its 
     expect(markdown).toContain('Heading &lt;em&gt;&amp;')
     expect(markdown).toContain('Subtitle &lt;u&gt;&amp;')
     expect(markdown).not.toMatch(/<(?:em|u|strong)>/)
+  })
+}, 20_000)
+
+
+it('restores a native upstream text box containing a regular linked paragraph', async () => {
+  const archive = await readFile(new URL('../fixtures/legacy-backup/upstream-linked-text-box.zip', import.meta.url))
+  expect(createHash('sha256').update(archive).digest('hex')).toBe('cdd3532c5c998a2ea09c76f27738dac0306271cad9abf2cd8f428f0dc27a758f')
+  const id = 'upstream-linked-text-box'
+  const original: Doc = JSON.parse(Buffer.from(unzipSync(archive)['projects/' + id + '.json']).toString('utf8'))
+  await library(async (base, data) => {
+    const route = base + '/api/data/restore'
+    const body = new FormData()
+    body.append('file', new Blob([new Uint8Array(archive)]), 'linked-box.zip')
+    const preview = await fetch(route, { method: 'POST', body })
+    expect(preview.status).toBe(200)
+    const cookie = preview.headers.get('set-cookie')!.split(';', 1)[0]
+    const { token, plan } = await preview.json()
+    await expect(readdir(join(data, 'projects'))).resolves.toEqual([])
+    expect(plan.projects.add).toEqual([id])
+    expect(plan.projects.unsupported).toEqual([])
+    const applied = await fetch(route + '/' + token + '/apply', {
+      method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: '{"confirm":true}',
+    })
+    expect(applied.status).toBe(200)
+    const opened = await fetch(base + '/api/projects/' + id)
+    expect(opened.status).toBe(200)
+    const restored: Doc = await opened.json()
+    expect(restored.blocks).toEqual(original.blocks)
+    expect(compileDoc(restored).html).not.toContain('href="https://example.org/guide')
+    expect(compileDoc(restored, { externalLinks: 'keep' }).html).toMatch(
+      /<a href="https:\/\/example\.org\/guide\?part=1&amp;chapter=2"[^>]*>Official guide<\/a>/,
+    )
+    expect(docToMarkdown(restored)).toContain('[Official guide](<https://example.org/guide?part=1&amp;chapter=2>)')
   })
 }, 20_000)

@@ -392,9 +392,9 @@ function acceptsBlankCarousel(block: unknown) {
   return nativeCarouselSlots(block)?.every(slot => !Object.hasOwn(slot, 'image')) === true
 }
 
-function textParagraph(props: Record<string, unknown>, budget: RichTextBudget, allowLinks = false) {
+function textParagraph(props: Record<string, unknown>, budget: RichTextBudget) {
   return knownKeys(props, paragraphKeys) && typeof props.align === 'string' &&
-    legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget, allowLinks)
+    legacyTextAlignments.has(props.align) && acceptsLegacyRichText(props.content, budget, true)
 }
 
 function takeProjectBlockId(value: unknown, ids: Set<string>) {
@@ -422,7 +422,7 @@ function textBlock(value: unknown, budget: RichTextBudget, dataBudget: LegacyDat
   if (!isObject(value) || !knownKeys(value, blockKeys) || !isObject(value.props)) return false
   const { props } = value
   switch (value.type) {
-    case 'paragraph': return textParagraph(props, budget, true)
+    case 'paragraph': return textParagraph(props, budget)
     case 'heading': return acceptsTextHeading(props)
     case 'box': return acceptsTextBox(props, budget, ids)
     case 'gallery': return acceptsBlankGallery(props)
