@@ -1,7 +1,11 @@
+import { HOSTED_REPLAY_PATH } from '../src/core/hostedReplayMedia'
+import { createHostedReplayConsentRouter, isOwnedReplayBrowser } from './hostedReplayConsent'
 import { createUploadGate } from './uploadGate'
 import { importArticleImages } from './articleImages'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import { basename, dirname, join, resolve } from 'node:path'
+import { lstat, realpath } from 'node:fs/promises'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
 import { boundedDiskStorage } from './uploadStorage'
@@ -14,18 +18,50 @@ import { probeEfforts } from './aiModels'
 import { editPrompt, scopeEditResult } from './aiEdit'
 import { suggestionPrompt, readSuggestion, SUGGESTION_SYSTEM } from './aiSuggestion'
 import { isRoleId } from '../src/core/roles'
+import { restoredModelCards } from './modelRestore'
 import { publicAiSettings, resolveDraftProfile, saveAiSettings } from './settings'
 import { importFile } from './importer'
-import { collection, DIRS, ROOT, safeId } from './store'
+import { collection, DATA, DIRS, ROOT, safeId } from './store'
+import { projectHistoryRestore, VERSION_RETENTION_LIMIT } from './projectHistoryRestore'
 import { projectCollection } from './projectStore'
+import { localArchiveOrigin } from './localArchiveOrigin'
+import { registerLegacyRestoreRoutes } from './legacyRestoreRoutes'
+import { registerLegacyDirectoryMigrationRoutes } from './legacyDirectoryMigrationRoutes'
+import { planLibraryBackup } from './fullLibraryBackup'
+import { prepareLibraryDownload, type BackupZipOptions } from './libraryBackupDownload'
 import { addDraft, uploadContentImage, uploadCover, validateDraft, wechatStatus } from './wechat'
 
 type Doc = { id: string; title: string; updatedAt: number; [k: string]: any }
 type Version = { id: string; projectId: string; label: string; createdAt: number; doc: Doc }
 
 
+async function publicMediaFile(candidate: string, roots: readonly string[]) {
+  const name = basename(candidate)
+  // The returned value can only be a single public JPEG/PNG filename,
+  // independently of validation inside the variant resolver.
+  if (!/^[\w-]{1,200}\.(?:jpg|png)$/.test(name)) return null
+  const path = resolve(candidate)
+  const allowed = roots.find(root => resolve(root) === dirname(path))
+  if (!allowed) return null
+  try {
+    if (!(await lstat(allowed)).isDirectory()) return null
+    const root = await realpath(allowed)
+    const file = join(root, name)
+    if (!(await lstat(file)).isFile() || await realpath(file) !== file) return null
+    return { name, root }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
 /** Build the HTTP application without opening a listener or loading credentials. */
-export function createApp() {
+export function createApp({ restoreTempRoot, legacyMigrationSource, ownedReplayTransport, backupZip }: {
+  restoreTempRoot?: string
+  backupZip?: BackupZipOptions
+  legacyMigrationSource?: string
+  ownedReplayTransport?: Parameters<typeof createHostedReplayConsentRouter>[0]
+} = {}) {
   const projects = projectCollection<Doc>(DIRS.projects)
   const templates = collection<{ id: string; name: string; blocks: unknown[]; themeId?: string; themeOverrides?: unknown; roles?: Record<string, string>; createdAt: number }>(DIRS.templates)
   const themes = collection<{ id: string; name: string }>(DIRS.themes)
@@ -33,6 +69,7 @@ export function createApp() {
   
   const app = express()
   app.disable('x-powered-by')
+  if (ownedReplayTransport) app.use(HOSTED_REPLAY_PATH, createHostedReplayConsentRouter(ownedReplayTransport))
   app.use(express.json({ limit: '20mb' }))
   const uploadRoute = createUploadGate()
   const upload = multer({ storage: boundedDiskStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 50, fields: 8, fieldSize: 64 * 1024, parts: 58 } })
@@ -41,11 +78,63 @@ export function createApp() {
   const MAX_IMPORT_IMAGE = 30 * 1024 * 1024
   const fixName = (n: string) => Buffer.from(n, 'latin1').toString('utf8') // multer 按 latin1 解码中文文件名
   
+  // Full-library export is a local-only download; it does not replace the
+  // browser's independently owned single-project/portable snapshot flow.
+  let backupActive = false
+  app.get('/api/data/backup', h(async (req, res) => {
+    if (!localArchiveOrigin(req)) {
+      return res.status(403).json({ error: '只允许从同源本机下载整库备份' })
+    }
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')
+    if (req.method === 'HEAD') {
+      res.setHeader('Content-Type', 'application/zip')
+      res.setHeader('Cache-Control', 'no-store')
+      return res.end()
+    }
+    if (backupActive) return res.status(429).json({ error: '整库备份正在运行，请稍后重试' })
+    backupActive = true
+    const controller = new AbortController()
+    const closed = () => { if (!res.writableFinished) controller.abort() }
+    res.once('close', closed)
+    let download: Awaited<ReturnType<typeof prepareLibraryDownload>> | undefined
+    try {
+      let version = 'dev'
+      try {
+        const value = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
+        if (typeof value === 'string') version = value
+      } catch { /* Keep development version for source builds without metadata. */ }
+      const plan = await planLibraryBackup(DATA, version, controller.signal)
+      download = await prepareLibraryDownload(plan, controller.signal, backupZip)
+      controller.signal.throwIfAborted()
+      res.setHeader('Content-Type', 'application/zip')
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin')
+      res.setHeader('Content-Disposition', `attachment; filename="xiumi-backup-${stamp}.zip"; filename*=UTF-8''${encodeURIComponent(`XIUMI备份-${stamp}.zip`)}`)
+      if (download.size !== undefined) res.setHeader('Content-Length', download.size)
+      await pipeline(download.body(), res, { signal: controller.signal })
+    } catch (error) {
+      if (!controller.signal.aborted && !res.destroyed) throw error
+    } finally {
+      await download?.dispose?.()
+      res.off('close', closed)
+      backupActive = false
+    }
+  }))
+
+  const history = projectHistoryRestore(DIRS.versions, projects)
+  if (legacyMigrationSource) registerLegacyDirectoryMigrationRoutes(app, projects, legacyMigrationSource, DATA, { history, design: { themes, templates } })
+  registerLegacyRestoreRoutes(app, projects, restoreTempRoot, history, { templates, themes })
+
   // ---------- 素材 ----------
   app.get('/media/:file', h(async (req, res) => {
-    const p = await variantPath(String(req.params.file), req.query.fit as string | undefined, Number(req.query.w) || undefined)
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-    res.sendFile(p)
+    const generation = req.query.gen
+    if (generation !== undefined && typeof generation !== 'string') return res.status(400).json({ error: '素材版本无效' })
+    const p = await variantPath(String(req.params.file), req.query.fit as string | undefined, Number(req.query.w) || undefined, generation)
+    const selected = await publicMediaFile(p, [DIRS.assets, DIRS.cache])
+    if (!selected) return res.status(404).json({ error: '素材不存在' })
+    // Unqualified legacy names can be reused. Never advertise immutability for them.
+    res.setHeader('Cache-Control', generation ? 'public, max-age=31536000, immutable' : 'public, no-cache')
+    res.sendFile(selected.name, { root: selected.root, dotfiles: 'deny' })
   }))
   app.get('/api/assets', h(async (_req, res) => res.json(await listAssets())))
   app.post('/api/assets', uploadRoute(upload.array('files'), async (req, res) => {
@@ -104,12 +193,17 @@ export function createApp() {
   }))
   app.post('/api/projects/:id/versions', h(async (req, res) => {
     const pid = String(req.params.id)
-    const v: Version = { id: `${Date.now()}-${nanoid(4).replace(/[^\w]/g, 'x')}`, projectId: pid, label: String(req.body.label ?? '手动保存'), createdAt: Date.now(), doc: req.body.doc }
-    const col = versionsOf(pid)
-    await col.put(v)
-    // 每个项目最多保留 50 个版本
-    const all = (await col.list()).sort((a, b) => b.createdAt - a.createdAt)
-    for (const old of all.slice(50)) await col.remove(old.id)
+    const v = await projects.serializeDependent(pid, async () => {
+      const createdAt = Date.now()
+      const version: Version = { id: `${createdAt}-${nanoid(4).replace(/[^\w]/g, 'x')}`, projectId: pid, label: String(req.body.label ?? '手动保存'), createdAt, doc: req.body.doc }
+      const col = versionsOf(pid)
+      if (col.exists(version.id)) throw Object.assign(new Error('版本标识冲突，未覆盖现有版本，请重试。'), { status: 409 })
+      await col.put(version)
+      // 每个项目最多保留 50 个版本
+      const all = (await col.list()).sort((a, b) => b.createdAt - a.createdAt)
+      for (const old of all.slice(VERSION_RETENTION_LIMIT)) await col.remove(old.id)
+      return version
+    })
     res.json({ id: v.id, label: v.label, createdAt: v.createdAt })
   }))
   app.get('/api/projects/:id/versions/:vid', h(async (req, res) => {
@@ -171,7 +265,7 @@ export function createApp() {
   
   // ---------- AI ----------
   app.get('/api/ai/status', h(async (req, res) => res.json(await aiStatus(req.query.profileId as string | undefined))))
-  app.get('/api/settings/ai', h(async (_req, res) => res.json(await publicAiSettings())))
+  app.get('/api/settings/ai', h(async (_req, res) => res.json({ ...await publicAiSettings(), modelCards: await restoredModelCards() })))
   app.put('/api/settings/ai', h(async (req, res) => res.json(await saveAiSettings(req.body))))
   /** 测试连接：让模型返回一个最小 JSON */
   app.post('/api/settings/ai/models', h(async (req, res) => {
@@ -342,8 +436,12 @@ ${JSON.stringify(b.layouts ?? {})}`
   }))
   
   // ---------- 微信公众号 ----------
-  app.get('/api/wechat/status', (_req, res) => {
-    res.json(wechatStatus())
+  app.get('/api/wechat/status', (req, res) => {
+    if (ownedReplayTransport) {
+      res.setHeader('Cache-Control', 'no-store')
+      if (isOwnedReplayBrowser(req, false)) return res.json({ ...wechatStatus(), ownedReplay: true })
+    }
+    return res.json(wechatStatus())
   })
   /** 把正文中的本地图片上传到微信，返回 本地地址 → mmbiz 地址 映射 */
   app.post('/api/wechat/upload-images', h(async (req, res) => {
@@ -353,7 +451,7 @@ ${JSON.stringify(b.layouts ?? {})}`
       const m = u.match(/^\/media\/([\w-]+\.(?:jpg|png))(?:\?(.*))?$/)
       if (!m) continue
       const q = new URLSearchParams(m[2] ?? '')
-      const p = await variantPath(m[1], q.get('fit') ?? undefined, Number(q.get('w')) || undefined)
+      const p = await variantPath(m[1], q.get('fit') ?? undefined, Number(q.get('w')) || undefined, q.get('gen') ?? undefined)
       map[u] = await uploadContentImage(u, p)
     }
     res.json(map)

@@ -1,7 +1,11 @@
+import { decodeCrossSvgPreview, type CrossSvgPreview } from '../core/crossSvgPreview'
 import type { ArticleImageResult } from '../../server/articleImages'
 import type { ComponentDraft, LibraryComponent } from '../core/components'
 import type { RoleId } from '../core/roles'
 import type { Block, Doc, ImageRef, Theme } from '../core/types'
+import { restoreHistoryReasons, type RestoreHistoryReason } from '../core/restoreHistoryReasons'
+import { restoreProjectReasons, type RestoreProjectReason } from '../core/restoreProjectReasons'
+import { validMediaGeneration } from '../core/managedMediaUrl'
 
 export interface Asset {
   id: string
@@ -10,6 +14,7 @@ export interface Asset {
   width: number
   height: number
   size: number
+  generation?: string
   createdAt: number
 }
 export interface ProjectSummary {
@@ -63,6 +68,7 @@ export interface EffortProbe {
 export interface AiSettings {
   activeId: string
   profiles: AiProfile[]
+  modelCards?: Pick<AiProfile, 'id' | 'name' | 'provider' | 'model'>[]
 }
 export interface AiStatus {
   enabled: boolean
@@ -102,13 +108,123 @@ async function req<T>(method: string, url: string, body?: unknown, signal?: Abor
   return await res.json() as T
 }
 
-export const assetRef = (a: Asset): ImageRef => ({ src: `/media/${a.file}`, assetId: a.id, alt: a.name, width: a.width, height: a.height })
+export const assetMediaSrc = (a: Asset) =>
+  `/media/${a.file}${typeof a.generation === 'string' && validMediaGeneration(a.generation) ? '?gen=' + a.generation : ''}`
+export const assetRef = (a: Asset): ImageRef => ({ src: assetMediaSrc(a), assetId: a.id, alt: a.name, width: a.width, height: a.height })
 
 // Match the server's resource-ID grammar before interpolating into a route.
 // Encoding alone is insufficient: URL parsers normalize dot path segments.
 function resourceId(value: string): string {
   if (typeof value !== 'string' || !/^[\w-]{1,64}$/.test(value)) throw new ApiError('Invalid resource ID', 400)
   return encodeURIComponent(value)
+}
+
+type DesignCategories<T extends string> = { themes: Record<T, string[]>; templates: Record<T | 'unresolved', string[]> }
+const designPlanFields = ['add', 'conflicts', 'alreadyPresent'] as const
+const designResultFields = ['restored', 'conflicts', 'alreadyPresent', 'failed'] as const
+
+export interface LegacyRestorePlan {
+  crossSvgPreview?: CrossSvgPreview
+  modelCards?: Record<typeof designPlanFields[number], string[]>
+  projects: { add: string[]; skip: string[]; unsupported: string[]; reasons?: Record<string, RestoreProjectReason> }
+  versions?: { add: string[]; skip: string[]; reasons?: Record<string, RestoreHistoryReason> }
+  assets?: { add: string[]; skip: string[]; alreadyPresent: string[] }
+  design?: DesignCategories<typeof designPlanFields[number]>
+  components?: Record<typeof designPlanFields[number] | 'unresolved', string[]>
+  unsupported: string[]
+}
+export interface LegacyRestoreResult {
+  modelCards?: Record<typeof designResultFields[number], string[]>
+  projects: { restored: string[]; skipped: string[]; failed: string[]; unsupported: string[] }
+  versions?: { restored: string[]; skipped: string[]; failed: string[]; reasons?: Record<string, RestoreHistoryReason> }
+  assets?: { restored: string[]; skipped: string[]; failed: string[]; alreadyPresent: string[] }
+  design?: DesignCategories<typeof designResultFields[number]>
+  components?: Record<typeof designResultFields[number] | 'unresolved', string[]>
+  unsupported: string[]
+}
+const restoreEndpoint = '/api/data/restore'
+const restoreToken = /^[a-f0-9]{64}$/
+const jsonObject = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null
+const stringList = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string')
+function designFields<K extends string>(raw: unknown, keys: readonly K[], description = '模板或主题'): Record<K, string[]> {
+  const value = jsonObject(raw)
+  if (!value) throw new Error('无法读取' + description + '恢复数据')
+  const selected = {} as Record<K, string[]>
+  for (const key of keys) {
+    const entries = value[key]
+    if (!stringList(entries)) throw new Error('无法读取' + description + '恢复数据')
+    selected[key] = entries
+  }
+  return selected
+}
+function decodeDesign<K extends string>(raw: unknown, keys: readonly K[]): DesignCategories<K> | undefined {
+  if (raw === undefined) return undefined
+  const value = jsonObject(raw)
+  return { themes: designFields(value?.themes, keys), templates: designFields(value?.templates, [...keys, 'unresolved']) }
+}
+function historyReasons(raw: unknown, reported: string[]): { reasons?: Record<string, RestoreHistoryReason> } {
+  if (raw === undefined) return {}
+  const payload = jsonObject(raw)
+  if (!payload) throw new Error('无法读取历史版本恢复原因')
+  const keys = new Set(reported)
+  const entries: [string, RestoreHistoryReason][] = []
+  for (const [id, value] of Object.entries(payload)) {
+    const known = restoreHistoryReasons.find(reason => reason === value)
+    if (!keys.has(id) || !known) throw new Error('无法读取历史版本恢复原因')
+    entries.push([id, known])
+  }
+  return { reasons: Object.fromEntries(entries) }
+}
+function projectSkipReasons(raw: unknown, skipped: string[]): { reasons?: Record<string, RestoreProjectReason> } {
+  if (raw === undefined) return {}
+  const payload = jsonObject(raw)
+  if (!payload) throw new Error('无法读取项目恢复原因')
+  const ids = new Set(skipped)
+  const entries: [string, RestoreProjectReason][] = []
+  for (const [id, value] of Object.entries(payload)) {
+    const reason = restoreProjectReasons.find(candidate => candidate === value)
+    if (!ids.has(id) || !reason) throw new Error('无法读取项目恢复原因')
+    entries.push([id, reason])
+  }
+  return { reasons: Object.fromEntries(entries) }
+}
+function decodePlan(v: unknown): { token: string; plan: LegacyRestorePlan } {
+  const body = jsonObject(v), plan = jsonObject(body?.plan), projects = jsonObject(plan?.projects), versions = jsonObject(plan?.versions)
+  if (typeof body?.token !== 'string' || !restoreToken.test(body.token) ||
+      !projects || !stringList(projects.add) || !stringList(projects.skip) ||
+      !stringList(projects.unsupported) || !stringList(plan?.unsupported)) throw new Error('无法读取恢复预览')
+  const history = versions && stringList(versions.add) && stringList(versions.skip)
+    ? { add: versions.add, skip: versions.skip, ...historyReasons(versions.reasons, versions.skip) } : undefined
+  if (plan.versions !== undefined && !history) throw new Error('无法读取恢复预览')
+  const raw = jsonObject(plan.assets)
+  const assets = raw && stringList(raw.add) && stringList(raw.skip) && stringList(raw.alreadyPresent)
+    ? { add: raw.add, skip: raw.skip, alreadyPresent: raw.alreadyPresent } : null
+  if (plan.assets !== undefined && !assets) throw new Error('无法读取素材恢复预览')
+  const modelCards = plan.modelCards === undefined ? undefined : designFields(plan.modelCards, designPlanFields, '模型资料')
+  const design = decodeDesign(plan.design, designPlanFields)
+  const components = plan.components === undefined ? undefined : designFields(plan.components, [...designPlanFields, 'unresolved'], '组件')
+  const crossSvgPreview = decodeCrossSvgPreview(plan.crossSvgPreview)
+  if (plan.crossSvgPreview !== undefined && !crossSvgPreview) throw new Error('无法读取跨块 SVG 预览')
+  return { token: body.token, plan: { ...(crossSvgPreview && { crossSvgPreview }), ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { add: projects.add, skip: projects.skip, unsupported: projects.unsupported, ...projectSkipReasons(projects.reasons, projects.skip) }, unsupported: plan.unsupported } }
+}
+function decodeResult(v: unknown): LegacyRestoreResult {
+  const body = jsonObject(v), projects = jsonObject(body?.projects), versions = jsonObject(body?.versions)
+  if (!projects || !stringList(projects.restored) || !stringList(projects.skipped) ||
+      !stringList(projects.failed) || !stringList(projects.unsupported) || !stringList(body?.unsupported)) {
+    throw new Error('无法读取恢复结果')
+  }
+  const history = versions && stringList(versions.restored) && stringList(versions.skipped) && stringList(versions.failed)
+    ? { restored: versions.restored, skipped: versions.skipped, failed: versions.failed, ...historyReasons(versions.reasons, [...versions.skipped, ...versions.failed]) } : undefined
+  if (body.versions !== undefined && !history) throw new Error('无法读取恢复结果')
+  const raw = jsonObject(body.assets)
+  const assets = raw && stringList(raw.restored) && stringList(raw.skipped) && stringList(raw.failed) && stringList(raw.alreadyPresent)
+    ? { restored: raw.restored, skipped: raw.skipped, failed: raw.failed, alreadyPresent: raw.alreadyPresent } : null
+  if (body.assets !== undefined && !assets) throw new Error('无法读取素材恢复结果')
+  const modelCards = body.modelCards === undefined ? undefined : designFields(body.modelCards, designResultFields, '模型资料')
+  const design = decodeDesign(body.design, designResultFields)
+  const components = body.components === undefined ? undefined : designFields(body.components, [...designResultFields, 'unresolved'], '组件')
+  return { ...(modelCards && { modelCards }), ...(components && { components }), ...(design && { design }), ...(history ? { versions: history } : {}), ...(assets ? { assets } : {}), projects: { restored: projects.restored, skipped: projects.skipped, failed: projects.failed, unsupported: projects.unsupported }, unsupported: body.unsupported }
 }
 
 export const api = {
@@ -127,6 +243,28 @@ export const api = {
   },
   loadSample: () => req<{ text: string; assets: Asset[] }>('POST', '/api/samples/load'),
 
+  async previewLegacyRestore(file: File, signal?: AbortSignal, indexedImages = false, includeDesign = false, includeComponents = false, standaloneImages = false, includeModelCards = false, crossSvgPreview = false, crossSvgRestore = false) {
+    const payload = new FormData()
+    payload.append('file', file)
+    const options = new URLSearchParams()
+    if (indexedImages) options.set('indexedImages', '1')
+    if (includeDesign) options.set('design', '1')
+    if (includeComponents) options.set('components', '1')
+    if (standaloneImages) options.set('standaloneImages', '1')
+    if (includeModelCards) options.set('modelCards', '1')
+    if (crossSvgPreview) options.set('crossSvgPreview', '1')
+    if (crossSvgRestore) options.set('crossSvgRestore', '1')
+    return decodePlan(await req<unknown>('POST', options.size ? restoreEndpoint + '?' + options : restoreEndpoint, payload, signal))
+  },
+  async applyLegacyRestore(token: string, signal?: AbortSignal) {
+    if (!restoreToken.test(token)) throw new Error('恢复会话无效')
+    return decodeResult(await req<unknown>('POST', `${restoreEndpoint}/${token}/apply`, { confirm: true }, signal))
+  },
+  async cancelLegacyRestore(token: string, signal?: AbortSignal) {
+    if (!restoreToken.test(token)) throw new Error('恢复会话无效')
+    const response = await fetch(`${restoreEndpoint}/${token}/cancel`, { method: 'POST', signal })
+    if (response.status !== 204) throw new ApiError('未能取消恢复会话，请重新预览。', response.status)
+  },
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
   project: async (id: string) => req<Doc>('GET', `/api/projects/${resourceId(id)}`),
   saveProject: async (doc: Doc) => req<{ updatedAt: number; revision?: string }>('PUT', `/api/projects/${resourceId(doc.id)}`, doc),
@@ -171,7 +309,7 @@ export const api = {
   importArticleImages: (urls: string[]) => req<ArticleImageResult[]>('POST', '/api/assets/import-article', { urls }),
   fetchAssets: (urls: string[]) => req<Record<string, Asset>>('POST', '/api/assets/fetch', { urls }),
 
-  wechatStatus: () => req<{ configured: boolean; appid: string }>('GET', '/api/wechat/status'),
+  wechatStatus: () => req<{ configured: boolean; appid: string; ownedReplay?: true }>('GET', '/api/wechat/status'),
   wechatUploadImages: (urls: string[]) => req<Record<string, string>>('POST', '/api/wechat/upload-images', { urls }),
   wechatDraft: (body: { title: string; author: string; digest: string; html: string; cover: string; confirm: true }) =>
     req<{ media_id: string }>('POST', '/api/wechat/draft', body),

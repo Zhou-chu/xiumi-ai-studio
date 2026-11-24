@@ -38,12 +38,19 @@ vi.mock('../../server/store', async () => {
       get: async (id: string) => getMap().get(id),
       put: async (doc: any) => { const saved = { ...doc, revision: (doc.revision ?? 0) + 1 }; getMap().set(doc.id, saved); return saved },
       remove: async (id: string) => { getMap().delete(id) },
+      exists: (id: string) => getMap().has(id),
     }
   }
-  return { ROOT: state.root, DIRS: { projects: 'projects', templates: 'templates', themes: 'themes', versions: 'versions' }, collection,
+  return { ROOT: state.root, DATA: state.root, DIRS: { projects: 'projects', templates: 'templates', themes: 'themes', versions: 'versions', assets: join(state.root, 'assets'), cache: join(state.root, 'cache') }, collection,
     safeId: (id: string) => { if (!/^[\w-]{1,64}$/.test(id)) throw Object.assign(new Error('invalid id'), { status: 400 }); return id } }
 })
-vi.mock('../../server/projectStore', async () => ({ projectCollection: (await import('../../server/store')).collection }))
+vi.mock('../../server/projectStore', async () => {
+  const { collection } = await import('../../server/store')
+  return { projectCollection: (dir: string) => ({
+    ...collection(dir),
+    serializeDependent: <T,>(_id: string, action: () => Promise<T>) => action(),
+  }) }
+})
 import { createApp } from '../../server/app'
 
 let server: Server
@@ -81,12 +88,18 @@ beforeEach(() => {
 
 describe('application HTTP routes with isolated dependencies', () => {
   it('handles media reads, assets upload/crop/delete and missing upload file', async () => {
-    const file = join(state.root, 'image.png'); await writeFile(file, 'image')
+    const assets = join(state.root, 'assets')
+    await mkdir(assets, { recursive: true })
+    const file = join(assets, 'image.png'); await writeFile(file, 'image')
     boundary.assets.variantPath.mockResolvedValue(file)
     const response = await request('/media/image.png?fit=1:1&w=240')
-    expect(await response.text()).toBe('image'); expect(response.headers.get('cache-control')).toContain('immutable')
-    expect(boundary.assets.variantPath).toHaveBeenCalledWith('image.png', '1:1', 240)
-    await request('/media/image.png'); expect(boundary.assets.variantPath).toHaveBeenLastCalledWith('image.png', undefined, undefined)
+    expect(await response.text()).toBe('image'); expect(response.headers.get('cache-control')).toBe('public, no-cache')
+    expect(boundary.assets.variantPath).toHaveBeenCalledWith('image.png', '1:1', 240, undefined)
+    const generation = 'ab'.repeat(32)
+    const qualified = await request('/media/image.png?gen=' + generation)
+    expect(qualified.headers.get('cache-control')).toContain('immutable')
+    expect(boundary.assets.variantPath).toHaveBeenLastCalledWith('image.png', undefined, undefined, generation)
+    await request('/media/image.png'); expect(boundary.assets.variantPath).toHaveBeenLastCalledWith('image.png', undefined, undefined, undefined)
     expect((await json('/api/assets')).body).toEqual([])
     expect(await (await upload('/api/assets', 'photo.png')).json()).toEqual([{ id: 'photo.png', name: 'photo.png' }])
     expect((await json('/api/assets', 'POST')).body).toEqual([])
@@ -95,6 +108,15 @@ describe('application HTTP routes with isolated dependencies', () => {
     expect((await json('/api/assets/a', 'DELETE')).body).toEqual({ ok: true }); expect(boundary.assets.deleteAsset).toHaveBeenCalledWith('a')
     expect((await json('/api/import', 'POST')).status).toBe(400)
     expect(await (await upload('/api/import', 'source.txt', 'file')).json()).toEqual({ text: 'text' })
+  })
+
+  it('does not send bytes from an unexpected media resolver location', async () => {
+    const file = join(state.root, 'sentinel.png')
+    await writeFile(file, 'synthetic-not-public')
+    boundary.assets.variantPath.mockResolvedValue(file)
+    const reply = await request('/media/image.png')
+    expect(reply.status).toBe(404)
+    expect(await reply.text()).not.toContain('synthetic-not-public')
   })
 
   it('loads samples only when all fixture files exist', async () => {
@@ -154,7 +176,7 @@ describe('application HTTP routes with isolated dependencies', () => {
   it('delegates public AI settings and distinct connection outcomes without exposing profiles', async () => {
     expect((await json('/api/ai/status?profileId=one')).body.enabled).toBe(true)
     expect(boundary.ai.aiStatus).toHaveBeenCalledWith('one')
-    expect((await json('/api/settings/ai')).body).toEqual({profiles:[]})
+    expect((await json('/api/settings/ai')).body).toEqual({profiles:[], modelCards:[]})
     expect((await json('/api/settings/ai','PUT',{profiles:[]})).body).toEqual(payload)
     expect((await json('/api/settings/ai/models','POST',{})).body).toEqual(['model'])
     expect((await json('/api/settings/ai/test','POST',{})).body).toMatchObject({ok:true,ms:expect.any(Number)})
@@ -245,8 +267,8 @@ describe('application HTTP routes with isolated dependencies', () => {
     boundary.assets.variantPath.mockResolvedValue('/tmp/test.png')
     const uploaded=await json('/api/wechat/upload-images','POST',{urls:['https://evil.test/x','/media/a.png?fit=2:1&w=400','/media/b.jpg']})
     expect(Object.keys(uploaded.body)).toHaveLength(2)
-    expect(boundary.assets.variantPath).toHaveBeenCalledWith('a.png','2:1',400)
-    expect(boundary.assets.variantPath).toHaveBeenCalledWith('b.jpg',undefined,undefined)
+    expect(boundary.assets.variantPath).toHaveBeenCalledWith('a.png','2:1',400,undefined)
+    expect(boundary.assets.variantPath).toHaveBeenCalledWith('b.jpg',undefined,undefined,undefined)
     expect((await json('/api/wechat/upload-images','POST',{})).body).toEqual({})
     expect((await json('/api/wechat/draft','POST',{})).status).toBe(400)
     expect((await json('/api/wechat/draft','POST',{confirm:true})).status).toBe(400)

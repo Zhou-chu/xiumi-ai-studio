@@ -12,7 +12,7 @@ describe('rich text serialization edges',()=>{
  })
  it('serializes marks, links, hard breaks, nested inline nodes, list items and absent content',()=>{
   const r:RichText={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'B',marks:[{type:'bold'},{type:'italic'}]},{type:'hardBreak'},{type:'span',content:[{type:'text',text:'L',marks:[{type:'link',attrs:{href:'https://example.com'}}]}]},{type:'text',marks:[{type:'link'},{type:'unknown'}]},{type:'span'}]},{type:'bulletList',content:[{type:'listItem',content:[{type:'paragraph',content:[{type:'text',text:'item'}]}]},{type:'listItem'}]},{type:'orderedList',content:[{type:'listItem',content:[{type:'paragraph',content:[{type:'text',text:'ordered'}]}]},{type:'listItem'}]},{type:'unknown'},{type:'paragraph'},{type:'bulletList'},{type:'orderedList'}]}
-  const md=richToMarkdown(r);expect(md).toContain('***B***');expect(md).toContain('[L](https://example.com)');expect(md).toContain('[]()');expect(md).toContain('- item');expect(md).toContain('1. ordered');expect(richToPlain(r)).toContain('B\nL')
+  const md=richToMarkdown(r);expect(md).toContain('***B***');expect(md).toContain('[L](https://example.com)');expect(md).not.toContain('[]()');expect(md).toContain('- item');expect(md).toContain('1. ordered');expect(richToPlain(r)).toContain('B\nL')
   expect(richToMarkdown({type:'doc'} as any)).toBe('')
   const aligned=setRichAlignment(r,'right');expect(aligned.content?.[0].attrs?.textAlign).toBe('right');expect(r.content?.[0].attrs).toBeUndefined()
  })

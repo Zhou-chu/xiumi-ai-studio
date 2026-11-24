@@ -1,3 +1,4 @@
+import { variantUrl } from '../core/managedMediaUrl'
 // 编辑回放的属性面板：只填内容（文案、图片），场景增删、元素拖拽排序，预设与节奏选择。
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -72,7 +73,7 @@ function AssetPick({ value, onPick }: { value?: ImageRef; onPick: (ref?: ImageRe
   }
   return (
     <div className="rp-asset">
-      {value ? <img src={value.src.startsWith('/media/') ? `${value.src.split('?')[0]}?fit=1:1&w=120` : value.src} alt="" /> : <span className="pic-empty">未选图</span>}
+      {value ? <img src={value.src.startsWith('/media/') ? variantUrl(value.src, '1:1', 120) : value.src} alt="" /> : <span className="pic-empty">未选图</span>}
       <button type="button" onClick={() => { setOpen(!open); if (!open) void loadAssets() }} data-testid="rp-pick-image">{open ? '收起' : '从素材选择'}</button>
       {value && <button type="button" onClick={() => onPick(undefined)}>移除</button>}
       {open && (
@@ -83,7 +84,7 @@ function AssetPick({ value, onPick }: { value?: ImageRef; onPick: (ref?: ImageRe
           {assets?.map((a) => (
             <img
               key={a.id}
-              src={`/media/${a.file}?fit=1:1&w=120`}
+              src={variantUrl(assetRef(a).src, '1:1', 120)}
               alt={a.name}
               title={a.name}
               onClick={() => {

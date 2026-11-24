@@ -51,6 +51,34 @@ function readZip(buf: Buffer) {
   return files
 }
 
+test('原文片段：取片段自带颜色，仅改所选文字并在重开后保留', async ({ page }) => {
+  await page.goto('/')
+  await pasteArticle(page, '<section style="background-color:#f3eefa;padding:18px;border-radius:10px">' +
+    '<p style="color:#6b2fa0;font-size:20px">文章主标题</p><p style="color:#999">次要说明</p></section>')
+  await page.getByTestId('article-import').click()
+  const block = canvas(page).locator('[data-block-id]').filter({ hasText: '文章主标题' })
+  const title = block.locator('p').filter({ hasText: '文章主标题' })
+  const note = block.locator('p').filter({ hasText: '次要说明' })
+  await expect(title).toHaveCSS('color', 'rgb(107, 47, 160)')
+  await block.click()
+  const slot = page.getByTestId('slot-t0')
+  const opener = slot.getByRole('button', { name: '片段配色' })
+  await opener.press('Enter')
+  const choices = slot.getByRole('group', { name: '片段原有颜色' })
+  await expect(choices).toBeVisible()
+  await choices.getByRole('button', { name: '#999999', exact: true }).press('Escape')
+  await expect(opener).toBeFocused()
+  await expect(choices).toHaveCount(0)
+  await opener.click()
+  await choices.getByRole('button', { name: '#999999', exact: true }).click()
+  await expect(title).toHaveCSS('color', 'rgb(153, 153, 153)')
+  await expect(title).toHaveCSS('font-size', '20px')
+  await expect(note).toHaveCSS('color', 'rgb(153, 153, 153)')
+  await waitSaved(page)
+  await page.reload()
+  await expect(title).toHaveCSS('color', 'rgb(153, 153, 153)')
+})
+
 test('导出给秀米：本地图片不内嵌；有接口时传微信图床，没有时给占位图和编号图片包', async ({ page }) => {
   await page.goto('/')
   const { assets } = await (await page.request.post('/api/samples/load')).json()
@@ -153,24 +181,28 @@ test.describe.serial('组件库', () => {
   test('粘贴秀米内容：转存图片、记录来源、拆分加入组件库', async ({ page }) => {
     await page.goto('/')
     const { assets } = await (await page.request.post('/api/samples/load')).json()
+    // 远端图片和实际本地素材故意同名，确保不能靠文件名子串判断转存是否成功。
+    const localSrc = `/media/${assets[0].file}`
+    const rehostedSrc = `https://img.xiumi.us/${assets[0].file}`
+    const failedSrc = 'https://img.xiumi.us/fail.jpg'
     // 不向秀米发真实请求：只放行一张，另一张模拟转存失败
     const requested: string[] = []
     await page.route('**/api/assets/fetch', async (route) => {
       const { urls } = route.request().postDataJSON()
       requested.push(...urls)
-      await route.fulfill({ json: urls.includes('https://img.xiumi.us/ok.jpg') ? { 'https://img.xiumi.us/ok.jpg': assets[0] } : {} })
+      await route.fulfill({ json: urls.includes(rehostedSrc) ? { [rehostedSrc]: assets[0] } : {} })
     })
-    await pasteArticle(page, GREEN, { components: true })
+    await pasteArticle(page, GREEN.replace('https://img.xiumi.us/ok.jpg', rehostedSrc), { components: true })
     await expect(page.getByTestId('source-xiumi')).toHaveClass(/\bon\b/)
     await page.getByTestId('article-import').click()
     await expect(page.locator('.toast')).toContainText(/新增 \d+ 个组件/)
     await expect(page.locator('.toast')).toContainText('2 张图片转存失败')
-    expect(new Set(requested)).toEqual(new Set(['https://img.xiumi.us/ok.jpg', 'https://img.xiumi.us/fail.jpg', 'https://statics.xiumi.us/paper.png']))
+    expect(new Set(requested)).toEqual(new Set([rehostedSrc, failedSrc, 'https://statics.xiumi.us/paper.png']))
 
-    const html = await canvas(page).innerHTML()
-    expect(html).toContain(`/media/${assets[0].file}`)
-    expect(html).not.toContain('ok.jpg')
-    expect(html).toContain('fail.jpg') // 失败的保留原地址，便于用户替换
+    const imageSources = await canvas(page).locator('img').evaluateAll((images) => images.map((image) => image.getAttribute('src')))
+    expect(imageSources).toContain(localSrc)
+    expect(imageSources).not.toContain(rehostedSrc)
+    expect(imageSources).toContain(failedSrc) // 失败的保留原地址，便于用户替换
 
     // 大版块按结构拆开，而不是整块收藏；重复结构只收一次；纯文字不收
     const list = await listComponents(page)

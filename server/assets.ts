@@ -1,11 +1,14 @@
+import type { BigIntStats } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { MAX_INPUT_PIXELS, withImageBudget } from './imageBudget'
 // 素材库：上传、按需裁切缩放（微信相册统一比例）、裁剪另存。
-import { existsSync } from 'node:fs'
-import { readFile, readdir, rename, rm, stat } from 'node:fs/promises'
+import { link, lstat, mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { nanoid } from 'nanoid'
 import sharp from 'sharp'
 import { DIRS, readJson, safeId, writeJson } from './store'
+import { validMediaGeneration } from '../src/core/managedMediaUrl'
 
 export interface Asset {
   id: string
@@ -15,6 +18,7 @@ export interface Asset {
   height: number
   size: number
   sourceUrl?: string
+  generation?: string
   createdAt: number
 }
 
@@ -22,14 +26,133 @@ const META = join(DIRS.assets, '_index.json')
 const MAX_EDGE = 2400
 
 let indexWrites: Promise<void> = Promise.resolve()
+function serializeIndex<T>(action: () => Promise<T>): Promise<T> {
+  const next = indexWrites.then(action)
+  indexWrites = next.then(() => {}, () => {})
+  return next
+}
+
 function updateIndex(update: (idx: Record<string, Asset>) => void | Promise<void>): Promise<void> {
-  const next = indexWrites.then(async () => {
+  return serializeIndex(async () => {
     const idx = await index()
     await update(idx)
     await writeJson(META, idx)
   })
-  indexWrites = next.catch(() => {})
-  return next
+}
+
+async function strictIndex(): Promise<Record<string, Asset>> {
+  try {
+    const value = JSON.parse(await readFile(META, 'utf8')) as Record<string, Asset>
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        Object.values(value).some(asset => !asset || typeof asset.file !== 'string')) {
+      throw new Error('素材索引格式无效')
+    }
+    return value
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    throw error
+  }
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
+
+export type ArchivedAsset = { asset: Asset; bytes: Buffer }
+const assetKey = (value: string) => process.platform === 'win32' ? value.toLowerCase() : value
+const MAX_VARIANT_SOURCE_BYTES = 32 * 1024 * 1024
+async function boundedImageBytes(path: string, limit: number): Promise<Buffer> {
+  return readImageStream(createReadStream(path), limit)
+}
+
+async function readImageStream(stream: AsyncIterable<Buffer>, limit: number): Promise<Buffer> {
+  const parts: Buffer[] = []
+  let length = 0
+  for await (const chunk of stream) {
+    length += chunk.length
+    if (length > limit) throw Object.assign(new Error('图片超出读取上限'), { status: 413 })
+    parts.push(chunk)
+  }
+  return Buffer.concat(parts, length)
+}
+
+type AssetStatus = 'available' | 'alreadyPresent' | 'conflict'
+async function archivedAssetStatus(idx: Record<string, Asset>, { asset, bytes }: ArchivedAsset): Promise<AssetStatus> {
+  const key = assetKey(asset.id)
+  const name = assetKey(asset.file)
+  const owners = Object.entries(idx).filter(([id, entry]) => assetKey(id) === key || assetKey(entry.file) === name)
+  const target = join(DIRS.assets, asset.file)
+  if (!owners.length) return await fileExists(target) ? 'conflict' : 'available'
+  const [id, existing] = owners[0]
+  if (owners.length !== 1 || id !== asset.id || existing.id !== id || existing.file !== asset.file ||
+      existing.width !== asset.width || existing.height !== asset.height || existing.size !== bytes.length) return 'conflict'
+  try {
+    const file = await lstat(target)
+    if (!file.isFile() || file.size !== bytes.length) return 'conflict'
+    return (await boundedImageBytes(target, bytes.length)).equals(bytes) ? 'alreadyPresent' : 'conflict'
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 'conflict'
+    throw error
+  }
+}
+
+function checkedAsset(asset: Asset) {
+  const id = safeId(asset.id)
+  if (asset.file !== id + '.jpg' && asset.file !== id + '.png') throw new Error('素材文件名与编号不一致')
+}
+
+async function applyArchivedAsset(input: ArchivedAsset): Promise<'restored' | 'alreadyPresent' | 'conflict'> {
+  const { asset, bytes } = input
+  checkedAsset(asset)
+  const idx = await strictIndex()
+  const status = await archivedAssetStatus(idx, input)
+  if (status !== 'available') return status
+  const target = join(DIRS.assets, asset.file)
+  const stage = await mkdtemp(join(DIRS.assets, '.asset-restore-'))
+  let owned = false
+  try {
+    const complete = join(stage, 'image')
+    await writeFile(complete, bytes, { flag: 'wx' })
+    try {
+      await link(complete, target)
+      owned = true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') return 'conflict'
+      throw error
+    }
+    Object.defineProperty(idx, asset.id, { value: asset, enumerable: true, configurable: true, writable: true })
+    await writeJson(META, idx)
+    return 'restored'
+  } catch (error) {
+    if (owned) {
+      try { await rm(target) }
+      catch { if (error instanceof Error) Object.assign(error, { cleanupFailed: true }) }
+    }
+    throw error
+  } finally {
+    await rm(stage, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+export const assetRestoreStore = {
+  status(input: ArchivedAsset) {
+    checkedAsset(input.asset)
+    return serializeIndex(async () => archivedAssetStatus(await strictIndex(), input))
+  },
+  // Keep normal uploads and deletion out while projects that depend on the
+  // accepted asset snapshot are published. Work here must not reenter the queue.
+  withApplyLock<T>(apply: (restore: typeof applyArchivedAsset, check: (asset: ArchivedAsset) => Promise<AssetStatus>) => Promise<T>): Promise<T> {
+    return serializeIndex(() => apply(applyArchivedAsset, async asset => {
+      checkedAsset(asset.asset)
+      return archivedAssetStatus(await strictIndex(), asset)
+    }))
+  },
 }
 
 async function index(): Promise<Record<string, Asset>> {
@@ -51,19 +174,25 @@ export async function saveAsset(buf: Buffer, name: string, sourceUrl?: string): 
     const ext = keepPng ? '.png' : '.jpg'
     const file = `${id}${ext}`
     const pipeline = img.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
-    try {
-    const info = await (keepPng ? pipeline.png({ compressionLevel: 9 }) : pipeline.jpeg({ quality: 86, mozjpeg: true })).toFile(join(DIRS.assets, file))
-    const asset: Asset = { id, file, name, width: info.width, height: info.height, size: info.size, ...(sourceUrl ? { sourceUrl } : {}), createdAt: Date.now() }
-    await updateIndex(idx => { idx[id] = asset })
-    return asset
-    } catch (error) {
-      try { await rm(join(DIRS.assets, file), { force: true }) }
-      catch {
-        if (error instanceof Error) Object.assign(error, { cleanupFailures: 1 })
-        console.warn('Image output cleanup failed for a newly created asset')
+    return serializeIndex(async () => {
+      const target = join(DIRS.assets, file)
+      const idx = await index()
+      if (Object.hasOwn(idx, id) || await fileExists(target)) throw new Error('素材编号冲突')
+      try {
+        const info = await (keepPng ? pipeline.png({ compressionLevel: 9 }) : pipeline.jpeg({ quality: 86, mozjpeg: true })).toFile(target)
+        const asset: Asset = { id, file, name, width: info.width, height: info.height, size: info.size, ...(sourceUrl ? { sourceUrl } : {}), createdAt: Date.now() }
+        idx[id] = asset
+        await writeJson(META, idx)
+        return asset
+      } catch (error) {
+        try { await rm(target, { force: true }) }
+        catch {
+          if (error instanceof Error) Object.assign(error, { cleanupFailures: 1 })
+          console.warn('Image output cleanup failed for a newly created asset')
+        }
+        throw error
       }
-      throw error
-    }
+    })
   })
 }
 
@@ -91,14 +220,125 @@ export async function cropAsset(id: string, box: { x: number; y: number; width: 
 const MAX_VARIANT_PIXELS = 64_000_000
 const FIT_RE = /^(\d{1,3}):(\d{1,3})$/
 
+function sourceGeneration(file: string, snapshot: BigIntStats): string {
+  // All managed publications create a new file, including legacy restores
+  // reusing a historical name. Bind cached output to that file generation.
+  const { dev, ino, size, birthtimeNs, mtimeNs, ctimeNs } = snapshot
+  return createHash('sha256').update([file, dev, ino, size, birthtimeNs, mtimeNs, ctimeNs].join(':')).digest('hex')
+}
+
+const MAX_PINNED_DIGESTS = 512
+const pinnedDigests = new Map<string, { digest: string; identity: string }>()
+const missingGeneration = () => Object.assign(new Error('素材版本不可用'), { status: 404 })
+
+async function regularSnapshot(path: string) {
+  try {
+    const entry = await lstat(path, { bigint: true })
+    return entry.isFile() ? entry : null
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
+async function matchesPinnedSnapshot(output: string, file: string, snapshotKey: string, expected: string) {
+  const cached = pinnedDigests.get(snapshotKey)
+  if (!cached) return null
+  const identity = await regularSnapshot(output)
+  if (!identity || sourceGeneration(file, identity) !== cached.identity) return null
+  if (cached.digest !== expected) throw missingGeneration()
+  return { path: output, identity: cached.identity }
+}
+
+async function readPinnedBytes(path: string, file: string, snapshotKey?: string, limit = MAX_VARIANT_SOURCE_BYTES) {
+  const fd = await open(path, 'r')
+  try {
+    const stat = await fd.stat({ bigint: true })
+    const identity = sourceGeneration(file, stat)
+    if (!stat.isFile() || (snapshotKey && snapshotKey !== identity)) throw missingGeneration()
+    const bytes = await readImageStream(fd.createReadStream({ autoClose: false }), limit)
+    if (sourceGeneration(file, await fd.stat({ bigint: true })) !== identity) throw missingGeneration()
+    return { bytes, identity, digest: createHash('sha256').update(bytes).digest('hex') }
+  } finally {
+    await fd.close()
+  }
+}
+
+function checkHostedRasterSize(snapshot: BigIntStats | null, size: number, limit: number): asserts snapshot is BigIntStats {
+  if (!snapshot || !Number.isSafeInteger(size) || snapshot.size !== BigInt(size) || snapshot.size < 1n || snapshot.size > BigInt(limit)) {
+    throw missingGeneration()
+  }
+}
+
+/** Capture an indexed source into process-owned bytes without publishing to disk or cache. */
+export function snapshotHostedRaster(file: string, limit: number) {
+  return serializeIndex(async () => {
+    const id = file.slice(0, -4)
+    const entries = await strictIndex()
+    const asset = Object.hasOwn(entries, id) ? entries[id] : undefined
+    if (!/^[\w-]{1,64}\.(?:png|jpg)$/.test(file) || !asset || asset.id !== id || asset.file !== file ||
+        !(await lstat(DIRS.assets)).isDirectory()) throw missingGeneration()
+    const path = join(DIRS.assets, file)
+    const initial = await regularSnapshot(path)
+    checkHostedRasterSize(initial, asset.size, limit)
+    const identity = sourceGeneration(file, initial)
+    const captured = await readPinnedBytes(path, file, identity, limit)
+    if (asset.generation !== undefined && captured.digest !== asset.generation) throw missingGeneration()
+    const final = await regularSnapshot(path)
+    if (!final || sourceGeneration(file, final) !== identity) throw missingGeneration()
+    return { bytes: captured.bytes, digest: captured.digest }
+  })
+}
+
+async function pinMediaGeneration(path: string, file: string, snapshotKey: string, expected: string) {
+  if (!validMediaGeneration(expected)) throw Object.assign(new Error('素材版本无效'), { status: 400 })
+  // Only a local stat-derived identity is used for storage. The requested
+  // digest is only compared against verified bytes, even on warm paths.
+  const output = join(DIRS.cache, `source-${snapshotKey}${extname(file)}`)
+  const warm = await matchesPinnedSnapshot(output, file, snapshotKey, expected)
+  if (warm) return warm
+  return withImageBudget(async () => {
+    const queued = await matchesPinnedSnapshot(output, file, snapshotKey, expected)
+    if (queued) return queued
+    const observed = await readPinnedBytes(path, file, snapshotKey)
+    if (observed.digest !== expected) throw missingGeneration()
+    // Only complete immutable copies reach the sender. Authenticate a
+    // pre-existing snapshot on process restarts before allowing reuse.
+    const temporary = join(DIRS.cache, `.${nanoid()}.media-snapshot.tmp`)
+    try {
+      await writeFile(temporary, observed.bytes, { flag: 'wx' })
+      try { await link(temporary, output) }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }
+    } finally {
+      await rm(temporary, { force: true }).catch(() => {})
+    }
+    const stat = await regularSnapshot(output)
+    if (!stat) throw missingGeneration()
+    const snapshot = await readPinnedBytes(output, file, sourceGeneration(file, stat))
+    if (snapshot.digest !== observed.digest) throw missingGeneration()
+    if (pinnedDigests.size >= MAX_PINNED_DIGESTS) {
+      const earliest = pinnedDigests.keys().next()
+      if (!earliest.done) pinnedDigests.delete(earliest.value)
+    }
+    pinnedDigests.set(snapshotKey, { digest: snapshot.digest, identity: snapshot.identity })
+    return { path: output, identity: snapshot.identity }
+  })
+}
+
 /**
  * 返回素材的变体文件路径：w = 目标宽度，fit = 宽高比（居中裁切，利用 attention 策略保留主体）
  * 结果缓存到 data/cache。
  */
-export async function variantPath(file: string, fit?: string, w?: number): Promise<string> {
+export async function variantPath(file: string, fit?: string, w?: number, expectedGeneration?: string): Promise<string> {
   if (!/^[\w-]+\.(jpg|png)$/.test(file)) throw Object.assign(new Error('非法文件名'), { status: 400 })
   const src = join(DIRS.assets, file)
-  if (!existsSync(src)) throw Object.assign(new Error('素材不存在'), { status: 404 })
+  // Data-root ancestors can be configured paths; immediate asset/cache
+  // directories must not redirect reads or cache publications elsewhere.
+  if (!(await lstat(DIRS.assets)).isDirectory() || !(await lstat(DIRS.cache)).isDirectory()) {
+    throw Object.assign(new Error('素材目录不可用'), { status: 404 })
+  }
+  const source = await regularSnapshot(src)
+  if (!source) throw Object.assign(new Error('素材不存在'), { status: 404 })
   const width = Math.round(Math.min(2400, Math.max(64, Number(w) || 1080)))
   const m = fit ? fit.match(FIT_RE) : null
   const height = m ? Math.round((width * Number(m[2])) / Number(m[1])) : undefined
@@ -106,13 +346,38 @@ export async function variantPath(file: string, fit?: string, w?: number): Promi
     if (!Number.isSafeInteger(height) || height < 1) throw Object.assign(new Error('Image aspect ratio must produce a positive integer height.'), { status: 400 })
     if (width * height > MAX_VARIANT_PIXELS) throw Object.assign(new Error('Image variant exceeds the 64-megapixel output limit. Reduce its width or choose a less extreme aspect ratio.'), { status: 413 })
   }
-  if (!m && width >= 2400) return src
-  const key = `${file.replace(/\.\w+$/, '')}_${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
-  const out = join(DIRS.cache, key)
-  if (existsSync(out)) return out
-  await withImageBudget(async () => {
-    if (existsSync(out)) return // Another queued request may have completed this exact variant.
-    let img = sharp(src, { limitInputPixels: MAX_INPUT_PIXELS })
+  if (!m && width >= 2400 && expectedGeneration === undefined) return src
+  const generation = sourceGeneration(file, source)
+  const pin = expectedGeneration === undefined ? null : await pinMediaGeneration(src, file, generation, expectedGeneration)
+  const sourcePath = pin?.path ?? src
+  if (!m && width >= 2400) return sourcePath
+  const suffix = `${m ? `${m[1]}x${m[2]}` : 'o'}_${width}${extname(file)}`
+  const namespace = expectedGeneration === undefined ? '' : 'verified-'
+  const codec = (statKey: string) => `${namespace}${statKey}_${suffix}`
+  const warm = join(DIRS.cache, codec(generation))
+  // Warm cache reads need no source-byte reads, allocation, or Sharp slot.
+  if (await regularSnapshot(warm)) return warm
+  return withImageBudget(async () => {
+    const fd = await open(sourcePath, 'r')
+    let source: Buffer
+    let key: string
+    try {
+      const stat = await fd.stat({ bigint: true })
+      const current = sourceGeneration(file, stat)
+      const location = await regularSnapshot(sourcePath)
+      if (!location || sourceGeneration(file, location) !== current || (pin && pin.identity !== current)) throw missingGeneration()
+      key = codec(expectedGeneration === undefined ? current : generation)
+      const queuedHit = join(DIRS.cache, key)
+      if (await regularSnapshot(queuedHit)) return queuedHit
+      source = await readImageStream(fd.createReadStream({ autoClose: false }), MAX_VARIANT_SOURCE_BYTES)
+      if (sourceGeneration(file, await fd.stat({ bigint: true })) !== current) {
+        throw Object.assign(new Error('图片在生成预览时被修改，请重试'), { status: 409 })
+      }
+    } finally {
+      await fd.close()
+    }
+    const out = join(DIRS.cache, key)
+    let img = sharp(source, { limitInputPixels: MAX_INPUT_PIXELS })
     img = m
       ? img.resize({ width, height, fit: 'cover', position: sharp.strategy.attention })
       : img.resize({ width, withoutEnlargement: true })
@@ -128,8 +393,8 @@ export async function variantPath(file: string, fit?: string, w?: number): Promi
       }
       throw error
     }
+    return out
   })
-  return out
 }
 
 /** 微信 uploadimg 要求 jpg/png 且 ≤1MB：逐级降低质量与尺寸 */

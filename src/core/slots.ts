@@ -3,6 +3,7 @@ import { collapseNewlineWhitespace } from './textLinear'
 // 槽位按文档顺序编号（文字 t0、t1…，图片 i0、i1…），同一段 HTML 每次识别结果相同，因此不需要另存标记。
 // 表单改字换图、AI 修改导入内容、套用模板生成新推文，都只替换槽位里的文字和图片地址，结构与样式保持原样。
 import { variantUrl } from './compiler'
+import { toHex } from './color'
 import { splitDecls } from './sanitize'
 import type { ImageRef } from './types'
 
@@ -538,6 +539,58 @@ const declOf = (el: Element, prop: string) => {
 function setDecl(el: Element, prop: string, value: string) {
   const rest = splitDecls(styleOf(el)).filter((d) => d.slice(0, Math.max(0, d.indexOf(':'))).trim().toLowerCase() !== prop)
   el.setAttribute('style', [...rest.map((d) => d.trim()), `${prop}: ${value}`].join('; '))
+}
+
+// HTML text color never changes an SVG/MathML root, its descendants, or
+// a containing slot that could change a drawing indirectly through currentColor.
+function htmlColorHost(node: Node): Element | null {
+  const host = node.nodeType === 1 ? node as Element : node.parentElement
+  if (!host || host.closest('svg,math')) return null
+  return node.nodeType === 1 && host.querySelector('svg,math') ? null : host
+}
+
+export function colorableHtmlTextSlots(html: string, parse: Parse = defaultParse): Set<string> {
+  return new Set(scan(rootOf(html, parse)).filter(({ slot, node }) => slot.kind === 'text' && htmlColorHost(node)).map(({ slot }) => slot.id))
+}
+
+function clearLocalTextColor(el: Element): void {
+  const style = styleOf(el)
+  if (style) {
+    const decls = splitDecls(style)
+    const keep = decls.filter(d => !/^\s*(?:color|-webkit-text-fill-color)\s*:/i.test(d))
+    if (keep.length < decls.length) {
+      if (keep.some(d => d.trim())) el.setAttribute('style', keep.join(';'))
+      else el.removeAttribute('style')
+    }
+  }
+  if (tagOf(el) === 'font') el.removeAttribute('color')
+}
+
+/** Apply a validated color to one imported HTML text slot, not to its siblings or graphics. */
+export function setImportedSlotTextColor(html: string, id: string, color: string, parse: Parse = defaultParse): string {
+  const value = toHex(color)
+  if (!value) return html
+  const root = rootOf(html, parse)
+  const hit = scan(root).find(({ slot }) => slot.kind === 'text' && slot.id === id)
+  if (!hit) return html
+  let host = htmlColorHost(hit.node)
+  if (!host) return html
+  if (hit.node.nodeType === 3) {
+    const span = root.ownerDocument.createElement('span')
+    host.insertBefore(span, hit.node)
+    span.append(hit.node)
+    host = span
+  }
+  for (const child of host.querySelectorAll('[style],font[color],a')) {
+    const tag = tagOf(child)
+    if (tag === 'img' || !INLINE.has(tag) || !hasText(child)) continue
+    clearLocalTextColor(child)
+    // An anchor has its own UA/stylesheet color; it may not inherit the slot's.
+    if (tag === 'a') setDecl(child, 'color', value)
+  }
+  clearLocalTextColor(host)
+  setDecl(host, 'color', value)
+  return root.innerHTML
 }
 
 /** 槽位本身是块时直接使用；裸文字和行内槽位另加容器，不能改到兄弟段落。 */

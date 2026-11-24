@@ -8,3 +8,12 @@
 .text-font-control input[type="color"] { width: 36px; height: 32px; padding: 2px; border: 1px solid var(--ui-border, #888); background: transparent; cursor: pointer; }
 .rich-content .ProseMirror span[style*="color"] strong { color: inherit; }
 @media (max-width: 600px) { .text-font-control input[type="color"] { min-height: 40px; min-width: 40px; } }
+
+
+.rich-color-palette { flex: 1 1 100%; min-width: 0; display: grid; gap: 4px; padding: 4px 0; }
+.rich-color-group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.rich-color-group > span { flex: 0 0 46px; font-size: 12px; }
+.rich-color-group > button { width: 28px; min-width: 28px; min-height: 28px; padding: 3px; display: inline-grid; place-items: center; }
+.rich-color-group > button[aria-pressed="true"] { outline: 1px solid currentColor; outline-offset: -1px; }
+.rich-color-group > button > span { width: 14px; height: 14px; border: 1px solid var(--ui-border, #888); border-radius: 3px; }
+@media (max-width: 600px) { .rich-color-group > button { min-width: 36px; min-height: 36px; } }

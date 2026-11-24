@@ -11,7 +11,8 @@ export default defineConfig({
   optimizeDeps: { entries: ['index.html', 'src/**/*.tsx'] },
   server: {
     port: 5173,
-    proxy: { '/api': API, '/media': API },
+    // Keep the editor Host and Origin aligned for local-only archive requests.
+    proxy: { '/api': { target: API, changeOrigin: false }, '/media': API },
     // 测试报告与数据目录变化不应刷新编辑器页面
     watch: { ignored: ['**/playwright-report/**', '**/test-results/**', '**/data/**', '**/data-e2e/**', '**/tests/**'] },
   },

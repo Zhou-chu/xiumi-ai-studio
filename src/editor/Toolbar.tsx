@@ -1,15 +1,17 @@
 import { ColorModeControl } from './ColorModeControl'
 import { Help } from './Help'
+import { DesktopDataFolder } from './DesktopDataFolder'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { compileDoc, variantUrl } from '../core/compiler'
 import { docToMarkdown } from '../core/exporters'
 import { displayHtml } from '../core/images'
-import { checkedXiumiParts, splitForXiumi, xiumiReport, xiumiSvgBoxes } from '../core/xiumiExport'
+import { splitForXiumi, xiumiReport, xiumiSvgBoxes } from '../core/xiumiExport'
 import { AiSettingsModal } from './AiSettingsModal'
 import { api, type VersionSummary } from './api'
 import { Modal } from './Modal'
+import { useHostedReplayAction } from './useHostedReplayAction'
 import { normalizeDoc, saveConflictCopy, saveNow, useStore } from './store'
-import { assertReplayCanPublish, compileForWechat, copyRichText, download, hasReplay, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, xiumiUploaded, type ImageMode } from './wechatOutput'
+import { assertReplayCanPublish, compileForWechat, compileOfflineLinkedSvg, compileOfflineReplay, copyRichText, download, hasLinkedSvg, hasReplay, LINKED_SVG_LOCAL_ONLY, REPLAY_LOCAL_ONLY, standaloneHtml, xiumiPackage, prepareXiumiUpload, type ImageMode } from './wechatOutput'
 
 const ArticleImportModal = lazy(() => import('./ArticleImport').then((m) => ({ default: m.ArticleImportModal })))
 const ProjectBackupModal = lazy(() => import('./ProjectBackupModal'))
@@ -137,7 +139,7 @@ export function VersionsModal({ onClose }: { onClose: () => void }) {
 function ExportModal({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc)
   const notify = useStore((s) => s.notify)
-  const [wx, setWx] = useState<{ configured: boolean } | null>(null)
+  const [wx, setWx] = useState<{ configured: boolean; ownedReplay?: true } | null>(null)
   const [mode, setMode] = useState<ImageMode>('embed')
   const [busy, setBusy] = useState('')
   const [report, setReport] = useState<{ charCount: number; warnings: string[] } | null>(null)
@@ -148,8 +150,12 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const base = compileDoc(doc)
   const safeName = (doc.title || 'article').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)
   const replayOnly = hasReplay(doc)
-  const xiumi = replayOnly ? null : xiumiReport(base.html)
-  const xiumiParts = replayOnly ? 0 : splitForXiumi(xiumiSvgBoxes(base.html)).length
+  const linkedSvgOnly = hasLinkedSvg(doc)
+  const localOnly = replayOnly || linkedSvgOnly
+  const hostedReplay = replayOnly && !linkedSvgOnly && wx?.ownedReplay === true
+  const [hostedBusy, runHostedReplay] = useHostedReplayAction({ doc, safeName, notify, enabled: hostedReplay })
+  const xiumi = localOnly ? null : xiumiReport(base.html)
+  const xiumiParts = localOnly ? 0 : splitForXiumi(xiumiSvgBoxes(base.html)).length
   /** 超出秀米一次导入的上限时先提示会导出多份文件；用户取消就不下载 */
   const confirmParts = (parts: number) =>
     parts <= 1 || confirm(`这篇超出秀米一次导入的上限（约 13 万字符，超出部分会被秀米丢掉），将导出 ${parts} 份文件（打包为 zip）。\n\n请下载后解压，按「导入秀米-1.txt」到「导入秀米-${parts}.txt」的顺序依次导入秀米。\n\n点“确定”继续导出（上传模式会先上传图片）。`)
@@ -179,10 +185,11 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="导出与发布" onClose={onClose} width={620}>
-      {replayOnly && <p className="warn" role="status">{REPLAY_LOCAL_ONLY}</p>}
+      {linkedSvgOnly && <p className="warn" role="status">{LINKED_SVG_LOCAL_ONLY}</p>}
+      {replayOnly && !linkedSvgOnly && <p className="warn" role="status">{hostedReplay ? '编辑回放只能导出，不能复制到公众号后台或推送草稿箱。' : REPLAY_LOCAL_ONLY}</p>}
       <section className="export-section">
         <h4>复制到公众号后台</h4>
-        {!replayOnly && <><div className="seg">
+        {!localOnly && <><div className="seg">
           <button className={mode === 'embed' ? 'on' : ''} onClick={() => setMode('embed')}>内嵌图片</button>
           <button className={mode === 'wechat' ? 'on' : ''} disabled={!wx?.configured} onClick={() => setMode('wechat')} title={wx?.configured ? '' : '需在 .env 配置公众号 AppID/AppSecret'}>上传到微信图床</button>
           <button className={mode === 'absolute' ? 'on' : ''} onClick={() => setMode('absolute')}>原图链接</button>
@@ -192,7 +199,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
           {mode === 'wechat' && '先调用 media/uploadimg 把图片上传到微信，正文使用 mmbiz 域名图片，最稳妥。'}
           {mode === 'absolute' && '使用本机地址，仅适合部署到公网服务器后使用；localhost 地址在微信中无法显示。'}
         </p></>}
-        <button className="primary wide" disabled={!!busy || replayOnly} onClick={copy} data-testid="copy-wechat">{busy || '复制到剪贴板'}</button>
+        <button className="primary wide" disabled={!!busy || localOnly} onClick={copy} data-testid="copy-wechat">{busy || '复制到剪贴板'}</button>
         {report && (
           <div className="report">
             <p>HTML 长度 {report.charCount.toLocaleString()} 字符</p>
@@ -203,8 +210,8 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
       <section className="export-section">
         <h4>推送到草稿箱</h4>
-        {!replayOnly && <p className="hint">{wx?.configured ? '已配置公众号接口。推送前会再次确认，只会创建草稿，不会群发。' : '未配置：在项目根目录 .env 中填写 WECHAT_APPID / WECHAT_APPSECRET 并在公众号后台添加 IP 白名单后重启服务。'}</p>}
-        <button className="wide" disabled={replayOnly || !wx?.configured} onClick={() => setDraftOpen(true)}>推送到草稿箱…</button>
+        {!localOnly && <p className="hint">{wx?.configured ? '已配置公众号接口。推送前会再次确认，只会创建草稿，不会群发。' : '未配置：在项目根目录 .env 中填写 WECHAT_APPID / WECHAT_APPSECRET 并在公众号后台添加 IP 白名单后重启服务。'}</p>}
+        <button className="wide" disabled={localOnly || !wx?.configured} onClick={() => setDraftOpen(true)}>推送到草稿箱…</button>
       </section>
 
       <section className="export-section" data-testid="xiumi-section">
@@ -215,6 +222,11 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         {xiumi && xiumi.dataImages > 0 && <p className="warn">⚠ 有 {xiumi.dataImages} 处导入时自带的内嵌图片，秀米会换成占位图。</p>}
         {xiumi && xiumi.localBackgrounds > 0 && !wx?.configured && <p className="warn">⚠ 有 {xiumi.localBackgrounds} 处背景图用了本地素材。不配置微信接口的话，它们在秀米里无法替换。</p>}
         <div className="row gap">
+          {hostedReplay && (
+            <button className="primary" disabled={!!(busy || hostedBusy)} data-testid="xiumi-upload" onClick={() => { void runHostedReplay() }}>
+              {hostedBusy || '上传图片到微信并下载'}
+            </button>
+          )}
           {xiumi && xiumi.localImages > 0 && (
             <button
               className="primary"
@@ -223,9 +235,13 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               data-testid="xiumi-upload"
               onClick={() =>
                 runXiumi(async () => {
-                  if (!confirmParts(checkedXiumiParts(base.html).length)) return
+                  const plan = prepareXiumiUpload(doc)
+                  if (!confirmParts(plan.parts)) return
                   setBusy('上传图片…')
-                  const r = await xiumiUploaded(doc, setBusy)
+                  const r = await plan.upload(setBusy)
+                  if (r.parts !== plan.parts && !confirm(
+                    `图片地址替换后，导入文件从 ${plan.parts} 份变为 ${r.parts} 份。\n\n图片已上传到微信，取消只会停止下载，无法撤回已上传图片。是否按实际 ${r.parts} 份继续下载？`,
+                  )) return
                   download(`${safeName}-${r.name}`, r.blob)
                   notify(r.parts > 1 ? `已下载，解压后按「说明.txt」依次导入 ${r.parts} 个文件` : '已下载，在秀米“导入 HTML 代码”里使用')
                 })
@@ -235,7 +251,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             </button>
           )}
           <button
-            disabled={!!busy || replayOnly}
+            disabled={!!(busy || hostedBusy || linkedSvgOnly)}
             data-testid="xiumi-package"
             onClick={() =>
               runXiumi(async () => {
@@ -250,14 +266,14 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             {xiumi?.localImages ? '下载 HTML 和图片包（手动替换）' : '下载 HTML'}
           </button>
         </div>
-        {!replayOnly && <p className="hint">
+        {!localOnly && <p className="hint">
           {wx?.configured ? '“上传”会把本地图片发送到微信服务器，只存图片，不创建草稿，也不群发。' : '未配置微信接口时，只能导入后在秀米里手动替换图片。配置方法见上方“推送到草稿箱”。'}
         </p>}
       </section>
 
       <section className="export-section">
         <h4>下载文件</h4>
-        <p className="hint">当前 HTML 长度 {base.charCount.toLocaleString()} 字符{!replayOnly && base.charCount >= 20000 ? '（超过草稿箱接口 2 万字符上限，可用复制方式发布）' : ''}。{replayOnly ? '在桌面浏览器打开本地文件查看回放。' : '“图片内嵌”的文件不适合导入秀米。'}</p>
+        <p className="hint">当前 HTML 长度 {base.charCount.toLocaleString()} 字符{!localOnly && base.charCount >= 20000 ? '（超过草稿箱接口 2 万字符上限，可用复制方式发布）' : ''}。{localOnly ? '在桌面浏览器打开本地文件查看动效。' : '“图片内嵌”的文件不适合导入秀米。'}</p>
         <div className="row gap">
           <button onClick={() => download(`${safeName}.md`, docToMarkdown({ ...doc, blocks: doc.blocks }).replace(/\]\(\/media\//g, `](${location.origin}/media/`), 'text/markdown')}>Markdown</button>
           <button onClick={() => download(`${safeName}.json`, JSON.stringify(doc, null, 2), 'application/json')}>编辑器 JSON</button>
@@ -265,14 +281,19 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             onClick={async () => {
               setBusy('生成 HTML…')
               try {
-                const r = await compileForWechat(doc, 'embed', setBusy)
-                download(`${safeName}.html`, standaloneHtml(doc, r.html), 'text/html')
+                const html = linkedSvgOnly
+                  ? await compileOfflineLinkedSvg(doc, setBusy)
+                  : replayOnly ? await compileOfflineReplay(doc, setBusy)
+                  : standaloneHtml(doc, (await compileForWechat(doc, 'embed', setBusy)).html)
+                download(`${safeName}.html`, html, 'text/html')
+              } catch (error) {
+                notify(error instanceof Error ? error.message : '无法下载本地文件。', 'error')
               } finally {
                 setBusy('')
               }
             }}
           >
-            {replayOnly ? '本地 HTML（保留回放）' : '微信 HTML（图片内嵌）'}
+            {linkedSvgOnly ? '本地 HTML（保留跨块联动）' : replayOnly ? '本地 HTML（保留回放）' : '微信 HTML（图片内嵌）'}
           </button>
         </div>
       </section>
@@ -394,6 +415,7 @@ export function Toolbar() {
           <ColorModeControl />
           <button onClick={() => (saveNow(), setModal('versions'))}>历史版本</button>
           <button onClick={() => setModal('project-backup')}>项目和素材备份</button>
+          <DesktopDataFolder reportFailure={(message) => useStore.getState().notify(message, 'error')} />
           <button onClick={() => setModal('ai')} data-testid="open-ai-settings"><span className="toolbar-legacy-icon" aria-hidden="true">⚙ </span>AI 模型</button>
         </div>
       </div>

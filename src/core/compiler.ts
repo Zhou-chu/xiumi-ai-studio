@@ -1,10 +1,14 @@
+import { richLinkHref } from './richLink'
+import { renderLinkedSvgScene } from './crossSvgPreview'
 import { normalizeReplay } from './replay/schema'
 import { renderReplay, type ReplayOutput } from './replay/render'
 import { applyImageWidths } from './imageResize'
+import { variantUrl } from './managedMediaUrl'
 // 微信 HTML 编译器：文档 JSON → 全内联样式 HTML。
 // 画布、手机预览、复制、草稿箱都使用同一份输出，保证所见即所得。
 import { boxParts, boxTheme, KIT_RENDERERS, KIT_TYPES, kitEmptySlots, type KitCtx } from './kit'
 import { guardHtml } from './sanitize'
+import { renderLocalSvgInteraction } from './localSvgInteraction'
 import { safeTextFont, safeTextSize } from './textTypography'
 import { css, esc, safeColor } from './style'
 import { resolveTheme } from './themes'
@@ -16,6 +20,8 @@ export { css, esc }
 export interface CompileOptions {
   /** 把（已附加裁切参数的）图片地址映射为最终地址：绝对 URL / base64 / mmbiz URL */
   mapImage?: (url: string) => string
+  /** Hosted replay preflight: only before upload; final compilation must omit this flag. */
+  replayPendingImageUpload?: boolean
   /** 非公众号文章链接的处理方式；微信会过滤外链，默认转成文字 */
   externalLinks?: 'text' | 'keep'
   /** 仅画布：显示空图片位、空图注的占位提示（不进入导出结果） */
@@ -24,14 +30,7 @@ export interface CompileOptions {
   inBox?: boolean
 }
 
-/** 给本地素材附加裁切参数（服务器用 sharp 生成对应尺寸） */
-export function variantUrl(src: string, fit?: string, w = 1080): string {
-  if (!src.startsWith('/media/')) return src
-  const q = new URLSearchParams()
-  if (fit) q.set('fit', fit)
-  q.set('w', String(w))
-  return `${src.split('?')[0]}?${q}`
-}
+export { variantUrl } from './managedMediaUrl'
 
 class Ctx implements KitCtx {
   t: Theme
@@ -143,7 +142,7 @@ function renderInline(n: RichNode, ctx: Ctx, textHtml: string): string {
         break
       }
       case 'link':
-        linkHref = String(m.attrs?.href ?? '')
+        linkHref = richLinkHref(m.attrs?.href)
         break
     }
   }
@@ -197,7 +196,7 @@ export function renderRich(rich: RichText | undefined, ctx: Ctx, align = 'justif
 // ---------- 模块 ----------
 
 type Renderer<T extends Block['type']> = (b: Extract<Block, { type: T }>, ctx: Ctx) => string
-type Renderers = { [K in Exclude<Block['type'], 'html' | 'replay' | (typeof KIT_TYPES)[number]>]: Renderer<K> }
+type Renderers = { [K in Exclude<Block['type'], 'html' | 'replay' | 'linkedSvg' | (typeof KIT_TYPES)[number]>]: Renderer<K> }
 
 const R: Renderers = {
   cover(b, ctx) {
@@ -492,7 +491,7 @@ const MEDIA_BG = /url\((&quot;|["']?)(\/media\/[^"')]*?)\1\)/gi
 /** 原文片段：存储时已清洗，输出前再做一次字符串级防护 */
 function renderHtml(b: Extract<Block, { type: 'html' }>, ctx: Ctx): string {
   const map = ctx.opts.mapImage
-  const html = guardHtml(b.props.html)
+  const html = renderLocalSvgInteraction(b.props.html) ?? guardHtml(b.props.html)
   if (!map) return html
   return html
     .replace(/(<img\b[^>]*\ssrc=")([^"]+)(")/gi, (_m, a, u, z) => a + esc(map(u.replace(/&amp;/g, '&'))) + z)
@@ -503,6 +502,7 @@ function renderHtml(b: Extract<Block, { type: 'html' }>, ctx: Ctx): string {
 export const BOX_GAP = 16
 
 export function compileBlock(block: Block, theme: Theme, opts: CompileOptions = {}): string {
+  if (block.type === 'linkedSvg') return renderLinkedSvgScene(block.props.scene)
   if (block.type === 'replay') return compileReplay(block, opts).html
   // 文本框内的模块统一使用文本框的字号、颜色和间距
   const t = opts.inBox ? boxTheme(theme) : theme
@@ -540,16 +540,26 @@ export function rootStyle(theme: Theme): string {
 /** 模块之间的间距：相邻的原文片段保持原文连续（不插入间距） */
 export function blockGap(block: Block, next: Block | undefined, theme: Theme): number {
   if (!next) return 0
-  return block.type === 'html' && next.type === 'html' ? 0 : theme.blockSpacing
+  const fragment = (type: Block['type']) => type === 'html' || type === 'linkedSvg'
+  return fragment(block.type) && fragment(next.type) ? 0 : theme.blockSpacing
 }
 
 export const REPLAY_ERROR = '编辑回放 ✕'
 
 export function compileReplay(block: Extract<Block, { type: 'replay' }>, opts: CompileOptions = {}, showCursors?: boolean): ReplayOutput {
-  return renderReplay({ ...normalizeReplay(block.props), textMode: 'svg-text' }, { mapImage: opts.mapImage, showCursors, idPrefix: 'rp'+block.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })
+  return renderReplay({ ...normalizeReplay(block.props), textMode: 'svg-text' }, { mapImage: opts.mapImage, pendingLocalImages: opts.replayPendingImageUpload, showCursors, idPrefix: 'rp'+block.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })
 }
 
 export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {
+  return renderDoc(doc, opts, false)
+}
+
+/** Only the dedicated CSP-bound local file export may render cross-fragment references. */
+export function compileLocalSvgDocument(doc: Doc, opts: CompileOptions = {}): CompileResult {
+  return renderDoc(doc, opts, true)
+}
+
+function renderDoc(doc: Doc, opts: CompileOptions, interactiveSvg: boolean): CompileResult {
   const theme = resolveTheme(doc)
   const failed: number[] = []
   const replayIssues: string[] = []
@@ -560,7 +570,8 @@ export function compileDoc(doc: Doc, opts: CompileOptions = {}): CompileResult {
         const replay = compileReplay(b, opts)
         inner = replay.html
         replayIssues.push(...replay.errors.map(e => REPLAY_ERROR+' '+e), ...replay.warnings)
-      } else inner = compileBlock(b, theme, opts)
+      } else if (interactiveSvg && b.type === 'linkedSvg') inner = renderLinkedSvgScene(b.props.scene, i + 1)
+      else inner = compileBlock(b, theme, opts)
     } catch {
       // 单个模块数据损坏时跳过，不影响整篇输出
       failed.push(i + 1)

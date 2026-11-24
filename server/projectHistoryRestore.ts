@@ -1,0 +1,113 @@
+import { link, lstat, mkdir, mkdtemp, opendir, rm, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
+import type { Doc } from '../src/core/types'
+import type { projectCollection } from './projectStore'
+import { safeId } from './store'
+import { verifyHistoryDirectory } from './historyDirectory'
+
+export type VersionSnapshot = { id: string; projectId: string; label: string; createdAt: number; doc: Doc }
+type BoundHistory = { sourceParent: Doc; parentRevision: string; version: VersionSnapshot }
+type ActiveParent = { id: string; revision?: string }
+type ParentStore<T extends ActiveParent> = Pick<ReturnType<typeof projectCollection<T>>, 'withRevision' | 'withCurrentRevision'>
+type Result = 'restored' | 'occupied' | 'parent-unavailable' | 'retention-limit' | 'dependency-unavailable'
+export const VERSION_RETENTION_LIMIT = 50
+const MAX_SCAN = 10_000
+const status = (error: unknown) => (error as NodeJS.ErrnoException).code
+const invalid = () => Object.assign(new Error('历史版本无法安全归入该项目'), { status: 400 })
+
+async function exists(path: string) {
+  try { await lstat(path); return true }
+  catch (error) { if (status(error) === 'ENOENT') return false; throw error }
+}
+
+async function requireDirectDirectory(path: string) {
+  if (!(await verifyHistoryDirectory(path))) throw invalid()
+}
+
+function sameProject(source: Doc, active: ActiveParent) {
+  const expected = { ...source }, actual = { ...active }
+  delete expected.revision
+  delete actual.revision
+  return isDeepStrictEqual(expected, actual)
+}
+
+async function availableSlots(directory: string) {
+  let scanned = 0, candidates = 0
+  for await (const entry of await opendir(directory)) {
+    if (++scanned > MAX_SCAN) return 0
+    // Conservatively count unreadable and interrupted existing history too.
+    if (entry.name.toLowerCase().endsWith('.json') && ++candidates >= VERSION_RETENTION_LIMIT) return 0
+  }
+  return VERSION_RETENTION_LIMIT - candidates
+}
+
+/**
+ * Local storage adapter for an already decoded and canonically validated legacy
+ * project/child pair. Never feed raw HTTP, unvalidated ZIP data, or strings
+ * identifying arbitrary roots here. The library integration must validate the
+ * archive path/payload identity and all document dependencies before calling.
+ *
+ * The ordinary version writer shares this parent queue in the app. Imported
+ * writes never evict existing versions.
+ */
+export function projectHistoryRestore<T extends ActiveParent>(directory: string, projects: ParentStore<T>) {
+  const root = resolve(directory)
+  return {
+    async inspectExisting(sourceParent: Doc, versionIds: readonly string[]) {
+      const pid = safeId(sourceParent.id)
+      return projects.withCurrentRevision(pid, async current => {
+        if (!sameProject(sourceParent, current)) return { reason: 'parent-mismatch' as const }
+        const parent = join(root, pid)
+        try {
+          await requireDirectDirectory(root)
+          if (!await exists(parent)) return { revision: current.revision, available: VERSION_RETENTION_LIMIT, occupied: new Set<string>() }
+          await requireDirectDirectory(parent)
+          const occupied = new Set<string>()
+          for (const id of versionIds) if (await exists(join(parent, safeId(id) + '.json'))) occupied.add(id)
+          return { revision: current.revision, available: await availableSlots(parent), occupied }
+        } catch {
+          return { reason: 'target-unavailable' as const }
+        }
+      })
+    },
+    async restore(request: BoundHistory, publishDependencies?: () => Promise<boolean>, guard?: (created?: boolean) => Promise<void>): Promise<Result> {
+      const { sourceParent, parentRevision, version } = structuredClone(request)
+      const pid = safeId(sourceParent.id), vid = safeId(version.id)
+      if (pid !== version.projectId || pid !== version.doc.id || typeof parentRevision !== 'string' ||
+          !parentRevision || typeof version.label !== 'string' || version.label.length > 2000 ||
+          !Number.isSafeInteger(version.createdAt) || version.createdAt < 0) throw invalid()
+      const write = await projects.withRevision<Result>(pid, parentRevision, async current => {
+        if (!sameProject(sourceParent, current)) return 'parent-unavailable'
+        await requireDirectDirectory(root)
+        await guard?.()
+        const parent = join(root, pid)
+        let created = false
+        try { await mkdir(parent); created = true }
+        catch (error) { if (status(error) !== 'EEXIST') throw error }
+        await requireDirectDirectory(parent)
+        await guard?.(created)
+        const target = join(parent, vid + '.json')
+        if (await exists(target)) return 'occupied'
+        if (await availableSlots(parent) === 0) return 'retention-limit'
+        const stage = await mkdtemp(join(root, '.version-restore-'))
+        try {
+          const completed = join(stage, 'version.json')
+          const record = { id: vid, projectId: pid, label: version.label, createdAt: version.createdAt, doc: version.doc }
+          await writeFile(completed, JSON.stringify(record), { encoding: 'utf8', flag: 'wx' })
+          // The library caller owns the asset queue. Never publish a version
+          // dependency before revision, collision, retention and staging checks.
+          if (publishDependencies && !(await publishDependencies())) return 'dependency-unavailable'
+          await requireDirectDirectory(parent)
+          await guard?.()
+          try { await link(completed, target) }
+          catch (error) { if (status(error) === 'EEXIST') return 'occupied'; throw error }
+          return 'restored'
+        } finally {
+          await rm(stage, { recursive: true, force: true }).catch(() => {})
+        }
+      })
+      return write ?? 'parent-unavailable'
+    },
+  }
+}

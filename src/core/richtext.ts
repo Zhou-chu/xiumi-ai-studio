@@ -1,3 +1,4 @@
+import { markdownLinkDestination, markdownLinkLabel, richLinkHref } from './richLink'
 import type { RichNode, RichText } from './types'
 
 /** 纯文本（支持 **加粗**）→ tiptap JSON；空行或换行分段 */
@@ -36,18 +37,19 @@ export function richToPlain(rich: RichText | undefined, options: { preserveWhite
   return options.preserveWhitespace ? text.replace(/\n$/, '') : text.trim()
 }
 
-export function richToMarkdown(rich: RichText | undefined): string {
+export function richToMarkdown(rich: RichText | undefined, formatText: (text: string) => string = text => text): string {
   if (!rich) return ''
   const inline = (n: RichNode): string => {
     if (n.type === 'hardBreak') return '  \n'
     if (n.type !== 'text') return (n.content ?? []).map(inline).join('')
-    let t = n.text ?? ''
+    const link = (n.marks ?? []).find(mark => mark.type === 'link')
+    const href = richLinkHref(link?.attrs?.href)
+    let t = link ? markdownLinkLabel(n.text ?? '') : formatText(n.text ?? '')
     for (const mk of n.marks ?? []) {
       if (mk.type === 'bold') t = `**${t}**`
       else if (mk.type === 'italic') t = `*${t}*`
-      else if (mk.type === 'link') t = `[${t}](${mk.attrs?.href ?? ''})`
     }
-    return t
+    return href ? `[${t}](${markdownLinkDestination(href)})` : t
   }
   const block = (n: RichNode): string => {
     switch (n.type) {

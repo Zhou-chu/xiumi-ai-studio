@@ -1,7 +1,10 @@
+import { variantUrl } from '../core/managedMediaUrl'
+import { LinkedSvgFields } from './LinkedSvgBlock'
 import { ReplayPanel } from './ReplayPanel'
 import './accessibility-controls.css'
 import { Help } from './Help'
 import { CoverTitleAlignment } from './CoverTitleAlignment'
+import { ImportedSlotPalette } from './ImportedSlotPalette'
 import { useEffect, useMemo, useState } from 'react'
 import { blockLabel, blockMeta, createBlock } from '../core/blocks'
 import { summarize } from '../core/operationDescriptions'
@@ -10,7 +13,7 @@ import { displayUrl } from '../core/images'
 import { sanitizeHtml } from '../core/sanitize'
 import { setPhoto } from '../core/photos'
 import { collectColors, docMainColors, fixedDecorCount, harmonize, recolorHtml } from '../core/recolor'
-import { backgroundPhotos, editableText, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, setSlotAlign, slotAligns, slotRawTexts, type Align, type SlotRole, type TextSlot } from '../core/slots'
+import { backgroundPhotos, colorableHtmlTextSlots, editableText, extractSlots, fillSlots, removeBackgroundPhotos, removeImage, setBackgroundPhoto, setImportedSlotTextColor, setSlotAlign, slotAligns, slotRawTexts, type Align, type SlotRole, type TextSlot } from '../core/slots'
 import { resolveTheme } from '../core/themes'
 import { richToPlain, setRichAlignment, textToRich } from '../core/richtext'
 import type { Block, ImageRef, PicItem } from '../core/types'
@@ -149,6 +152,8 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
   // 表单里显示保留空格的文字；对齐状态一次算出，避免每个槽位都重新解析一遍大片段
   const raws = useMemo(() => slotRawTexts(html, parseDoc), [html])
   const aligns = useMemo(() => slotAligns(html, parseDoc), [html])
+  const fragmentPalette = useMemo(() => collectColors(html, parseDoc).slice(0, 8).map(({ hex }) => hex), [html])
+  const colorable = useMemo(() => colorableHtmlTextSlots(html, parseDoc), [html])
   const imgs = slots.filter((s) => s.kind === 'image').map((s) => s.src)
   const bgPhotos = useMemo(() => backgroundPhotos(html, parseDoc), [html])
   const replace = (i: number, src: string) => {
@@ -184,6 +189,11 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
                   ))}
                 </span>
               </div>
+              {fragmentPalette.length > 0 && colorable.has(s.id) && (
+                <ImportedSlotPalette colors={fragmentPalette} onChoose={(color) => upd({
+                  html: setImportedSlotTextColor(html, s.id, color, parseDoc),
+                }, `slot-color-${s.id}`)} />
+              )}
               <BufferedArea
                 rows={s.role === 'body' ? 3 : 1}
                 value={raws[s.id] ?? s.text}
@@ -206,7 +216,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
             {imgs.map((src, i) => (
               <div key={i} className={`g-item ${picking === i ? 'picking' : ''}`}>
                 <button type="button" data-editor-image-choice className="image-choice" aria-label={`替换第 ${i + 1} 张图片`} aria-pressed={picking === i} onClick={() => setPicking(picking === i ? -1 : i)}>
-                <img src={src.startsWith('/media/') ? `${src.split('?')[0]}?fit=1:1&w=160` : src} alt="" />
+                <img src={src.startsWith('/media/') ? variantUrl(src, '1:1', 160) : src} alt="" />
                 </button>
                 <div>
                   <button
@@ -245,7 +255,7 @@ function HtmlFields({ blockId, html, upd }: { blockId: string; html: string; upd
           <div className="gallery-edit">
             {bgPhotos.map((b, i) => (
               <button data-editor-background-choice type="button" aria-label={`替换第 ${i + 1} 张背景图`} aria-pressed={bgPicking === b.src} key={b.src} className={`g-item ${bgPicking === b.src ? 'picking' : ''}`} onClick={() => setBgPicking(bgPicking === b.src ? '' : b.src)} data-testid={`bg-photo-${i}`}>
-                <img src={b.src.startsWith('/media/') ? `${b.src.split('?')[0]}?fit=1:1&w=160` : displayUrl(b.src)} alt="" />
+                <img src={b.src.startsWith('/media/') ? variantUrl(b.src, '1:1', 160) : displayUrl(b.src)} alt="" />
                 {b.count > 1 && <small className="g-count">×{b.count}</small>}
               </button>
             ))}
@@ -314,7 +324,7 @@ function PicsField({ pics, onChange, removable }: { pics: PicItem[]; onChange: (
       <div className="pics-edit">
         {pics.map((x, i) => (
           <div key={i} className="pic-row" data-testid="pic-row">
-            {x.image ? <img src={x.image.src.startsWith('/media/') ? `${x.image.src.split('?')[0]}?fit=1:1&w=120` : x.image.src} alt="" /> : <span className="pic-empty">图片 {i + 1}</span>}
+            {x.image ? <img src={x.image.src.startsWith('/media/') ? variantUrl(x.image.src, '1:1', 120) : x.image.src} alt="" /> : <span className="pic-empty">图片 {i + 1}</span>}
             <input value={x.caption} placeholder="图注（可留空）" onChange={(e) => set(i, { caption: e.target.value }, `pic${i}`)} />
             <div className="pic-actions">
               <button title="前移" disabled={i === 0} onClick={() => move(i)}>←</button>
@@ -503,6 +513,9 @@ export function PropsForm({ block }: { block: Block }) {
       break
     case 'divider':
       body = variant('divider')
+      break
+    case 'linkedSvg':
+      body = <LinkedSvgFields scene={block.props.scene} onChange={(scene, field) => upd({ scene }, field)} />
       break
     case 'replay':
       body = <ReplayPanel block={block} />

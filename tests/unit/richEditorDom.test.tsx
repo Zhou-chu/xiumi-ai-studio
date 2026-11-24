@@ -48,3 +48,78 @@ it('handles link removal, a valid new link, cancellation and default empty selec
  const editor=h.editor;await act(async()=>root.unmount());expect(editor.destroy).toHaveBeenCalled();root=createRoot(host)
 })
 it('renders defensive toolbar defaults before editor selection state is available',async()=>{h.stateAbsent=true;await render();expect(host.querySelector<HTMLSelectElement>('[aria-label="正文字体"]')!.value).toBe('');expect(host.querySelector<HTMLInputElement>('[aria-label="正文文字颜色"]')!.value).toBe('#222222');expect(host.querySelector('[aria-label="斜体"]')!.getAttribute('aria-pressed')).toBe('false')})
+
+it('keeps restored editorial marks through a real Tiptap edit and serialization', async () => {
+ await render()
+ const { Editor } = await vi.importActual<typeof import('@tiptap/react')>('@tiptap/react')
+ const leaf = (text: string, href: string) => ({
+   type: 'text', text, marks: [{ type: 'link', attrs: { href, target: '_blank', rel: 'noopener noreferrer nofollow', class: null, title: null } }],
+ })
+ const links = [leaf('Paper', 'https://example.org/paper'), leaf('Author', 'mailto:editor@example.org'), leaf('Call', 'tel:+12025550123'), leaf('Docs', '/docs')]
+ const editor = new Editor({ extensions: h.options.extensions, content: { type: 'doc', content: [{
+   type: 'paragraph', content: links.flatMap((link, i) => i ? [{ type: 'text', text: ' and ' }, link] : [link]),
+ }] } })
+ try {
+   expect(editor.commands.insertContentAt(1, 'Updated: ')).toBe(true)
+   expect(editor.getText()).toBe('Updated: Paper and Author and Call and Docs')
+   expect(editor.getJSON().content?.[0].content?.filter(node => node.marks?.length)).toMatchObject([{ ...links[0], text: 'Updated: Paper' }, ...links.slice(1)])
+   const rendered = document.createElement('div')
+   rendered.innerHTML = editor.getHTML()
+   expect([...rendered.querySelectorAll('a')].map(a => a.getAttribute('href'))).toEqual(links.map(x => x.marks[0].attrs.href))
+ } finally { editor.destroy() }
+})
+
+it('applies upstream quick swatches to the selected text without replacing custom color controls', async () => {
+ await render()
+ const { Editor } = await vi.importActual<typeof import('@tiptap/react')>('@tiptap/react')
+ const editor = new Editor({ extensions: h.options.extensions, content: value })
+ h.editor = editor
+ await render()
+ const opener = host.querySelector<HTMLButtonElement>('[aria-label="预设文字颜色"]')
+ expect(opener).not.toBeNull()
+ expect(opener?.getAttribute('aria-expanded')).toBe('false')
+ expect(host.querySelector('[aria-label="常用色"]')).toBeNull()
+ editor.commands.setTextSelection({ from: 1, to: 5 })
+ const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+ act(() => opener?.dispatchEvent(down))
+ expect(down.defaultPrevented).toBe(true)
+ act(() => opener?.click())
+ expect(opener?.getAttribute('aria-expanded')).toBe('true')
+ expect(host.querySelector('[aria-label="主题正文色"]')).not.toBeNull()
+ expect(host.querySelector('[aria-label="主题次要文字色"]')).not.toBeNull()
+ const blue = host.querySelector<HTMLButtonElement>('[aria-label="蓝色"]')
+ expect(blue).not.toBeNull()
+ const swatchDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+ act(() => blue?.dispatchEvent(swatchDown))
+ expect(swatchDown.defaultPrevented).toBe(true)
+ act(() => blue?.click())
+ expect(editor.getJSON().content?.[0].content).toMatchObject([
+  { text: 'Orig', marks: [{ type: 'textStyle', attrs: { color: '#2e86de' } }] },
+  { text: 'inal' },
+ ])
+ expect(opener?.getAttribute('aria-expanded')).toBe('false')
+ expect(host.querySelector('[aria-label="正文文字颜色"]')).not.toBeNull()
+ expect(host.querySelector('[aria-label="恢复默认文字颜色"]')).not.toBeNull()
+ act(() => opener?.click())
+ const muted = host.querySelector<HTMLButtonElement>('[aria-label="主题次要文字色"]')
+ const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+ act(() => muted?.dispatchEvent(escape))
+ expect(escape.defaultPrevented).toBe(true)
+ expect(opener?.getAttribute('aria-expanded')).toBe('false')
+ expect(document.activeElement).toBe(opener)
+ expect(done).not.toHaveBeenCalled()
+})
+
+it('dismisses an open palette through the rich-text keyboard handler without finishing the edit', async () => {
+ await render()
+ const opener = host.querySelector<HTMLButtonElement>('[aria-label="预设文字颜色"]')!
+ act(() => opener.click())
+ const key = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+ act(() => expect(h.options.editorProps.handleKeyDown(null, key)).toBe(true))
+ expect(done).not.toHaveBeenCalled()
+ expect(key.defaultPrevented).toBe(true)
+ expect(opener.getAttribute('aria-expanded')).toBe('false')
+ expect(document.activeElement).toBe(opener)
+ act(() => expect(h.options.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true))
+ expect(done).toHaveBeenCalledTimes(1)
+})

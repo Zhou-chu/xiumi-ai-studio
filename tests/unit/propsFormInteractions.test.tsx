@@ -7,6 +7,8 @@ import {useStore,emptyDoc} from '../../src/editor/store'
 import {createBlock,BLOCK_TYPES} from '../../src/core/blocks'
 import type {Block} from '../../src/core/types'
 import {api} from '../../src/editor/api'
+import {readFileSync} from 'node:fs'
+import {articleToHtmlBlocks,extractArticle} from '../../src/core/wxImport'
 let root:Root,host:HTMLDivElement
 const state=()=>useStore.getState()
 function Live(){const block=useStore(s=>s.doc.blocks[0]);return <PropsForm block={block}/>}
@@ -66,4 +68,65 @@ it('remote images and repeated background photos remain explicit when the librar
  await mount(createBlock('html',{label:'Photos',html:'<p>'+('Long body text. '.repeat(30))+'</p><img src="https://example.test/image.jpg"><section style="background-image:url(https://example.test/bg.jpg)"></section><section style="background-image:url(https://example.test/bg.jpg)"></section>'}))
  expect(host.querySelector('.g-count')?.textContent).toContain('2');await click(host.querySelector('[data-testid="bg-photo-0"]'));expect(host.querySelector('.picker .empty')).not.toBeNull();await click(host.querySelector('[data-testid="bg-photo-0"]'));expect(host.querySelector('.picker')).toBeNull()
  await input(host.querySelector('[data-testid="slot-t0"] textarea'),'Updated long body');expect((state().doc.blocks[0].props as any).html).toContain('Updated long body')
+})
+
+
+it('applies a color already in an imported card to the chosen text slot only', async () => {
+ const fixture=readFileSync('tests/fixtures/wechat-article.html','utf8')
+ const article=extractArticle(new DOMParser().parseFromString(fixture,'text/html'))
+ const imported=articleToHtmlBlocks(article.root).find((block): block is Block<'html'> =>
+   block.type==='html' && block.props.html.includes('社团招新季') && block.props.html.includes('CLUB RECRUITMENT'))
+ expect(imported).toBeDefined()
+ const block=imported!
+ const asDom=(html:string)=>new DOMParser().parseFromString(html,'text/html')
+ const original=asDom(block.props.html)
+ await mount(block)
+ const control=()=>host.querySelector<HTMLButtonElement>('[data-testid="slot-t0"] button[aria-label="片段配色"]')
+ expect(control()?.getAttribute('aria-expanded')).toBe('false')
+ await click(control())
+ const palette=host.querySelector('[data-testid="slot-t0"] [role="group"][aria-label="片段原有颜色"]')
+ await click(palette?.querySelector('button[aria-label="#999999"]'))
+ const stored=state().doc.blocks[0] as Block<'html'>
+ const edited=asDom(stored.props.html)
+ expect(edited.querySelector('p')?.getAttribute('style')).toContain('#999999')
+ expect(edited.querySelector('p')?.style.fontSize).toBe(original.querySelector('p')?.style.fontSize)
+ expect(edited.querySelectorAll('p')[1]?.outerHTML).toBe(original.querySelectorAll('p')[1]?.outerHTML)
+ expect(edited.querySelector('section')?.getAttribute('style')).toBe(original.querySelector('section')?.getAttribute('style'))
+ expect(control()?.getAttribute('aria-expanded')).toBe('false')
+ await act(async()=>state().undo())
+ expect((state().doc.blocks[0] as Block<'html'>).props.html).toBe(block.props.html)
+})
+
+
+it('keeps an imported SVG text slot and its currentColor graphics out of the palette', async () => {
+ const block=createBlock('html',{label:'Imported text and illustration', html:
+   '<p style="color:#334455">Body <strong style="color:#006600;font-weight:700">emphasis</strong></p>'+
+   '<svg style="color:#cc3300"><rect width="10" height="10" fill="currentColor"></rect><text>Fixed label</text></svg>'})
+ await mount(block)
+ expect(host.querySelector('[data-testid="slot-t1"] button[aria-label="片段配色"]')).toBeNull()
+ await click(host.querySelector('[data-testid="slot-t0"] button[aria-label="片段配色"]'))
+ await click(host.querySelector('[data-testid="slot-t0"] button[aria-label="#cc3300"]'))
+ const input=new DOMParser().parseFromString(block.props.html,'text/html')
+ const output=new DOMParser().parseFromString((state().doc.blocks[0] as Block<'html'>).props.html,'text/html')
+ expect(output.querySelector('svg')?.outerHTML).toBe(input.querySelector('svg')?.outerHTML)
+ expect(output.querySelector('p')?.style.color).toBe('rgb(204, 51, 0)')
+ expect(output.querySelector('strong')?.style.color).toBe('')
+ expect(output.querySelector('strong')?.style.fontWeight).toBe('700')
+})
+
+it('colors linked text in the chosen slot without editing its distinct image slot', async () => {
+ const block=createBlock('html',{label:'Imported inline slots', html:
+   '<p style="color:#334455">Body <a href="https://example.test" style="color:#006600;font-weight:700">source</a>'+
+   '<img alt="Cover" src="/media/a.png" style="color:red;-webkit-text-fill-color:red;width:50px"></p>'+
+   '<p style="color:#cc3300">Other slot</p>'})
+ await mount(block)
+ await click(host.querySelector('[data-testid="slot-t0"] button[aria-label="片段配色"]'))
+ await click(host.querySelector('[data-testid="slot-t0"] button[aria-label="#cc3300"]'))
+ const input=new DOMParser().parseFromString(block.props.html,'text/html')
+ const output=new DOMParser().parseFromString((state().doc.blocks[0] as Block<'html'>).props.html,'text/html')
+ expect.soft(output.querySelector('img')?.outerHTML).toBe(input.querySelector('img')?.outerHTML)
+ expect(output.querySelector('a')?.style.color).toBe('rgb(204, 51, 0)')
+ expect(output.querySelector('a')?.style.fontWeight).toBe('700')
+ expect(output.querySelector('a')?.getAttribute('href')).toBe(input.querySelector('a')?.getAttribute('href'))
+ expect(output.querySelectorAll('p')[1]?.outerHTML).toBe(input.querySelectorAll('p')[1]?.outerHTML)
 })

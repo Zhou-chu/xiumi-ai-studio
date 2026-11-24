@@ -62,6 +62,46 @@ describe('local day/night boundaries', () => {
   })
 })
 
+describe('upstream theme preference compatibility', () => {
+  it.each([
+    ['upstream', 'upstream'],
+    ['mono-light', 'light'],
+    ['mono-dark', 'dark'],
+    ['mono-auto', 'auto'],
+  ] as const)('reads upstream %s as %s without rewriting storage', (upstream, expected) => {
+    localStorage.setItem('xiumi-ui-theme', upstream)
+    expect(readColorMode()).toBe(expected)
+    expect(localStorage.getItem(COLOR_MODE_KEY)).toBeNull()
+    expect(localStorage.getItem('xiumi-ui-theme')).toBe(upstream)
+  })
+
+  it.each(['upstream', 'light', 'dark', 'auto'] as const)('keeps valid fork %s ahead of the upstream preference', preference => {
+    localStorage.setItem('xiumi-ui-theme', 'mono-light')
+    localStorage.setItem(COLOR_MODE_KEY, preference)
+    expect(readColorMode()).toBe(preference)
+  })
+
+  it('falls back from corrupt fork data only to a recognized upstream preference', () => {
+    localStorage.setItem(COLOR_MODE_KEY, 'unknown')
+    localStorage.setItem('xiumi-ui-theme', 'mono-dark')
+    expect(readColorMode()).toBe('dark')
+    localStorage.setItem('xiumi-ui-theme', 'also-unknown')
+    expect(readColorMode()).toBe('auto')
+    expect(localStorage.getItem(COLOR_MODE_KEY)).toBe('unknown')
+  })
+
+  it('stores the mode, not the resolved color, during normal fork preference changes', () => {
+    localStorage.setItem('xiumi-ui-theme', 'mono-auto')
+    mount()
+    expect(host.querySelector('select')!.value).toBe('auto')
+    expect(document.documentElement.dataset.colorMode).toBe('light')
+    choose('dark')
+    expect(localStorage.getItem(COLOR_MODE_KEY)).toBe('dark')
+    expect(localStorage.getItem('xiumi-ui-theme')).toBe('mono-auto')
+    expect(readColorMode()).toBe('dark')
+  })
+})
+
 it('starts automatic, allows both manual choices, and restores a saved choice on remount', () => {
   mount()
   expect(host.querySelector('select')!.value).toBe('auto')
@@ -244,4 +284,47 @@ it.each(['light', 'dark'])('keeps actual %s success toast text readable', (mode)
       expect(contrast(hex(css.color), hex(css.backgroundColor)), `${mode} ${toast.className}`).toBeGreaterThanOrEqual(4.5)
     }
   } finally { style.remove() }
+})
+
+it('offers a distinct upstream option without replacing old light settings', () => {
+  localStorage.setItem(COLOR_MODE_KEY, 'light')
+  mount()
+  expect(host.querySelector('select')!.value).toBe('light')
+  expect([...host.querySelectorAll('option')].map(option => option.value)).toContain('upstream')
+  choose('upstream')
+  expect(localStorage.getItem(COLOR_MODE_KEY)).toBe('upstream')
+  vi.setSystemTime(new Date(2026, 10, 10, 23))
+  act(() => window.dispatchEvent(new Event('focus')))
+  expect(document.documentElement.dataset.colorMode).toBe('upstream')
+  act(() => root!.unmount())
+  mount()
+  expect(host.querySelector('select')!.value).toBe('upstream')
+})
+
+it('keeps upstream base surfaces and accessible status/action colors distinct from fork light', () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/styles.css', 'utf8') + '\n' + readFileSync('src/color-mode.css', 'utf8')
+  document.head.append(style)
+  function color(token: string): string {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+    const reference = /^var\((--[\w-]+)\)$/.exec(value)
+    return reference ? color(reference[1]!) : value
+  }
+  try {
+    document.documentElement.dataset.colorMode = 'upstream'
+    const tokens = ['--bg', '--panel', '--line', '--text', '--brand', '--accent']
+    expect(tokens.map(color)).toEqual(['#f2f3f5', '#ffffff', '#e4e6eb', '#1f2329', '#5b4bdb', '#ff7a45'])
+    for (const token of ['--text', '--sub', '--faint', '--brand', '--danger', '--ok']) {
+      expect(contrast(color(token), color('--panel')), token).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(contrast(color('--faint'), color('--bg'))).toBeGreaterThanOrEqual(4.5)
+    for (const token of ['--ui-accent-start', '--ui-accent-end', '--ui-accent-hover-start', '--ui-accent-hover-end']) {
+      expect(contrast(color('--ui-accent-label'), color(token)), token).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(color('--ui-accent-start')).toBe('#7b5cff')
+    document.documentElement.dataset.colorMode = 'light'
+    expect(color('--ui-accent-start')).toBe('#6843b9')
+  } finally {
+    style.remove()
+  }
 })

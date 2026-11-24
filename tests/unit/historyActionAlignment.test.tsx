@@ -133,3 +133,28 @@ it('keeps a direct history-list retry in the dialog and replaces the error with 
   expect(dialog.textContent).toContain('Recovered history')
   expect(dialog.querySelector('[role="alert"]')).toBeNull()
 })
+
+it('restores a digest-qualified historical image through the real history controls and undoes to the current image', async () => {
+  const original = { ...emptyDoc(), title: 'Current indexed manuscript' }
+  const currentSrc = '/media/current-only.png?gen=' + 'a'.repeat(64)
+  const historySrc = '/media/history-only.png?gen=' + 'b'.repeat(64)
+  const { createBlock } = await import('../../src/core/blocks')
+  original.blocks = [createBlock('image', { image: { src: currentSrc, assetId: 'current-only' } })]
+  const historical = { ...original, title: 'Historical indexed manuscript',
+    blocks: [createBlock('image', { image: { src: historySrc, assetId: 'history-only' } })],
+  }
+  vi.spyOn(api, 'versions').mockResolvedValue([entry('visual', 'Historical indexed snapshot')])
+  vi.spyOn(api, 'version').mockResolvedValue({ doc: historical })
+  await act(async () => state().load(original))
+  await open()
+  await click(button('恢复'))
+  expect(state().doc.title).toBe(historical.title)
+  const restored = state().doc.blocks[0]
+  if (restored.type !== 'image') throw new Error('Expected the historical image block')
+  expect(restored.props.image?.src).toBe(historySrc)
+  await click(host.querySelector('button[aria-label="撤销"]'))
+  expect(state().doc.title).toBe(original.title)
+  const current = state().doc.blocks[0]
+  if (current.type !== 'image') throw new Error('Expected the current image block')
+  expect(current.props.image?.src).toBe(currentSrc)
+})

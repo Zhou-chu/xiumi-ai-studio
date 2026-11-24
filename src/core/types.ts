@@ -1,3 +1,4 @@
+import type { LinkedSvgScene } from './crossSvgPreview'
 import type { ImageRef } from './imageRef'
 export type { ImageRef } from './imageRef'
 import type { ReplayDoc } from './replay/types'
@@ -34,6 +35,7 @@ export type BlockType =
   | 'frame'
   | 'photos'
   | 'replay'
+  | 'linkedSvg'
 
 /** 套件图片模块的一个图片位：图片可以为空（导出时跳过），图注可以留空 */
 export interface PicItem {
@@ -43,6 +45,7 @@ export interface PicItem {
 
 export interface BlockPropsMap {
   replay: ReplayDoc
+  linkedSvg: { scene: LinkedSvgScene | null }
   cover: { titleAlign?: 'auto' | 'left' | 'center' | 'right'; kicker: string; title: string; subtitle: string; meta: string; image?: ImageRef; variant: 'auto' | 'hero' | 'band' | 'minimal' }
   heading: { index: string; title: string; subtitle: string; variant: 'auto' | 'number' | 'bar' | 'pill' | 'underline' }
   paragraph: { content: RichText; align: 'left' | 'justify' | 'center' | 'right' }

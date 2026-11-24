@@ -1,5 +1,6 @@
 // 绘制基础：渲染上下文、SVG 属性序列化、文字（栅格图或 <text>）与元素静态外观。
 import { esc } from '../style'
+import { variantUrl } from '../managedMediaUrl'
 import { backgroundAt, baseColor, glyphMeasure, mix, type TextRun } from './layout'
 import type { TimedItem } from './schedule'
 import { smil, type AnimSpec, type PlayMode } from './smil'
@@ -233,7 +234,7 @@ function imageBody(ti: TimedItem, ctx: RenderCtx): string {
   const { box, item, style } = ti
   const h = ti.label ? ti.label.y - 12 - box.y : box.h
   if (item.image?.src) {
-    const src = item.image.src.startsWith('/media/') ? `${item.image.src.split('?')[0]}?w=1500` : item.image.src
+    const src = variantUrl(item.image.src, undefined, 1500)
     return (
       el('image', { href: ctx.img(src), x: box.x, y: box.y, width: box.w, height: h, preserveAspectRatio: 'xMidYMid slice' }) +
       (style.stroke ? el('rect', { x: box.x, y: box.y, width: box.w, height: h, fill: 'none', stroke: style.stroke, 'stroke-width': 2 }) : '')

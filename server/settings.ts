@@ -126,7 +126,18 @@ export async function publicAiSettings() {
 }
 
 /** 保存配置；密钥字段为空或仍是打码值时保留原密钥 */
-export async function saveAiSettings(input: { activeId: string; profiles: Partial<AiProfile>[] }) {
+let settingsQueue = Promise.resolve()
+export function withAiSettingsLock<T>(action: () => Promise<T>): Promise<T> {
+  const operation = settingsQueue.then(action)
+  settingsQueue = operation.then(() => {}, () => {})
+  return operation
+}
+
+export function saveAiSettings(input: { activeId: string; profiles: Partial<AiProfile>[] }) {
+  return withAiSettingsLock(() => writeAiSettings(input))
+}
+
+async function writeAiSettings(input: { activeId: string; profiles: Partial<AiProfile>[] }) {
   const s = await load()
   const old = new Map(s.ai.profiles.map((p) => [p.id, p]))
   const profiles: AiProfile[] = (input.profiles ?? [])

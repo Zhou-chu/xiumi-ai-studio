@@ -2,21 +2,48 @@ import { stripTagSpans } from './textLinear'
 import { richToMarkdown } from './richtext'
 import type { Block, Doc } from './types'
 
+// Escape literal data before rendering trusted Markdown structure.
+function markdownDataText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/[\\\x60*_[\]{}()|~#+]/g, '\\$&')
+    .replace(/\r\n|[\r\n]/g, '<br>')
+}
+
+function markdownDataTable({ headers, rows, caption }: Extract<Block, { type: 'table' }>['props']): string[] {
+  // The native editor accepts uneven rows. Prevent GFM from dropping cells.
+  const width = rows.reduce((size, row) => Math.max(size, row.length), headers.length)
+  const formattedCaption = caption && `*${markdownDataText(caption)}*`
+  if (!width) return formattedCaption ? [formattedCaption] : []
+  const row = (cells: string[]) => `| ${Array.from({ length: width }, (_, index) => cells[index] ?? '').join(' | ')} |`
+  return [
+    [row(headers.map(markdownDataText)), row(Array<string>(width).fill('---')), ...rows.map(cells => row(cells.map(markdownDataText)))].join('\n'),
+    formattedCaption,
+  ]
+}
+
 export function docToMarkdown(doc: Doc): string {
   const out: string[] = []
   const img = (src?: string, alt = '') => (src ? `![${alt}](${src})` : '')
-  const pics = (list: { image?: { src: string }; caption: string }[]) => list.filter((x) => x.image).flatMap((x) => [img(x.image!.src, x.caption), x.caption && `*${x.caption}*`])
-  const walk = (b: Block) => {
+  const pics = (list: { image?: { src: string }; caption: string }[], format: (text: string) => string = text => text) =>
+    list.filter(x => x.image).flatMap(x => {
+      const caption = format(x.caption)
+      return [img(x.image!.src, caption), caption && `*${caption}*`]
+    })
+  const walk = (b: Block, inBox = false) => {
     const p: any = b.props
     switch (b.type) {
       case 'cover':
-        out.push(`# ${p.title}`, p.subtitle && `> ${p.subtitle}`, p.meta, img(p.image?.src))
+        out.push(`# ${markdownDataText(b.props.title)}`,
+          b.props.subtitle && `> ${markdownDataText(b.props.subtitle)}`, markdownDataText(b.props.meta), img(b.props.image?.src))
         break
-      case 'heading':
-        out.push(`## ${p.index ? p.index + ' ' : ''}${p.title}`, p.subtitle)
+      case 'heading': {
+        const { index, title, subtitle } = b.props
+        const format = inBox ? markdownDataText : (text: string) => text
+        out.push(`## ${index ? format(index) + ' ' : ''}${format(title)}`, format(subtitle))
         break
+      }
       case 'paragraph':
-        out.push(richToMarkdown(p.content))
+        out.push(richToMarkdown(p.content, inBox ? markdownDataText : undefined))
         break
       case 'card':
         out.push(p.title && `**${p.title}**`, richToMarkdown(p.content))
@@ -25,24 +52,29 @@ export function docToMarkdown(doc: Doc): string {
         out.push(`> ${p.text}${p.source ? `\n>\n> —— ${p.source}` : ''}`)
         break
       case 'imageText':
-        out.push(img(p.image?.src), p.title && `**${p.title}**`, richToMarkdown(p.content))
+        out.push(img(b.props.image?.src), b.props.title && `**${markdownDataText(b.props.title)}**`,
+          richToMarkdown(b.props.content, markdownDataText))
         break
-      case 'image':
-        out.push(img(p.image?.src, p.caption), p.caption && `*${p.caption}*`)
+      case 'image': {
+        const caption = b.props.image ? b.props.caption : markdownDataText(b.props.caption)
+        out.push(img(b.props.image?.src, caption), caption && `*${caption}*`)
         break
-      case 'gallery':
-        out.push(p.images.map((i: any) => img(i.src)).join('\n'), p.caption && `*${p.caption}*`)
+      }
+      case 'gallery': {
+        const { caption, images } = b.props
+        out.push(images.map(i => img(i.src)).join('\n'), caption && `*${images.length === 0 ? markdownDataText(caption) : caption}*`)
         break
+      }
       case 'timeline':
-        out.push(p.items.map((i: any) => `- **${i.time}** ${i.title}${i.desc ? `：${i.desc}` : ''}`).join('\n'))
+        out.push(b.props.items.map(({ time, title, desc }) =>
+          `- ${time ? `**${markdownDataText(time)}** ` : ''}${markdownDataText(title)}${desc ? `：${markdownDataText(desc)}` : ''}`).join('\n'))
         break
       case 'table':
-        out.push(
-          [`| ${p.headers.join(' | ')} |`, `| ${p.headers.map(() => '---').join(' | ')} |`, ...p.rows.map((r: string[]) => `| ${r.join(' | ')} |`)].join('\n'),
-        )
+        out.push(...markdownDataTable(b.props))
         break
       case 'profile':
-        out.push(img(p.image?.src, p.name), `**${p.name}** · ${p.role}`, p.bio)
+        out.push(img(b.props.image?.src, markdownDataText(b.props.name)),
+          `**${markdownDataText(b.props.name)}** · ${markdownDataText(b.props.role)}`, markdownDataText(b.props.bio))
         break
       case 'divider':
         out.push('---')
@@ -62,21 +94,26 @@ export function docToMarkdown(doc: Doc): string {
         break
       }
       case 'ending':
-        out.push('---', p.text && `**${p.text}**`, p.note, p.author)
+        out.push('---', b.props.text && `**${markdownDataText(b.props.text)}**`,
+          markdownDataText(b.props.note), markdownDataText(b.props.author))
         break
       case 'box':
-        out.push(p.title && `### ${p.title}`)
-        p.children.forEach(walk)
+        out.push(b.props.title && `### ${markdownDataText(b.props.title)}`)
+        b.props.children.forEach(child => walk(child, true))
         break
       case 'carousel':
+        out.push(...pics(b.props.pics))
+        break
       case 'photos':
-        out.push(...pics(b.type === 'photos' ? p.pics.slice(0, p.count) : p.pics))
+        out.push(...pics(b.props.pics.slice(0, b.props.count), markdownDataText))
         break
-      case 'frame':
-        out.push(img(p.image?.src, p.caption), p.caption && `*${p.caption}*`)
+      case 'frame': {
+        const caption = markdownDataText(b.props.caption)
+        out.push(img(b.props.image?.src, caption), caption && `*${caption}*`)
         break
+      }
     }
   }
-  doc.blocks.forEach(walk)
+  doc.blocks.forEach(block => walk(block))
   return out.filter(Boolean).join('\n\n') + '\n'
 }

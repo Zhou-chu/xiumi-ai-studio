@@ -34,3 +34,8 @@ it('preserves escaping and leaves authored raw HTML whitespace unchanged',()=>{
 it('does not treat a literal text newline as an explicit hard break',()=>{
  const html=render([text('A \n'),text(' B')]);expect(html).not.toContain('&nbsp;');expect(parse(html).body.textContent).toBe('A \n B');expect(parse(html).querySelectorAll('br')).toHaveLength(0)
 })
+
+it.each(['/docs', 'tel:+12025550123'])('keeps existing editorial export links to %s', href => {
+ const html = render([text('Existing', [{ type: 'link', attrs: { href } }])])
+ expect(parse(html).querySelector('a')?.getAttribute('href')).toBe(href)
+})

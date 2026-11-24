@@ -1,0 +1,238 @@
+import { randomBytes } from 'node:crypto'
+import { lstat } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { Express, Request, RequestHandler, Response } from 'express'
+import { assetRestoreStore } from './assets'
+import { componentRestoreStore } from './components'
+import type { DesignCollections } from './legacyDesignRestore'
+import { isOwnedDesktopRequest } from './desktopActions'
+import { createLegacyDirectoryPreview } from './legacyDirectoryMigration'
+import { stageLegacyDirectoryProjects } from './legacyProjectRestore'
+
+const route = '/api/data/migrate'
+const cookieName = 'xiumi_migration_owner'
+const ttl = 10 * 60_000
+type Store = Parameters<typeof stageLegacyDirectoryProjects>[1]
+type History = NonNullable<Parameters<typeof stageLegacyDirectoryProjects>[2]['historyStore']>
+type Stage = ReturnType<typeof stageLegacyDirectoryProjects>
+type Snapshot = Awaited<ReturnType<ReturnType<typeof createLegacyDirectoryPreview>['snapshotProjects']>>
+type Mode = NonNullable<Parameters<ReturnType<typeof createLegacyDirectoryPreview>['snapshotProjects']>[1]>
+type Stores = { history: History; design: DesignCollections }
+type Pending = { hasHistory: boolean; mode: Mode; owner: string; token: string; stage: Stage; sourceVersion: string; summaries: Snapshot['summaries']; timeout: NodeJS.Timeout }
+
+const secret = () => randomBytes(32).toString('hex')
+const cookieOptions = { path: route, httpOnly: true, sameSite: 'strict' as const }
+const requestOwner = (req: Request) => /(?:^|;\s*)xiumi_migration_owner=([a-f0-9]{64})(?:;|$)/.exec(req.get('cookie') ?? '')?.[1]
+const bodyKeys = (body: unknown) => body && typeof body === 'object' && !Array.isArray(body) ? Object.keys(body) : null
+
+function ownerOnly(req: Request, res: Response, next: Parameters<RequestHandler>[2]) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.socket.localAddress !== '127.0.0.1' || req.socket.remoteAddress !== '127.0.0.1' ||
+      !req.socket.localPort || !isOwnedDesktopRequest(req.headers, 'http://127.0.0.1:' + req.socket.localPort, req.method !== 'GET')) {
+    res.status(403).json({ error: '仅允许本机桌面页面迁移旧版数据' })
+    return
+  }
+  next()
+}
+
+function respondError(res: Response, error: unknown) {
+  const status = typeof error === 'object' && error !== null && 'status' in error ? error.status : undefined
+  if (error instanceof Error && (status === 400 || status === 409 || status === 413)) {
+    res.status(status).json({ error: error.message })
+  } else {
+    res.status(500).json({ error: '无法迁移这份本机旧版数据，请重新检测。' })
+  }
+}
+
+function guardCollection(store: DesignCollections['themes'], guard: () => Promise<void>): DesignCollections['themes'] {
+  return {
+    restoreStatus: item => store.withRestoreEntry(item, async (_restore, status) => { await guard(); return status() }),
+    withRestoreEntry: (item, action) => store.withRestoreEntry(item, (restore, status) => action(
+      async () => { await guard(); return restore() }, async () => { await guard(); return status() },
+    )),
+  }
+}
+
+function guardedStage(snapshot: Snapshot, projects: Store, target: string, stores: Stores, mode: Mode) {
+  const { projects: candidates, assets, history, targetHistory, verifyDestination, design } = snapshot
+  const inspectExisting = stores.history.inspectExisting
+  const verifyAssetDestination = async () => {
+    await verifyDestination()
+    const info = await lstat(join(target, 'assets', '_index.json')).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    })
+    if (info && (!info.isFile() || info.nlink !== 1)) {
+      throw Object.assign(new Error('无法安全使用当前素材索引'), { status: 409 })
+    }
+  }
+  return stageLegacyDirectoryProjects(candidates, {
+    occupied: async id => {
+      await verifyDestination()
+      return targetHistory?.blocked.has(id) || projects.occupied(id)
+    },
+    // Shares the ordinary store queue and writes only after checking our
+    // pinned target again. No portable atomic OS directory handle claimed.
+    restore: (doc, prepare) => projects.restore(doc, async () => {
+      await verifyDestination()
+      await targetHistory?.guard(doc.id)
+      if (targetHistory?.blocked.has(doc.id)) return false
+      const ready = await prepare?.() ?? true
+      await verifyDestination()
+      await targetHistory?.guard(doc.id)
+      return ready
+    }),
+  }, { assets, history, standaloneImages: mode.standaloneImages,
+    ...(design && {
+      design: design.records,
+      components: design.components,
+      designStore: {
+        themes: guardCollection(stores.design.themes, () => design.guard('themes')),
+        templates: guardCollection(stores.design.templates, () => design.guard('templates')),
+      },
+      componentStore: guardCollection(componentRestoreStore, () => design.guard('components')),
+    }),
+    assetStore: {
+    status: asset => assetRestoreStore.withApplyLock(async (_restore, check) => {
+      await verifyAssetDestination()
+      return check(asset)
+    }),
+    withApplyLock: apply => assetRestoreStore.withApplyLock((restore, check) => apply(
+      async asset => { await verifyAssetDestination(); return restore(asset) },
+      async asset => { await verifyAssetDestination(); return check(asset) },
+    )),
+  }, historyStore: targetHistory && {
+    inspectExisting: inspectExisting && (async (parent, ids) => {
+      await verifyDestination()
+      await targetHistory.guard(parent.id)
+      return inspectExisting(parent, ids)
+    }),
+    restore: (request, publishDependencies) => stores.history.restore(request, publishDependencies, async created => {
+      await verifyDestination()
+      await targetHistory.guard(request.sourceParent.id, created)
+    }),
+  } })
+}
+
+function assetPreviewCounts(assets: Awaited<ReturnType<Stage['preview']>>['assets']) {
+  return { add: assets?.add.length ?? 0, skip: assets?.skip.length ?? 0, alreadyPresent: assets?.alreadyPresent.length ?? 0 }
+}
+function assetResultCounts(assets: Awaited<ReturnType<Stage['apply']>>['assets']) {
+  return {
+    restored: assets?.restored.length ?? 0, skipped: assets?.skipped.length ?? 0,
+    failed: assets?.failed.length ?? 0, alreadyPresent: assets?.alreadyPresent.length ?? 0,
+  }
+}
+
+function migrationMode(body: Record<string, unknown> | null): Mode | undefined {
+  if (!bodyKeys(body)?.every(key => (key === 'standaloneImages' || key === 'designRecords') && body?.[key] === true)) return
+  return { standaloneImages: body?.standaloneImages === true, designRecords: body?.designRecords === true }
+}
+function collectionCounts<K extends string>(value: Partial<Record<K, string[]>> | undefined, keys: readonly K[]) {
+  return Object.fromEntries(keys.map(key => [key, value?.[key]?.length ?? 0]))
+}
+const designPreviewKeys = ['add', 'conflicts', 'alreadyPresent', 'unresolved'] as const
+const designResultKeys = ['restored', 'conflicts', 'alreadyPresent', 'unresolved', 'failed'] as const
+function designPreviewCounts(stage: Awaited<ReturnType<Stage['preview']>>) {
+  return {
+    themes: collectionCounts(stage.design?.themes, designPreviewKeys),
+    templates: collectionCounts(stage.design?.templates, designPreviewKeys),
+    components: collectionCounts(stage.components, designPreviewKeys),
+  }
+}
+function designResultCounts(stage: Awaited<ReturnType<Stage['apply']>>) {
+  return {
+    themes: collectionCounts(stage.design?.themes, designResultKeys),
+    templates: collectionCounts(stage.design?.templates, designResultKeys),
+    components: collectionCounts(stage.components, designResultKeys),
+  }
+}
+
+/** The source is supplied only by the owner-controlled portable launch. */
+export function registerLegacyDirectoryMigrationRoutes(app: Express, projects: Store, configuredSource: string, target: string, stores: Stores) {
+  const source = createLegacyDirectoryPreview({ configuredSource, target, maxEntries: 5000 })
+  let pending: Pending | undefined
+  let busy = false
+  const discard = () => {
+    if (pending) clearTimeout(pending.timeout)
+    pending = undefined
+  }
+
+  app.get(route, ownerOnly, (_req, res) => res.json({ available: true }))
+  app.post(route, ownerOnly, async (req, res) => {
+    const mode = migrationMode(req.body)
+    if (!mode || Object.keys(req.query).length) {
+      return res.status(400).json({ error: '不接受迁移路径或额外参数' })
+    }
+    if (busy || (pending && pending.owner !== requestOwner(req))) {
+      return res.status(429).json({ error: '另一个迁移会话正在运行' })
+    }
+    busy = true
+    const controller = new AbortController()
+    const close = () => { if (!res.writableFinished) controller.abort() }
+    res.once('close', close)
+    try {
+      const snapshot = await source.snapshotProjects(controller.signal, mode)
+      const { sourceLayout, sourceVersion, history, summaries } = snapshot
+      const stage = guardedStage(snapshot, projects, target, stores, mode)
+      const preview = await stage.preview()
+      const plan = preview.projects
+      if (controller.signal.aborted) return
+      discard()
+      const token = secret()
+      const owner = secret()
+      const timeout = setTimeout(() => { if (pending?.token === token) discard() }, ttl)
+      timeout.unref()
+      pending = { hasHistory: !!history, mode, owner, token, stage, sourceVersion, summaries, timeout }
+      res.cookie(cookieName, owner, { ...cookieOptions, maxAge: ttl })
+      return res.json({ token, plan: {
+        sourceLayout, add: plan.add.length, skip: plan.skip.length, unsupported: plan.unsupported.length, invalid: summaries.invalid, ignored: summaries.ignored,
+        ...(mode.standaloneImages && { assets: assetPreviewCounts(preview.assets) }),
+        ...(mode.designRecords && { design: designPreviewCounts(preview) }),
+        ...(history && { versions: { add: preview.versions.add.length, skip: preview.versions.skip.length, unsupported: preview.unsupported.filter(path => path.startsWith('versions/')).length } }),
+      } })
+    } catch (error) {
+      if (!controller.signal.aborted) respondError(res, error)
+    } finally {
+      res.removeListener('close', close)
+      busy = false
+    }
+  })
+
+  app.post(route + '/:token/:action', ownerOnly, async (req, res) => {
+    const action = req.params.action
+    if (!pending || pending.token !== req.params.token || pending.owner !== requestOwner(req) || (action !== 'apply' && action !== 'cancel')) {
+      return res.status(404).json({ error: '迁移会话不存在或已经结束' })
+    }
+    const keys = bodyKeys(req.body)
+    if (Object.keys(req.query).length || (action === 'apply' ? keys?.length !== 1 || req.body.confirm !== true : keys?.length !== 0)) {
+      return res.status(400).json({ error: '需要明确确认或取消迁移' })
+    }
+    if (busy) return res.status(429).json({ error: '另一个迁移操作正在运行' })
+    const { stage, sourceVersion, summaries, hasHistory, mode } = pending
+    discard()
+    res.clearCookie(cookieName, cookieOptions)
+    if (action === 'cancel') return res.status(204).end()
+    busy = true
+    try {
+      let currentVersion: string
+      try { currentVersion = (await source.snapshotProjects(undefined, mode)).sourceVersion }
+      catch { return res.status(409).json({ error: '旧版目录已更改或不可读，请重新检测' }) }
+      if (currentVersion !== sourceVersion) return res.status(409).json({ error: '旧版目录已更改，请重新检测' })
+      const applied = await stage.apply()
+      const result = applied.projects
+      return res.json({
+        restored: result.restored.length, skipped: result.skipped.length, failed: result.failed.length, unsupported: result.unsupported.length,
+        invalid: summaries.invalid, ignored: summaries.ignored,
+        ...(mode.standaloneImages && { assets: assetResultCounts(applied.assets) }),
+        ...(mode.designRecords && { design: designResultCounts(applied) }),
+        ...(hasHistory && { versions: {
+          restored: applied.versions.restored.length, skipped: applied.versions.skipped.length, failed: applied.versions.failed.length,
+          unsupported: applied.unsupported.filter(path => path.startsWith('versions/')).length,
+        } }),
+      })
+    } catch (error) {
+      respondError(res, error)
+    } finally { busy = false }
+  })
+}

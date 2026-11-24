@@ -1,3 +1,4 @@
+import { decodeLinkedSvgScene } from './crossSvgPreview'
 import { defaultReplay, normalizeReplay } from './replay/schema'
 import { nanoid } from 'nanoid'
 import { textToRich } from './richtext'
@@ -14,6 +15,7 @@ export interface BlockMeta<T extends BlockType = BlockType> {
 const emptyPics = (n: number) => Array.from({ length: n }, () => ({ caption: '' }))
 
 const META: { [K in BlockType]: BlockMeta<K> } = {
+  linkedSvg: { type: 'linkedSvg', label: '跨块 SVG 联动', icon: '↔', group: '动效', defaults: () => ({ scene: null }) },
   replay: { type: 'replay', label: '编辑回放', icon: '▶', group: '动效', defaults: defaultReplay },
   cover: {
     type: 'cover', label: '封面', icon: '▣', group: '结构',
@@ -103,7 +105,7 @@ const META: { [K in BlockType]: BlockMeta<K> } = {
   },
 }
 
-export const BLOCK_TYPES = Object.keys(META) as BlockType[]
+export const BLOCK_TYPES = (Object.keys(META) as BlockType[]).filter(type => type !== 'linkedSvg')
 
 export function blockMeta<T extends BlockType>(type: T): BlockMeta<T> {
   return META[type] as unknown as BlockMeta<T>
@@ -178,6 +180,11 @@ function imageRef(v: any) {
  * partial=true 时只返回传入的字段（用于 update）。
  */
 export function coerceProps<T extends BlockType>(type: T, raw: unknown, partial = false): Partial<BlockPropsMap[T]> {
+  if (type === 'linkedSvg') {
+    const value = raw && typeof raw === 'object' && Object.hasOwn(raw, 'scene') ? (raw as Record<string, unknown>).scene : null
+    const scene = decodeLinkedSvgScene(value)
+    return (partial && !scene ? {} : { scene }) as Partial<BlockPropsMap[T]>
+  }
   if (type === 'replay') return (partial && !(raw && typeof raw === 'object') ? {} : normalizeReplay(raw)) as Partial<BlockPropsMap[T]>
   const defaults = META[type].defaults() as Record<string, any>
   const src = raw && typeof raw === 'object' ? (raw as Record<string, any>) : {}
@@ -208,7 +215,7 @@ export function coerceProps<T extends BlockType>(type: T, raw: unknown, partial 
     else if (k === 'count') out[k] = Math.min(4, Math.max(2, Math.round(finiteNumber(v) ?? 0) || 2))
     else if (k === 'pics') out[k] = Array.isArray(v) ? v.slice(0, 30).map((x) => ({ ...(imageRef(x?.image) && { image: imageRef(x.image) }), caption: str(x?.caption) })) : d
     // 文本框不能嵌套：子模块里的文本框直接丢弃
-    else if (k === 'children') out[k] = normalizeBlocks(v).filter((c) => c.type !== 'box' && c.type !== 'replay')
+    else if (k === 'children') out[k] = normalizeBlocks(v).filter((c) => c.type !== 'box' && c.type !== 'replay' && c.type !== 'linkedSvg')
     else if (typeof d === 'string') out[k] = str(v)
     else out[k] = d
   }

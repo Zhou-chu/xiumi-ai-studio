@@ -3,13 +3,43 @@ import TextAlign from '@tiptap/extension-text-align'
 import { Color, TextStyle, FontFamily, FontSize } from '@tiptap/extension-text-style'
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { useEffect } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { TEXT_FONTS, TEXT_SIZES } from '../core/textTypography'
 import { toHex } from '../core/color'
 import './text-typography.css'
 import type { RichText, Theme } from '../core/types'
 
 const MIXED_FORMAT = '__mixed__'
+const COMMON_TEXT_COLORS = [
+  ['黑色', '#000000'], ['深灰', '#3f3f3f'], ['浅灰', '#888888'], ['白色', '#ffffff'],
+  ['红色', '#c0392b'], ['橙色', '#e67e22'], ['金色', '#d4a017'], ['绿色', '#27ae60'],
+  ['蓝色', '#2e86de'], ['深蓝', '#1f3a93'], ['紫色', '#8e44ad'], ['粉色', '#e84393'],
+] as const
+
+interface QuickColorsProps {
+  id: string
+  theme: Theme
+  active: string
+  onChoose: (color: string) => void
+  onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void
+}
+
+function QuickColors({ id, theme, active, onChoose, onKeyDown }: QuickColorsProps) {
+  const { primary, accent, text, muted } = theme.colors
+  const groups = [
+    ['主题色', [['主题主色', primary], ['主题强调色', accent], ['主题正文色', text], ['主题次要文字色', muted]]],
+    ['常用色', COMMON_TEXT_COLORS],
+  ] as const
+  return <div id={id} className="rich-color-palette">
+    {groups.map(([group, swatches]) => <div key={group} role="group" aria-label={group} className="rich-color-group">
+      <span>{group}</span>
+      {swatches.map(([label, color]) => <button key={label} type="button" title={label} aria-label={label}
+        aria-pressed={toHex(color) === active} onKeyDown={onKeyDown} onMouseDown={e => e.preventDefault()} onClick={() => onChoose(color)}>
+        <span aria-hidden="true" style={{ backgroundColor: color }} />
+      </button>)}
+    </div>)}
+  </div>
+}
 
 function typographyState(editor: Editor | null) {
   const active = editor?.getAttributes('textStyle')
@@ -49,6 +79,19 @@ interface Props {
 
 /** 正文模块的就地富文本编辑器（tiptap），以结构化 JSON 存储 */
 export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) {
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const paletteId = useId()
+  const paletteButton = useRef<HTMLButtonElement>(null)
+  const currentPaletteOpen = useRef(false)
+  useEffect(() => { currentPaletteOpen.current = paletteOpen }, [paletteOpen])
+  const dismissPalette = (event: Pick<KeyboardEvent, 'key' | 'preventDefault' | 'stopPropagation'>) => {
+    if (event.key !== 'Escape' || !currentPaletteOpen.current) return false
+    event.preventDefault()
+    event.stopPropagation()
+    setPaletteOpen(false)
+    paletteButton.current?.focus()
+    return true
+  }
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [3] }, codeBlock: false, code: false, horizontalRule: false, link: { openOnClick: false } }),
@@ -64,6 +107,7 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
     onUpdate: ({ editor }) => onChange(editor.getJSON() as RichText),
     editorProps: {
       handleKeyDown: (_v, e) => {
+        if (dismissPalette(e)) return true
         if (e.key === 'Escape') {
           onDone()
           return true
@@ -92,7 +136,7 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
   if (!editor) return null
   const c = theme.colors
   const btn = (label: string, active: boolean, run: () => void, title: string) => (
-    <button type="button" className={active ? 'on' : ''} title={title} aria-label={title} aria-pressed={active} onMouseDown={(e) => e.preventDefault()} onClick={run}>
+    <button type="button" className={active ? 'on' : ''} title={title} aria-label={title} aria-pressed={active} onKeyDown={dismissPalette} onMouseDown={(e) => e.preventDefault()} onClick={run}>
       {label}
     </button>
   )
@@ -101,7 +145,7 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
     <div className="rich-editor" onClick={(e) => e.stopPropagation()}>
       <div className="rich-toolbar" onKeyDown={(e) => e.stopPropagation()}>
         <label className="text-font-control">字体
-          <select aria-label="正文字体" value={st?.mixedFamily ? MIXED_FORMAT : st?.fontFamily ?? ''} onChange={(e) => {
+          <select aria-label="正文字体" onKeyDown={dismissPalette} value={st?.mixedFamily ? MIXED_FORMAT : st?.fontFamily ?? ''} onChange={(e) => {
             const value = e.target.value
             if (value !== MIXED_FORMAT) (value ? editor.chain().setFontFamily(value) : editor.chain().unsetFontFamily()).run()
           }}>
@@ -112,7 +156,7 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
           </select>
         </label>
         <label className="text-font-control">字号
-          <select aria-label="正文字号" value={st?.mixedSize ? MIXED_FORMAT : st?.fontSize ?? ''} onChange={(e) => {
+          <select aria-label="正文字号" onKeyDown={dismissPalette} value={st?.mixedSize ? MIXED_FORMAT : st?.fontSize ?? ''} onChange={(e) => {
             const value = e.target.value
             if (value !== MIXED_FORMAT) (value ? editor.chain().setFontSize(value) : editor.chain().unsetFontSize()).run()
           }}>
@@ -124,8 +168,13 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
         </label>
         <span className="text-font-hint">{st?.empty ? '未选中文字：应用于随后输入' : '仅调整选中文字'}</span>
         <span className="sep" />
-        <label className="text-font-control">文字颜色<input type="color" aria-label="正文文字颜色" value={toHex(st?.color ?? '') ?? '#222222'} onChange={e => editor.chain().setColor(e.target.value).run()} /></label>
+        <label className="text-font-control">文字颜色<input type="color" aria-label="正文文字颜色" onKeyDown={dismissPalette} value={toHex(st?.color ?? '') ?? '#222222'} onChange={e => editor.chain().setColor(e.target.value).run()} /></label>
         {btn('默认色', false, () => chain().unsetColor().run(), '恢复默认文字颜色')}
+        <button ref={paletteButton} type="button" aria-label="预设文字颜色" aria-expanded={paletteOpen}
+          aria-controls={paletteOpen ? paletteId : undefined} onKeyDown={dismissPalette} onMouseDown={e => e.preventDefault()}
+          onClick={() => setPaletteOpen(open => !open)}>色板</button>
+        {paletteOpen && <QuickColors id={paletteId} theme={theme} active={toHex(st?.color ?? '') ?? ''}
+          onKeyDown={dismissPalette} onChoose={color => { chain().setColor(color).run(); setPaletteOpen(false) }} />}
         {btn('B', st?.bold ?? false, () => chain().toggleBold().run(), '加粗（主题色）')}
         {btn('I', st?.italic ?? false, () => chain().toggleItalic().run(), '斜体')}
         {btn('U', st?.underline ?? false, () => chain().toggleUnderline().run(), '下划线')}
@@ -145,7 +194,7 @@ export function RichEditor({ value, theme, onChange, onDone, fontSize }: Props) 
           if (href) chain().setLink({ href }).run()
         }, '链接')}
         <span className="sep" />
-        <button type="button" className="done" onMouseDown={(e) => e.preventDefault()} onClick={onDone}>完成</button>
+        <button type="button" className="done" onKeyDown={dismissPalette} onMouseDown={(e) => e.preventDefault()} onClick={onDone}>完成</button>
       </div>
       <EditorContent
         editor={editor}
