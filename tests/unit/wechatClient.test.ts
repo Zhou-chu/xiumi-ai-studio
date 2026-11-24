@@ -41,6 +41,24 @@ describe('WeChat client boundaries with no real credentials or network',()=>{
     const file=mediaForm.get('media') as File;expect(file.name).toBe('image.png');expect(file.type).toBe('image/png')
     expect(JSON.parse(fakeFetch.mock.calls[0][1].body)).toMatchObject({grant_type:'client_credential',force_refresh:false})
   })
+  it('upgrades fresh HTTP body image URLs before returning and caching them',async()=>{
+    fakeFetch.mockResolvedValueOnce(response({access_token:'unit-token',expires_in:7200}))
+      .mockResolvedValueOnce(response({url:'http://mmbiz.qpic.cn/image?format=png'}))
+    expect(await wx.uploadContentImage('fresh','fake-file')).toBe('https://mmbiz.qpic.cn/image?format=png')
+    expect(storage.writeJson).toHaveBeenCalledWith(expect.any(String),{
+      images:{fresh:'https://mmbiz.qpic.cn/image?format=png'},covers:{},
+    })
+    expect(fakeFetch).toHaveBeenCalledTimes(2)
+  })
+  it('upgrades cached HTTP body images without network, credentials, or cache writes',async()=>{
+    vi.stubEnv('WECHAT_APPID','');vi.stubEnv('WECHAT_APPSECRET','')
+    storage.value={images:{old:'http://mmbiz.qpic.cn/image',existing:'https://mmbiz.qpic.cn/unchanged'},covers:{}}
+    expect(await wx.uploadContentImage('old','fake-file')).toBe('https://mmbiz.qpic.cn/image')
+    expect(await wx.uploadContentImage('existing','fake-file')).toBe('https://mmbiz.qpic.cn/unchanged')
+    expect(fakeFetch).not.toHaveBeenCalled()
+    expect(storage.wechatReady).not.toHaveBeenCalled()
+    expect(storage.writeJson).not.toHaveBeenCalled()
+  })
   it.each([40001,42001])('refreshes an expired token once for error %s',async errcode=>{
     fakeFetch.mockResolvedValueOnce(response({access_token:'unit-token-1',expires_in:7200}))
       .mockResolvedValueOnce(response({errcode}))
